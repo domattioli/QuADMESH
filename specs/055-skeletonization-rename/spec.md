@@ -2,7 +2,7 @@
 
 **Feature Branch**: `daily-maintenance`
 **Created**: 2026-05-31
-**Status**: Spec (rename pass pending; `compute_mesh_structure` API already landed in spec 004)
+**Status**: Complete (rename pass done, skeleton implemented per operator 2026-05-30 definition)
 **Input**: Issue #55: "medial axis, layers, and skeleton are all similar but different. i think skeleton for a mesh should be defined/derived in the same way it is for an image. we need to create a unifying function that computes all three of these and the user can designate which with an input."
 **Cross-ref**: `specs/004-unified-mesh-structure/spec.md` (API already implemented; this spec covers the rename sweep and remaining research tasks)
 
@@ -58,32 +58,35 @@ If CHILmesh exposes `_skeletonize`, keep the name (it is their API, not ours to 
 
 ---
 
-## Research Section — Skeleton Definition (concept scoping)
+## Research Section — Skeleton Definition
 
-The operator wants the image-style skeleton. Key distinctions:
+**Operator clarification (2026-05-30 comment on #55):**
+> "Repeat the layers process (peeling, storing the elements that are peeled with each iteration), until you end up with a skeleton that can't be peeled anymore. Then we can explore whether starting with the skeleton or medial axis elements has any benefit over starting w the Nth layer."
+
+This is the **morphological skeleton** definition — identical to the CHILmesh `_skeletonize()` layer-peeling algorithm, not image-style distance-transform thinning.
+
+Key distinctions (updated):
 
 | Concept | Definition | Input | Output |
 |---|---|---|---|
-| **Layers** | CHILmesh concentric ring decomposition (innermost to outermost edges + vertices) | CHILmesh mesh object | `LayerState` (OE/IE/OV/IV lists per ring) |
-| **Medial axis** | Locus of centres of maximal inscribed circles; continuous geometry-defined structure | Domain polygon | Node/edge graph (interior Voronoi ridges of densified boundary) — **shipped** |
-| **Skeleton (image-style)** | Ridge of the distance-transform of the rasterized domain; found by morphological thinning | Domain polygon + pixel resolution `h` | Set of 1-pixel-wide curves, mapped back to mesh coordinates |
+| **Layers** | CHILmesh concentric ring decomposition; layer 0 = outermost, N-1 = innermost | CHILmesh domain | `LayerState` (OE/IE/OV/IV lists per ring) |
+| **Skeleton** | Same layer decomposition + `skeleton_core` exposing the innermost irreducible layer | CHILmesh domain | `MeshStructure(kind="skeleton")` with `skeleton_core`, `skeleton_core_verts` properties — **shipped** |
+| **Medial axis** | Locus of centres of maximal inscribed circles; Voronoi interior ridges approximation | Domain polygon | Node/edge graph — **shipped** |
 
-### Skeleton implementation plan (future session)
+### Skeleton implementation (shipped 2026-06-01, spec 055)
 
-1. Rasterize domain polygon at pixel size ≈ `median_edge_length / 4`.
-2. Compute 2D Euclidean distance transform (`scipy.ndimage.distance_transform_edt`).
-3. Apply morphological thinning (`skimage.morphology.skeletonize` on the binary domain mask).
-4. Extract skeleton pixels, convert to `(x, y)` coordinates.
-5. Return `MeshStructure(kind="skeleton", nodes=..., edges=...)` — same shape as `medial_axis`.
-
-**Open question for operator**: should the skeleton resolution follow the mesh's local `h(x,y)` size function, or use a fixed pixel scale? Fixed scale is simpler; `h`-adaptive requires a varying-resolution rasterization.
+`compute_mesh_structure(domain, kind="skeleton")` returns:
+- Full layer decomposition in `layers` attribute (layer 0 = outermost-peeled, N-1 = core)
+- `skeleton_core` → `(OE[-1], IE[-1])` — elements of the irreducible innermost layer
+- `skeleton_core_verts` → `(OV[-1], IV[-1])` — vertices of the irreducible innermost layer
 
 ### Skeleton-vs-layers comparison harness (future session)
 
-The operator also wants to quantify differences between structure-guided and layer-guided tri selection in `identify_edges`. Plan:
-1. Run `identify_edges` normally (layer-driven).
-2. For the same domain, derive an ordering from the skeleton / medial axis (by projecting each triangle's centroid onto the nearest skeleton branch and sorting by distance from domain centre).
-3. Compare: which tris are matched, in which order, and what is the resulting quad quality?
+The operator wants to quantify whether starting tri→quad from the skeleton core (innermost layer)
+vs the outermost layer changes quad quality. Plan:
+1. Run `identify_edges` / tri2quad starting from layer N-1 (skeleton core) vs layer 0 (outermost).
+2. Compare: which tris are matched, in which order, what is the resulting quad quality?
+3. Compare against medial_axis as a starting-point guide (project tri centroids onto nearest medial branch).
 
 Prior art may exist in `domattioli/madmeshing` — check before implementing.
 
@@ -94,9 +97,8 @@ Prior art may exist in `domattioli/madmeshing` — check before implementing.
 | Test | File | Trigger |
 |---|---|---|
 | Docstring-only tests (none) | — | Rename is doc-only; no new functional tests needed |
-| Existing: `test_mesh_structure.py::test_skeleton_not_implemented` | `tests/test_mesh_structure.py` | Must still pass after error message update |
 | Existing: `test_layer_state.py` (all) | `tests/test_layer_state.py` | Must pass — no functional change |
-| Future: `test_skeleton` | `tests/test_mesh_structure.py` | Add when `kind="skeleton"` is implemented |
+| Skeleton tests (6) | `tests/test_mesh_structure.py` | Added 2026-06-01; all pass |
 | Future: `test_skeleton_vs_layers_comparison` | `tests/test_mesh_structure.py` | Add when comparison harness is built |
 
 Run: `pytest tests/test_mesh_structure.py tests/test_layer_state.py -v`
@@ -105,13 +107,13 @@ Run: `pytest tests/test_mesh_structure.py tests/test_layer_state.py -v`
 
 ## Success Criteria
 
-- **SC-001**: `grep -rn "skeletonization" src/` returns no results that refer to "layers" (only legitimate references to CHILmesh's internal method name are allowed).
-- **SC-002**: `pytest tests/` green.
-- **SC-003**: `kind="skeleton"` error message references `#55` / this spec.
-- **SC-004**: The `_skeletonize` validator branch is documented with a comment explaining it calls CHILmesh's layer-computation API.
+- **SC-001**: `grep -rn "skeletonization" src/` returns no results that refer to "layers" (only legitimate references to CHILmesh's internal method name are allowed). ✓ DONE
+- **SC-002**: `pytest tests/` green. ✓ DONE (65 tests, 2026-06-01)
+- **SC-003**: `kind="skeleton"` now implemented (not NotImplementedError). ✓ DONE
+- **SC-004**: The `_skeletonize` validator branch is documented with a comment explaining it calls CHILmesh's layer-computation API. ✓ DONE
 
 ## Assumptions
 
 - CHILmesh's method `_skeletonize` is their canonical name for layer computation and should not be renamed here.
-- The rename is docstring/comment level only for this increment — no functional behaviour changes.
-- Skeleton implementation (image-style) is deferred pending operator input on pixel resolution strategy.
+- Skeleton = morphological skeleton via CHILmesh layer peeling (operator 2026-05-30). Image-style impl deferred indefinitely.
+- Skeleton-vs-layers comparison harness is future work.

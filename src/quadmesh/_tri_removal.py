@@ -200,7 +200,8 @@ def _ccw_tri(tri: np.ndarray, points: np.ndarray) -> np.ndarray:
 
 
 def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
-                         consumed_tri_id: int) -> Optional[int]:
+                         consumed_tri_id: int,
+                         work: Optional["WorkingMesh"] = None) -> Optional[int]:
     """Split the iLayer-1 tri sharing ``edge_id`` at midpoint ``np_id``.
 
     MATLAB ``edgeBisection`` Case 2 (``edgeBisection.m:47-79``). When
@@ -213,6 +214,11 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
     neighbour's apex joined to ``np_id`` — exactly what MATLAB's
     ``delaunayTriangulation([opp_conn, np_id])`` yields once its degenerate
     collinear tri is dropped, so we build the two tris directly (no Delaunay).
+
+    ``work`` must be supplied when ``np_id`` >= ``domain.points.shape[0]``
+    (i.e. the midpoint is buffered in ``work._extra_pts``, not yet flushed to
+    ``domain.points``). If supplied, a combined points array is used for the
+    CCW orientation check.
 
     Returns the appended element id, or ``None`` if ``edge_id`` has no opposite
     tri (a true mesh-boundary edge) or the neighbour is not a clean triangle.
@@ -230,8 +236,16 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
         return None  # opp already consumed / not a tri on this edge.
     apex = apex[0]
 
-    tri1 = _ccw_tri(np.array([apex, v_a, np_id], dtype=int), domain.points)
-    tri2 = _ccw_tri(np.array([apex, np_id, v_b], dtype=int), domain.points)
+    # Build combined points array: domain.points + any buffered new points.
+    # np_id may exceed domain.points length when the midpoint is buffered in work.
+    if work is not None and np_id >= domain.points.shape[0]:
+        extra = np.stack(work._extra_pts) if work._extra_pts else np.empty((0, 3))
+        pts = np.vstack([domain.points, extra])
+    else:
+        pts = domain.points
+
+    tri1 = _ccw_tri(np.array([apex, v_a, np_id], dtype=int), pts)
+    tri2 = _ccw_tri(np.array([apex, np_id, v_b], dtype=int), pts)
 
     width = domain.connectivity_list.shape[1]
     domain.connectivity_list[opp_id, :3] = tri1
@@ -327,7 +341,7 @@ def route_leftover_tri(
         eid = int(edge_ids[bdy_edges_local[0]])
         np_id = edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
         if np_id is not None:
-            _split_opposing_tri(domain, eid, np_id, tri_elem_id)
+            _split_opposing_tri(domain, eid, np_id, tri_elem_id, work)
     elif on_mesh_boundary and n_bdy == 0:
         if bdy_verts_in_tri:
             edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
