@@ -1,0 +1,55 @@
+name: Bug Report
+description: Something isn't working correctly
+labels: ["type: bug", "status: ready", "priority: normal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill out the sections below.
+  - type: input
+    id: affected-skill
+    attributes:
+      label: Affected skill or component
+      description: Which skill, plugin, or script is broken?
+      placeholder: "e.g. send-email, scripts/instructions_on_start.sh"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. Include error messages.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `bash scripts/...`
+        2. Observe error...
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: "Informational — maintainer applies the label. Default: `priority: normal`."
+      options:
+        - "now"
+        - "normal"
+        - "someday"
+      default: 1
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "OS, Claude Code version, repo branch"

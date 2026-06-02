@@ -1,0 +1,37 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+labels: ["type: feat", "status: ready", "priority: normal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for general features. For new skills specifically, use the "Skill Request" template.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve? Who is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: "Informational — `priority: normal` applied by default. Maintainer adjusts label if `now` or `someday` selected."
+      options:
+        - "now"
+        - "normal"
+        - "someday"
+      default: 1
+    validations:
+      required: true
