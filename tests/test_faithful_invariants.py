@@ -29,7 +29,10 @@ def _boundary_edges(conn):
         verts = [int(v) for v in row if v >= 0]
         n = len(verts)
         for i in range(n):
-            e = tuple(sorted([verts[i], verts[(i+1) % n]]))
+            a, b = verts[i], verts[(i+1) % n]
+            if a == b:  # skip padded-triangle self-loops
+                continue
+            e = tuple(sorted([a, b]))
             cnt[e] += 1
     return {e for e, c in cnt.items() if c == 1}
 
@@ -52,7 +55,10 @@ def test_conforming(domain):
         verts = [int(v) for v in row if v >= 0]
         n = len(verts)
         for i in range(n):
-            e = tuple(sorted([verts[i], verts[(i+1) % n]]))
+            a, b = verts[i], verts[(i+1) % n]
+            if a == b:  # skip padded-triangle self-loops
+                continue
+            e = tuple(sorted([a, b]))
             cnt[e] += 1
     violations = [(e, c) for e, c in cnt.items() if c > 2]
     assert not violations, f"Non-conforming edges: {violations[:5]}"
