@@ -8,7 +8,7 @@ Status: `method="matching"` has zero interior tris by construction (faithful on 
 
 ## Routine
 
-Routine lives in `DomI/claude_routine_instructions.md` (private). Textbox payload format + per-repo profile knobs in §6–§7 there. Do not duplicate routine prose here.
+Routine lives in `DomI/claude_routine_instructions.md` (private). Textbox payload format + per-repo profile knobs in §6–7 there. Do not duplicate routine prose here.
 
 ## Branch rule
 
@@ -25,7 +25,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
 - `specs/001-matlab-to-python-port/`, `specs/003-root-reorg/` — speckit spec/plan/tasks.
-- `src/matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
+- `matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
 - `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
 - `videos/` — README demo assets.
 
@@ -53,6 +53,20 @@ python -m quadmesh.cli <input.14> -o <out.14>
 **End of session**: invoke `handoff` skill from DomI upstream to write `docs/sessions/session-NNN.md` (next N) with: what changed, key decisions, files touched, what comes next, branch/PR state, open chilmesh issues. If skill not yet available upstream, do the equivalent manually.
 
 DomI skill names tracked; replace manual prose with skill invocation once landed.
+
+## Repo-local labels (issue #20 triage 2026-06-03)
+
+These labels have no DomI canonical equivalent — kept repo-local by operator decision.
+
+| Label | Meaning | Decision |
+|---|---|---|
+| `downstream-api` | Tracks needed CHILmesh API changes that QuADMESH requires | repo-local keep |
+
+Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
+- `brainstorm` → migrate to `status: brainstorming`
+- `domi-sync` → delete (not promoted to DomI canon)
+- `investigation` → migrate to `request: research`
+- `literature-review` → migrate to `request: research`
 
 ## Coding dispatch — Haiku subagent default
 
