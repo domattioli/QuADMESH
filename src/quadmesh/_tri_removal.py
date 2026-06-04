@@ -215,11 +215,6 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
     ``delaunayTriangulation([opp_conn, np_id])`` yields once its degenerate
     collinear tri is dropped, so we build the two tris directly (no Delaunay).
 
-    ``work`` must be supplied when ``np_id`` >= ``domain.points.shape[0]``
-    (i.e. the midpoint is buffered in ``work._extra_pts``, not yet flushed to
-    ``domain.points``). If supplied, a combined points array is used for the
-    CCW orientation check.
-
     Returns the appended element id, or ``None`` if ``edge_id`` has no opposite
     tri (a true mesh-boundary edge) or the neighbour is not a clean triangle.
     """
@@ -236,14 +231,11 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
         return None  # opp already consumed / not a tri on this edge.
     apex = apex[0]
 
-    # Build combined points array: domain.points + any buffered new points.
-    # np_id may exceed domain.points length when the midpoint is buffered in work.
-    if work is not None and np_id >= domain.points.shape[0]:
-        extra = np.stack(work._extra_pts) if work._extra_pts else np.empty((0, 3))
-        pts = np.vstack([domain.points, extra])
-    else:
-        pts = domain.points
+    # Skip if midpoint not yet flushed to domain.points (orphan tris in consumed layers).
+    if np_id >= domain.points.shape[0]:
+        return None
 
+    pts = domain.points
     tri1 = _ccw_tri(np.array([apex, v_a, np_id], dtype=int), pts)
     tri2 = _ccw_tri(np.array([apex, np_id, v_b], dtype=int), pts)
 
