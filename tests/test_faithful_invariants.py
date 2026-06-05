@@ -19,7 +19,7 @@ def domain(request):
 
 def _run_faithful(domain):
     from quadmesh.tri2quad import tri2quad_routine
-    return tri2quad_routine(domain, can_remove_edges=False, method="faithful")
+    return tri2quad_routine(domain, can_remove_edges=False, method="layered")
 
 
 def _boundary_edges(conn):

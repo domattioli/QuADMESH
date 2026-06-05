@@ -68,8 +68,8 @@ def compute_stages():
     for k in range(len(m_tri.Layers["OE"])):
         for e in list(m_tri.Layers["OE"][k]) + list(m_tri.Layers["IE"][k]):
             elem_layer[e] = k
-    m_quad = tri2quad(m_tri, method="faithful")
-    m_post = run_pipeline(m_tri, method="faithful", n_smooth_iter=12)
+    m_quad = tri2quad(m_tri, method="layered")
+    m_post = run_pipeline(m_tri, method="layered", n_smooth_iter=12)
     q_pre = m_quad.elem_quality()[0]
     q_post = m_post.elem_quality()[0]
     return {

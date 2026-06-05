@@ -35,8 +35,9 @@ def run_pipeline(
         do_post_process: If False, skip post-process (raw tri2quad output).
         max_outer_iter: Outer loop cap in post_process_routine.
         max_inner_iter: Inner loop cap (doublet + QVM) in post_process_routine.
-        method: tri2quad pairing method — ``"faithful"`` (default) or
-            ``"faithful"`` (layer-ordered sweep, quad-pure output).
+        method: tri2quad pairing method — ``"matching"`` (default, fast global
+            interior-saturating) or ``"layered"`` (layer-ordered sweep,
+            quad-pure output).
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
 
