@@ -231,8 +231,12 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
         return None  # opp already consumed / not a tri on this edge.
     apex = apex[0]
 
-    # Skip if midpoint not yet flushed to domain.points (orphan tris in consumed layers).
-    if np_id >= domain.points.shape[0]:
+    # #81: every id _ccw_tri indexes into domain.points must be resolvable.
+    # np_id buffered in WorkingMesh is not flushed until the sweep ends, and a
+    # prior split can leave apex/v_a/v_b pointing past the current point store.
+    # Skip (leave the tri for the deferred pass) rather than index out of bounds.
+    n_pts = domain.points.shape[0]
+    if any(int(v) >= n_pts for v in (apex, v_a, v_b, np_id)):
         return None
 
     pts = domain.points

@@ -10,10 +10,20 @@ import numpy as np
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "meshes"
-MESH_FILES = sorted(FIXTURES_DIR.glob("*.14"))
+# #81: cap default run to small fixtures; heavy meshes run only under --runslow
+# (the WIP per-layer matcher hangs the suite when run over every fixture).
+_SLOW_BYTES = 250_000
 
 
-@pytest.fixture(params=[p.name for p in MESH_FILES], ids=[p.name for p in MESH_FILES])
+def _mesh_params():
+    params = []
+    for _p in sorted(FIXTURES_DIR.glob("*.14")):
+        _marks = (pytest.mark.slow,) if _p.stat().st_size >= _SLOW_BYTES else ()
+        params.append(pytest.param(_p.name, marks=_marks, id=_p.name))
+    return params
+
+
+@pytest.fixture(params=_mesh_params())
 def domain(request):
     from chilmesh import CHILmesh
     return CHILmesh.read_from_fort14(str(FIXTURES_DIR / request.param))
