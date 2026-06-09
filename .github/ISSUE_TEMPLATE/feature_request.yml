@@ -1,11 +1,12 @@
 name: Feature Request
-description: Propose a new feature or enhancement
-labels: ["type: feat", "status: ready", "priority: normal"]
+description: Propose a new feature or enhancement to QuADMESH
+title: "feat: "
+labels: ["type: feat", "priority: normal", "status: triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this for general features. For new skills specifically, use the "Skill Request" template.
+        Use this for new functionality or enhancements. For bugs, use the Bug Report template.
   - type: textarea
     id: problem
     attributes:
@@ -17,6 +18,7 @@ body:
     id: proposed-solution
     attributes:
       label: Proposed solution
+      description: Sketch the API and/or implementation approach.
     validations:
       required: true
   - type: textarea
@@ -24,10 +26,22 @@ body:
     attributes:
       label: Alternatives considered
   - type: dropdown
+    id: downstream-impact
+    attributes:
+      label: Downstream impact
+      description: Does this change affect a known downstream consumer?
+      options:
+        - "none"
+        - "MADMESHing"
+        - "ADMESH"
+        - "ADMESH-Domains"
+        - "multiple"
+    validations:
+      required: true
+  - type: dropdown
     id: priority
     attributes:
       label: Priority
-      description: "Informational — `priority: normal` applied by default. Maintainer adjusts label if `now` or `someday` selected."
       options:
         - "now"
         - "normal"
@@ -35,3 +49,8 @@ body:
       default: 1
     validations:
       required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: Related issues, PRs, or design docs
+      placeholder: "e.g. #12, specs/001-..."
