@@ -7,7 +7,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `00_Main/Main.m` | `cli.py` + `pipeline.run_pipeline` | done |
 | `01_Create_Quad_Domain/createQuadDomain.m` | `create_quad_domain` | done (polygon mode) |
 | `01_Create_Quad_Domain/drawSubdomain.m` | - | skip (GUI) |
-| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done — faithful per-layer loop (`method="faithful"`) mirrors MATLAB; `method="matching"` fast fallback |
+| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done — layer-ordered per-layer sweep (`method="layered"`, MATLAB-faithful; `"faithful"` deprecated alias) mirrors MATLAB; `method="matching"` fast fallback |
 | `02_Tri2Quad_Routine/identifyEdgesFun.m` | - | skip (superseded by v2) |
 | `02_Tri2Quad_Routine/identifyEdgesFun_v2.m` | `identify_edges.identify_edges_in_layer` | done |
 | `02_Tri2Quad_Routine/mergeTrianglesFun.m` | `_topology.merge_tri_pairs` | done |

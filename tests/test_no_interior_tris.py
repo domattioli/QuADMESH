@@ -128,7 +128,7 @@ def test_tri2quad_faithful_path(fixture_name):
     if not path.exists():
         pytest.skip(f"fixture missing: {path}")
     mesh = CHILmesh.read_from_fort14(path)
-    q = tri2quad(mesh, method="faithful")
+    q = tri2quad(mesh, method="layered")
     assert _interior_tri_count(q) == 0, (
         f"{fixture_name}: faithful path left interior residual tris — NOT faithful"
     )
@@ -156,7 +156,7 @@ def test_faithful_preserves_original_boundary_vertices(fixture_name):
             ecount[e] = ecount.get(e, 0) + 1
     bverts = {v for e, c in ecount.items() if c == 1 for v in e}
 
-    q = tri2quad(mesh, method="faithful")
+    q = tri2quad(mesh, method="layered")
     out = {tuple(np.round(p, 6)) for p in q.points[:, :2]}
     missing = [v for v in bverts if tuple(np.round(P_in[v], 6)) not in out]
     assert not missing, (
@@ -178,3 +178,19 @@ def test_tri2quad_conforming_and_valid():
         for e in _edges(_normalize(row)):
             count[e] = count.get(e, 0) + 1
     assert max(count.values()) <= 2, "non-conforming edge shared by >2 elements"
+
+
+def test_faithful_alias_deprecation_warns():
+    """method='faithful' is a deprecated alias for 'layered' — still works, warns."""
+    import warnings as _w
+    path = FIXTURE_DIR / "Test_Case_1.14"
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    with _w.catch_warnings(record=True) as rec:
+        _w.simplefilter("always")
+        q = tri2quad(mesh, method="faithful")
+    assert any(issubclass(r.category, DeprecationWarning) for r in rec), (
+        "method='faithful' should emit DeprecationWarning"
+    )
+    assert _tri_count(q) == 0, "faithful alias must still produce quad-pure output"

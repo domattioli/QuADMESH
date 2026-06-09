@@ -2,7 +2,7 @@
 
 Covers the unified entrypoint for mesh structure selection: layers (implemented),
 medial_axis (implemented via Voronoi-of-boundary interior ridges),
-skeleton (not yet implemented, raises NotImplementedError).
+skeleton (implemented via morphological CHILmesh layer peeling).
 """
 
 from __future__ import annotations
@@ -45,10 +45,50 @@ def test_layers_snapshot_is_independent(test_case_1):
     assert after_len == before_len
 
 
-def test_skeleton_not_implemented(test_case_1):
-    """kind='skeleton' raises NotImplementedError."""
-    with pytest.raises(NotImplementedError):
-        compute_mesh_structure(test_case_1, kind="skeleton")
+def test_skeleton_returns_meshstructure(test_case_1):
+    """kind='skeleton' returns MeshStructure; morphological layer peeling."""
+    ms = compute_mesh_structure(test_case_1, kind="skeleton")
+    assert isinstance(ms, MeshStructure)
+    assert ms.kind == "skeleton"
+
+
+def test_skeleton_has_layers(test_case_1):
+    """Skeleton exposes full layer decomposition (outermost->innermost)."""
+    ms = compute_mesh_structure(test_case_1, kind="skeleton")
+    assert ms.layers is not None
+    assert ms.n_layers > 0
+    assert ms.layers.n_layers == ms.n_layers
+
+
+def test_skeleton_core_returns_innermost_elements(test_case_1):
+    """skeleton_core returns OE[-1], IE[-1] — irreducible core elements."""
+    ms = compute_mesh_structure(test_case_1, kind="skeleton")
+    oe, ie = ms.skeleton_core
+    assert isinstance(oe, np.ndarray)
+    assert isinstance(ie, np.ndarray)
+
+
+def test_skeleton_core_verts_returns_innermost_verts(test_case_1):
+    """skeleton_core_verts returns OV[-1], IV[-1] — irreducible core vertices."""
+    ms = compute_mesh_structure(test_case_1, kind="skeleton")
+    ov, iv = ms.skeleton_core_verts
+    assert isinstance(ov, np.ndarray)
+    assert isinstance(iv, np.ndarray)
+
+
+def test_skeleton_core_raises_on_non_skeleton(test_case_1):
+    """skeleton_core raises AttributeError when kind != 'skeleton'."""
+    ms = compute_mesh_structure(test_case_1, kind="layers")
+    with pytest.raises(AttributeError):
+        _ = ms.skeleton_core
+
+
+def test_skeleton_snapshot_is_independent(test_case_1):
+    """Skeleton LayerState is a deep copy; mutations don't touch domain.layers."""
+    ms = compute_mesh_structure(test_case_1, kind="skeleton")
+    before_len = len(test_case_1.layers["OE"][0])
+    ms.layers.OE[0] = np.array([])
+    assert len(test_case_1.layers["OE"][0]) == before_len
 
 
 def test_invalid_kind_raises_valueerror(test_case_1):

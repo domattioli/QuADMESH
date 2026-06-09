@@ -4,17 +4,19 @@
 
 Interior residual triangle (tri with NO domain-boundary edge) after tri2quad = **NOT a faithful QuADMESH+ implementation**. Zero interior tris is mandatory — a properly-implemented QuADMESH+ never leaves one. Only **boundary** tris may remain (thesis minimizes even those; ≤1 typical). Pinned by `tests/test_no_interior_tris.py`.
 
-Status: `method="matching"` has zero interior tris by construction (faithful on this axis). `method="faithful"` per-layer loop (T020/T004) now implemented — zero interior tris confirmed, quality 0.375→0.573 on Test_Case_1. **Still WIP** — Ch 4 IE-before-OE interior heuristics (T017) and boundary-layer OE-before-IE + walkability pre-pass (T018) are not yet implemented; until those land, `method="faithful"` must not be made default.
+Status: `method="matching"` has zero interior tris by construction (faithful on this axis). `method="layered"` (layer-ordered per-layer loop, T020/T004; `"faithful"` is a deprecated alias kept for back-compat through v0.2) now implemented — zero interior tris confirmed, quality 0.375→0.573 on Test_Case_1. **Still WIP** — Ch 4 IE-before-OE interior heuristics (T017) and boundary-layer OE-before-IE + walkability pre-pass (T018) are not yet implemented; until those land, `method="layered"` must not be made default.
+
+> Naming note: `"faithful"` named a *philosophy* (faithful MATLAB port), not the mechanism — a category error next to `"matching"` (which names its mechanism). Renamed to `"layered"` (the layer-ordered sweep). The word "faithful" still describes port *fidelity* throughout the code; only the `method=` input value changed.
 
 ## Routine
 
-Routine lives in `DomI/claude_routine_instructions.md` (private). Textbox payload format + per-repo profile knobs in §6–§7 there. Do not duplicate routine prose here.
+Routine lives in `DomI/claude_routine_instructions.md` (private). Textbox payload format + per-repo profile knobs in §6–7 there. Do not duplicate routine prose here.
 
 ## Branch rule
 
-All ongoing work goes on `daily-maintenance` (renamed from the deprecated `daily-issue-fixing`). Do not push to `master`/`main` directly. Do not push to historical branches (`python-porting-project`, `claude/affectionate-heisenberg-prShD`, `claude/awesome-goodall-cqPYK`, `claude/awesome-goodall-Tbur3`).
+All ongoing work goes on `development` (the long-lived staging branch per DomI `branching.md`; supersedes the deprecated `daily-maintenance`, itself renamed from `daily-issue-fixing`). Do not push to `master`/`main` directly — promotion to `main` is via PR `development → main` only. Do not push to historical branches (`daily-maintenance`, `python-porting-project`, `claude/affectionate-heisenberg-prShD`, `claude/awesome-goodall-cqPYK`, `claude/awesome-goodall-Tbur3`).
 
-New session branches discouraged — work directly on `daily-maintenance`, PR → `main`. `branch_guard.sh` (DomI plugin) blocks non-allowlisted names.
+New session branches discouraged — work directly on `development`, PR → `main`. `branch_guard.sh` (DomI plugin) blocks non-allowlisted names.
 
 ## Layout
 
@@ -53,6 +55,20 @@ python -m quadmesh.cli <input.14> -o <out.14>
 **End of session**: invoke `handoff` skill from DomI upstream to write `docs/sessions/session-NNN.md` (next N) with: what changed, key decisions, files touched, what comes next, branch/PR state, open chilmesh issues. If skill not yet available upstream, do the equivalent manually.
 
 DomI skill names tracked; replace manual prose with skill invocation once landed.
+
+## Repo-local labels (issue #20 triage 2026-06-03)
+
+These labels have no DomI canonical equivalent — kept repo-local by operator decision.
+
+| Label | Meaning | Decision |
+|---|---|---|
+| `downstream-api` | Tracks needed CHILmesh API changes that QuADMESH requires | repo-local keep |
+
+Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
+- `brainstorm` → migrate to `status: brainstorming`
+- `domi-sync` → delete (not promoted to DomI canon)
+- `investigation` → migrate to `request: research`
+- `literature-review` → migrate to `request: research`
 
 ## Coding dispatch — Haiku subagent default
 

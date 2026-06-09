@@ -67,8 +67,8 @@ def compute_stages():
 
     # Faithful path: layer-ordered sweep + interior saturation -> quad-pure
     # (zero interior tris, residual boundary tris cleared by point insertion).
-    m_quad = tri2quad(m_tri, method="faithful")
-    m_post = run_pipeline(m_tri, method="faithful", n_smooth_iter=12)
+    m_quad = tri2quad(m_tri, method="layered")
+    m_post = run_pipeline(m_tri, method="layered", n_smooth_iter=12)
 
     q_pre = m_quad.elem_quality()[0]
     q_post = m_post.elem_quality()[0]

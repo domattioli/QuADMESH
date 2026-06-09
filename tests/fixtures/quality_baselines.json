@@ -1,0 +1,9 @@
+{
+  "_comment": "Quality baselines for regression tests. mean_quality_floor = minimum acceptable mean element quality after tri2quad + post_process(n_smooth_iter). Established 2026-06-03 on QuADMesh HEAD (pure-Python CHILmesh; C++ ext not compiled). Tighten once C++ backend available.",
+  "Test_Case_1.14|matching|3": {"mean_quality_floor": 0.739, "tolerance": 0.05, "n_elems_out": 1083},
+  "Test_Case_1.14|layered|3": {"mean_quality_floor": 0.50, "tolerance": 0.10, "n_elems_out": null, "_note": "layered (formerly 'faithful') WIP per CLAUDE.md; CLAUDE.md reports 0.573 post-process. Floor set conservatively."},
+  "Test_Case_2.14|matching|3": {"mean_quality_floor": 0.73, "tolerance": 0.05, "n_elems_out": 1525},
+  "Test_Case_2.14|layered|3": {"mean_quality_floor": 0.10, "tolerance": 0.10, "n_elems_out": 2698, "_note": "layered (formerly 'faithful') WIP; measured 0.1798 on 2026-06-05 HEAD. Floor set conservatively."},
+  "Block_O.14|matching|3": {"mean_quality_floor": 0.744, "tolerance": 0.05, "n_elems_out": 2349},
+  "WNAT_Hagen.14|matching|3": {"mean_quality_floor": 0.60, "tolerance": 0.10, "n_elems_out": null, "_note": "slow — runslow only. Floor TBD; set conservatively."}
+}

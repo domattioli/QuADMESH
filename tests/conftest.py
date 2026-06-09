@@ -38,3 +38,21 @@ def mixed_test() -> CHILmesh:
 def _block_o() -> CHILmesh:
     """Block_O fixture for parity scaffold (test_parity.py)."""
     return _load("Block_O.14")
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="Run tests marked @pytest.mark.slow (large meshes, slow algorithms).",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--runslow"):
+        return
+    skip_slow = pytest.mark.skip(reason="Pass --runslow to run slow tests")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)

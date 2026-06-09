@@ -28,3 +28,8 @@ quadmesh = "quadmesh.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["quadmesh*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"', or skip unless --runslow)",
+]

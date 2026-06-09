@@ -200,7 +200,8 @@ def _ccw_tri(tri: np.ndarray, points: np.ndarray) -> np.ndarray:
 
 
 def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
-                         consumed_tri_id: int) -> Optional[int]:
+                         consumed_tri_id: int,
+                         work: Optional["WorkingMesh"] = None) -> Optional[int]:
     """Split the iLayer-1 tri sharing ``edge_id`` at midpoint ``np_id``.
 
     MATLAB ``edgeBisection`` Case 2 (``edgeBisection.m:47-79``). When
@@ -230,8 +231,17 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
         return None  # opp already consumed / not a tri on this edge.
     apex = apex[0]
 
-    tri1 = _ccw_tri(np.array([apex, v_a, np_id], dtype=int), domain.points)
-    tri2 = _ccw_tri(np.array([apex, np_id, v_b], dtype=int), domain.points)
+    # #81: every id _ccw_tri indexes into domain.points must be resolvable.
+    # np_id buffered in WorkingMesh is not flushed until the sweep ends, and a
+    # prior split can leave apex/v_a/v_b pointing past the current point store.
+    # Skip (leave the tri for the deferred pass) rather than index out of bounds.
+    n_pts = domain.points.shape[0]
+    if any(int(v) >= n_pts for v in (apex, v_a, v_b, np_id)):
+        return None
+
+    pts = domain.points
+    tri1 = _ccw_tri(np.array([apex, v_a, np_id], dtype=int), pts)
+    tri2 = _ccw_tri(np.array([apex, np_id, v_b], dtype=int), pts)
 
     width = domain.connectivity_list.shape[1]
     domain.connectivity_list[opp_id, :3] = tri1
@@ -327,7 +337,7 @@ def route_leftover_tri(
         eid = int(edge_ids[bdy_edges_local[0]])
         np_id = edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
         if np_id is not None:
-            _split_opposing_tri(domain, eid, np_id, tri_elem_id)
+            _split_opposing_tri(domain, eid, np_id, tri_elem_id, work)
     elif on_mesh_boundary and n_bdy == 0:
         if bdy_verts_in_tri:
             edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])

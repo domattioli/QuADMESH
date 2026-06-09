@@ -22,6 +22,7 @@ keep the quad-*dominant* matched output (padded boundary tris).
 from __future__ import annotations
 
 import heapq
+import warnings
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -108,7 +109,7 @@ def _match_tris_to_quads(
         points: ``(M, >=2)`` coordinates (for CCW orientation of quads).
         prio_arr: optional ``(N,)`` int priority per triangle (lower = matched
             first). ``None`` → interior-first (0 if interior else 1). The
-            ``method="faithful"`` path passes a layer-ordered priority
+            ``method="layered"`` path passes a layer-ordered priority
             (``_layer_priority``: innermost layer first, IE before OE).
             Whatever the priority, the augmenting-path fixup still guarantees
             **zero interior residual triangles**.
@@ -939,17 +940,18 @@ def tri2quad_routine(
             quad-pure result (default). Set False to emit them as padded rows
             (quad-dominant — the prior matching-only behaviour).
         method: ``"matching"`` (default) = fast global interior-saturating
-            matching (``compute_layers`` not required). ``"faithful"`` =
+            matching (``compute_layers`` not required). ``"layered"`` =
             layer-ordered matching (Ch 4 priority: innermost layer first, IE
             before OE) + augmenting-path saturation — **zero interior residual
             tris**, requires skeleton layers. Default stays ``"matching"`` until
-            the faithful path passes full MATLAB parity (spec FR-002a).
+            the layered path passes full MATLAB parity (spec FR-002a).
+            (``"faithful"`` accepted as deprecated alias for ``"layered"``.)
         minimize_boundary_change: prefer ops that do not alter ORIGINAL boundary
             vertices when clearing residual boundary tris — drop (preserve a,b)
             over squeeze (collapse, which moves+deletes them). ``None`` →
-            auto: True for ``method="faithful"``, False for ``method="matching"``
+            auto: True for ``method="layered"``, False for ``method="matching"``
             (keeps matching's prior squeeze behaviour + parity baselines).
-        point_insert: faithful path only — clear remaining lone boundary tris by
+        point_insert: layered path only — clear remaining lone boundary tris by
             pairing each with a neighbour quad + inserting an interior point →
             two quads (quad-pure, every original vertex preserved). Default True.
             Set False to leave them as residual tris (quad-dominant, higher
@@ -966,6 +968,15 @@ def tri2quad_routine(
     tris = np.asarray(domain.connectivity_list)[:, :3].astype(int)
 
     if method == "faithful":
+        warnings.warn(
+            "method='faithful' renamed to 'layered'; 'faithful' described the "
+            "MATLAB-port philosophy, not this mechanism. Alias drops in v0.2.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        method = "layered"
+
+    if method == "layered":
         nl_check = int(getattr(domain, "n_layers", 0) or 0)
         if nl_check > 0:
             # True per-layer loop: identifyEdges → mergePairs → routeLeftovers per layer
@@ -987,14 +998,14 @@ def tri2quad_routine(
     elif method == "matching":
         quads, leftover_idx = _match_tris_to_quads(tris, points)
     else:
-        raise ValueError(f"unknown method {method!r} (use 'matching' or 'faithful')")
+        raise ValueError(f"unknown method {method!r} (use 'matching' or 'layered')")
 
     if remove_boundary_tris and leftover_idx:
         bset = _boundary_edge_set(tris)
         mbc = (
             minimize_boundary_change
             if minimize_boundary_change is not None
-            else (method == "faithful")  # faithful: preserve original boundary verts
+            else (method == "layered")  # layered: preserve original boundary verts
         )
         quads, points, leftover_idx = _remove_boundary_tris(
             quads, leftover_idx, tris, points, bset, can_remove_edges, mbc
@@ -1010,7 +1021,7 @@ def tri2quad_routine(
     # Point insertion: clear remaining lone tris by pairing each with a neighbour
     # quad (pentagon) + an interior point -> 2 quads. Adds resolution, preserves
     # every original (incl. boundary) vertex. Makes the faithful path quad-pure.
-    if point_insert and method == "faithful" and surviving_tris.size > 0 and quads:
+    if point_insert and method == "layered" and surviving_tris.size > 0 and quads:
         quads, surviving_tris, points = _point_insert_tri_pairs(
             quads, surviving_tris, points
         )
