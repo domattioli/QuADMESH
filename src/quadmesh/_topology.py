@@ -1,11 +1,16 @@
 """Topology helpers. CCW edge sorting around verts. Merge tri pairs to quads.
 
+``ccw_edges_around_vert`` delegates to CHILmesh #133 (canonical owner per
+MADMESHing#48 unification). ``merge_tri_pair``/``merge_tri_pairs`` stay local
+pending a pure (non-mutating) upstream helper — CHILmesh#207 (`merge_elements`
+#132 mutates + rebuilds adjacencies per call, wrong shape for the per-layer sweep).
+
 MATLAB src: CCWEdgesAroundVertsFun.m, mergeTrianglesFun.m.
 """
 
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence
+from typing import List, Sequence
 
 import numpy as np
 
@@ -13,37 +18,24 @@ import numpy as np
 def ccw_edges_around_vert(mesh, vert_ids: Sequence[int]) -> List[np.ndarray]:
     """Sort edges incident to each vert by polar angle, CCW.
 
-    Port of MATLAB ``CCWEdgesAroundVertsFun``. For each ``v`` in ``vert_ids``,
-    list its incident edge IDs ordered counter-clockwise around ``v``.
+    Thin shim over ``CHILmesh.ccw_edges_around_vert`` (CHILmesh#133), the
+    canonical owner of this op per the MADMESHing#48 unification map.
 
     Args:
-        mesh: CHILmesh instance.
+        mesh: CHILmesh instance (adjacencies built).
         vert_ids: Iterable of global vertex IDs.
 
     Returns:
         List of 1-D arrays (one per input vert) of edge IDs in CCW order.
     """
     vert_ids = np.asarray(list(vert_ids), dtype=int).ravel()
-    edge2vert = mesh.adjacencies["Edge2Vert"]
-    points = mesh.points
-
-    out: List[np.ndarray] = []
-    for v in vert_ids:
-        eids = np.fromiter(mesh.get_vertex_edges(int(v)), dtype=int)
-        if eids.size == 0:
-            out.append(eids)
-            continue
-        e2v = edge2vert[eids]
-        # Other endpoint per edge.
-        other = np.where(e2v[:, 0] == v, e2v[:, 1], e2v[:, 0])
-        dx = points[other, 0] - points[v, 0]
-        dy = points[other, 1] - points[v, 1]
-        theta = np.arctan2(dy, dx)
-        order = np.argsort(theta, kind="stable")
-        out.append(eids[order])
-    return out
+    return [
+        np.asarray(mesh.ccw_edges_around_vert(int(v)), dtype=int)
+        for v in vert_ids
+    ]
 
 
+# Local pure impl kept: CHILmesh merge_elements (#132) mutates the mesh — see CHILmesh#207.
 def merge_tri_pair(mesh, elem_id_a: int, elem_id_b: int) -> np.ndarray:
     """Merge two tris sharing an edge into one quad. Return 4-vert connectivity.
 
@@ -84,17 +76,3 @@ def merge_tri_pairs(mesh, pair_elem_ids: np.ndarray) -> np.ndarray:
     for i, (a, b) in enumerate(pair_elem_ids):
         quads[i] = merge_tri_pair(mesh, int(a), int(b))
     return quads
-
-
-def edge2elem_pair(mesh, edge_ids: Iterable[int]) -> np.ndarray:
-    """Return ``(n, 2)`` elem pair per edge. Sentinel for missing neighbour: ``-1``."""
-    eids = np.asarray(list(edge_ids), dtype=int)
-    return mesh.adjacencies["Edge2Elem"][eids]
-
-
-def shared_edge(mesh, elem_id_a: int, elem_id_b: int) -> int:
-    """Edge ID shared by two elems. ``-1`` if none."""
-    ea = set(mesh.elem2edge(int(elem_id_a)).tolist())
-    eb = set(mesh.elem2edge(int(elem_id_b)).tolist())
-    common = ea & eb
-    return int(next(iter(common))) if common else -1

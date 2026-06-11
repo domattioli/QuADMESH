@@ -278,6 +278,21 @@ def fem_smoother(
     return mesh
 
 
+def two_part_smoother(mesh: CHILmesh, n_iter: int = 3, method: str = "fem") -> CHILmesh:
+    """Deprecated alias of :func:`fem_smoother` (renamed in 58c141e).
+
+    Kept because MADMESHing's compare.py imports this name (MADMESHing#48
+    unification contract). Migrate callers to ``fem_smoother``.
+    """
+    import warnings
+
+    warnings.warn(
+        "two_part_smoother is deprecated; use fem_smoother",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return fem_smoother(mesh, n_iter=n_iter, method=method)
+
 
 def post_process_routine(
     mesh: CHILmesh,

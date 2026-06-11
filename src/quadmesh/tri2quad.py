@@ -940,12 +940,14 @@ def tri2quad_routine(
             quad-pure result (default). Set False to emit them as padded rows
             (quad-dominant — the prior matching-only behaviour).
         method: ``"matching"`` (default) = fast global interior-saturating
-            matching (``compute_layers`` not required). ``"layered"`` =
-            layer-ordered matching (Ch 4 priority: innermost layer first, IE
-            before OE) + augmenting-path saturation — **zero interior residual
-            tris**, requires skeleton layers. Default stays ``"matching"`` until
-            the layered path passes full MATLAB parity (spec FR-002a).
-            (``"faithful"`` accepted as deprecated alias for ``"layered"``.)
+            matching (``compute_layers`` not required). ``"quadmesh+"`` =
+            the published QuADMESH+ layer-ordered sweep (Ch 4 priority:
+            innermost layer first, IE before OE) + augmenting-path
+            saturation — **zero interior residual tris**, requires skeleton
+            layers. Default stays ``"matching"`` until the QuADMESH+ path
+            passes full MATLAB parity (spec FR-002a). (``"layered"`` accepted
+            as a mechanism-name alias for ``"quadmesh+"``; ``"faithful"`` is a
+            deprecated alias, still works, emits DeprecationWarning.)
         minimize_boundary_change: prefer ops that do not alter ORIGINAL boundary
             vertices when clearing residual boundary tris — drop (preserve a,b)
             over squeeze (collapse, which moves+deletes them). ``None`` →
@@ -966,6 +968,11 @@ def tri2quad_routine(
 
     points = domain.points.copy()
     tris = np.asarray(domain.connectivity_list)[:, :3].astype(int)
+
+    if method == "quadmesh+":
+        # "quadmesh+" is the canonical published algorithm name (QuADMESH+),
+        # preferred over the mechanism-name "layered". No warning — preferred alias.
+        method = "layered"
 
     if method == "faithful":
         warnings.warn(
@@ -998,7 +1005,7 @@ def tri2quad_routine(
     elif method == "matching":
         quads, leftover_idx = _match_tris_to_quads(tris, points)
     else:
-        raise ValueError(f"unknown method {method!r} (use 'matching' or 'layered')")
+        raise ValueError(f"unknown method {method!r} (use 'matching' or 'quadmesh+')")
 
     if remove_boundary_tris and leftover_idx:
         bset = _boundary_edge_set(tris)

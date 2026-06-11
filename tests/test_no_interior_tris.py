@@ -194,3 +194,19 @@ def test_faithful_alias_deprecation_warns():
         "method='faithful' should emit DeprecationWarning"
     )
     assert _tri_count(q) == 0, "faithful alias must still produce quad-pure output"
+
+
+def test_quadmesh_plus_alias_no_warn():
+    """method='quadmesh+' is the canonical name for the layered sweep — no warning, quad-pure."""
+    import warnings as _w
+    path = FIXTURE_DIR / "Test_Case_1.14"
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    with _w.catch_warnings(record=True) as rec:
+        _w.simplefilter("always")
+        q = tri2quad(mesh, method="quadmesh+")
+    assert not any(issubclass(r.category, DeprecationWarning) for r in rec), (
+        "method='quadmesh+' must NOT emit DeprecationWarning"
+    )
+    assert _tri_count(q) == 0, "quadmesh+ must produce quad-pure output"
