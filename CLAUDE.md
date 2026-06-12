@@ -33,7 +33,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 
 ## chilmesh
 
-External Python dep. Issues filed against it for missing/slow APIs: #132 (`merge_elements`), #133 (`ccw_edges_around_vert`), #134 (adjacencies flag), #138 (`submesh`), #139 (`angle_based_smoother` perf).
+External Python dep. The five API issues QuADMESH filed against it (#132 `merge_elements`, #133 `ccw_edges_around_vert`, #134 adjacencies flag, #138 `submesh`, #139 `angle_based_smoother` perf) are **all closed upstream (2026-05-22…24) and consumed here**: `identify_edges.py` + `_topology.py` use the public `ccw_edges_around_vert` / `CHILmesh(compute_adjacencies=...)` APIs (no private calls remain); `two_part_smoother` is deprecated in favor of `fem_smoother` (moots #138 adoption); `tri2quad(aggressive=)` stays reserved — wiring it to upstream `merge_elements` is the v0.3 feature ticket. Do not re-file these.
 
 ## Test + run
 
