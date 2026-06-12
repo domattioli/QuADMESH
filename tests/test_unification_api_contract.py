@@ -67,7 +67,7 @@ def test_run_pipeline_signature():
 
     MADMESHing calls: run_pipeline(mesh, polygon=None, can_remove_edges=True,
     n_smooth_iter=3, do_post_process=True, max_outer_iter=5, max_inner_iter=5,
-    method='matching', truss_smooth=False, truss_fh=None).
+    method='quadmesh+', truss_smooth=False, truss_fh=None).
     """
     from quadmesh.pipeline import run_pipeline
 
@@ -96,8 +96,8 @@ def test_run_pipeline_signature():
     assert params["do_post_process"].default is True, (
         "do_post_process must default to True"
     )
-    assert params["method"].default == "matching", (
-        "method must default to 'matching'"
+    assert params["method"].default == "quadmesh+", (
+        "method must default to 'quadmesh+'"
     )
     assert params["can_remove_edges"].default is True, (
         "can_remove_edges must default to True"

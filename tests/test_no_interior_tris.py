@@ -180,24 +180,19 @@ def test_tri2quad_conforming_and_valid():
     assert max(count.values()) <= 2, "non-conforming edge shared by >2 elements"
 
 
-def test_faithful_alias_deprecation_warns():
-    """method='faithful' is a deprecated alias for 'layered' — still works, warns."""
-    import warnings as _w
+@pytest.mark.parametrize("removed", ["faithful", "matching"])
+def test_removed_methods_raise(removed):
+    """'faithful' and 'matching' were removed entirely (#46) — ValueError."""
     path = FIXTURE_DIR / "Test_Case_1.14"
     if not path.exists():
-        pytest.skip(f"fixture missing: {path}")
+        pytest.skip("fixture missing")
     mesh = CHILmesh.read_from_fort14(path)
-    with _w.catch_warnings(record=True) as rec:
-        _w.simplefilter("always")
-        q = tri2quad(mesh, method="faithful")
-    assert any(issubclass(r.category, DeprecationWarning) for r in rec), (
-        "method='faithful' should emit DeprecationWarning"
-    )
-    assert _tri_count(q) == 0, "faithful alias must still produce quad-pure output"
+    with pytest.raises(ValueError, match="was removed"):
+        tri2quad(mesh, method=removed)
 
 
 def test_quadmesh_plus_alias_no_warn():
-    """method='quadmesh+' is the canonical name for the layered sweep — no warning, quad-pure."""
+    """method='quadmesh+' is the canonical (sole) method — no warning, quad-pure."""
     import warnings as _w
     path = FIXTURE_DIR / "Test_Case_1.14"
     if not path.exists():

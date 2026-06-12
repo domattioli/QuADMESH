@@ -21,7 +21,7 @@ def run_pipeline(
     do_post_process: bool = True,
     max_outer_iter: int = 5,
     max_inner_iter: int = 5,
-    method: str = "matching",
+    method: str = "quadmesh+",
     truss_smooth: bool = False,
     truss_fh=None,
 ) -> CHILmesh:
@@ -35,9 +35,9 @@ def run_pipeline(
         do_post_process: If False, skip post-process (raw tri2quad output).
         max_outer_iter: Outer loop cap in post_process_routine.
         max_inner_iter: Inner loop cap (doublet + QVM) in post_process_routine.
-        method: tri2quad pairing method — ``"matching"`` (default, fast global
-            interior-saturating) or ``"quadmesh+"`` (the QuADMESH+ layer-ordered
-            sweep, quad-pure output).
+        method: tri2quad pairing method — ``"quadmesh+"`` (default and only
+            method; ``"layered"`` mechanism alias). ``"matching"`` and
+            ``"faithful"`` removed per #46.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
 
