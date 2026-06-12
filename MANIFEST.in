@@ -12,4 +12,11 @@ prune scripts
 prune .specify
 prune .github
 
+# Claude-derived development docs — never ship in distributions (operator directive 2026-06-12)
+prune .claude
+prune .planning
+exclude CLAUDE.md
+exclude AGENTS.md
+exclude .domi-pin
+
 global-exclude *.mat *.asv .DS_Store
