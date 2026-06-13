@@ -14,7 +14,12 @@
 Status legend: `[ ]` todo · `[~]` wip · `[x]` done · `[-]` deferred.
 
 ## Path conventions
-Python pkg `python/quadmesh/`, tests `python/tests/`, golden data `python/tests/golden/`, planning `specs/001-matlab-to-python-port/`.
+Python pkg `src/quadmesh/`, tests `tests/`, golden data `tests/golden/`, scripts/tools `scripts/`, mapping `docs/MAPPING.md`, planning `specs/001-matlab-to-python-port/`.
+
+> **⚠️ Reconciliation (2026-06-13, post root-reorg + #46).** This file predates two landed changes — read every task path through them:
+> 1. **Layout** (2026-05-24 root-reorg, spec-003): `python/quadmesh/` → `src/quadmesh/`, `python/tests/` → `tests/`, `python/tools/` → `scripts/`, `python/MAPPING.md` → `docs/MAPPING.md`, `python/pyproject.toml` → `pyproject.toml`. Wherever a task still writes `python/…`, substitute the `src/`-layout path.
+> 2. **Method naming** (#46, 2026-06-12, operator directive): `method="faithful"` and `method="matching"` were **removed entirely** and now raise `ValueError`. The sole + default method is `method="quadmesh+"` (mechanism alias `"layered"`). Any task below mentioning a `faithful`/`matching` `method=` value, a "matching fallback", or "flip default to faithful" is describing the *pre-#46* design — the layer-ordered sweep is already the default. The word "faithful" still describes port *fidelity* (Ch 4 heuristics), not a `method=` value.
+> 3. **Mechanism already landed**: the T020 per-layer layer-ordered loop ships as `_faithful_per_layer` in `src/quadmesh/tri2quad.py` (method `quadmesh+`). The remaining M2 gap is the **Ch 4 heuristics (T017/T018)** *inside* that sweep, not the sweep scaffold.
 
 > Milestones map to plan §9: **FN**=M1 oracle (blocking), **M2**=faithful pairing live (MVP), **M3**=quad-pure faithful, **M4**=verified+docs. Each milestone is independently testable and shippable.
 
@@ -24,7 +29,7 @@ Python pkg `python/quadmesh/`, tests `python/tests/`, golden data `python/tests/
 
 **Purpose**: tooling the rest depends on.
 
-- [ ] T001 Confirm work branch `daily-maintenance`; add `faithful` workstream note to `specs/001-matlab-to-python-port/tasks.md` header linking this file.
+- [ ] T001 Confirm work branch `development` (per `branching.md`; `daily-maintenance` deprecated 2026-06-02); add `faithful` workstream note to `specs/001-matlab-to-python-port/tasks.md` header linking this file.
 - [ ] T002 [P] Add dev deps for the oracle: `scipy` (`.mat` read + 2-pt Delaunay), `pypdf` (thesis text), `poppler-utils` (figure render) — record in `python/pyproject.toml` `[project.optional-dependencies] dev`.
 - [ ] T003 [P] Create `python/tests/golden/` + `python/tests/golden/README.md` (provenance: which oracle source produced each file).
 
@@ -48,7 +53,7 @@ Python pkg `python/quadmesh/`, tests `python/tests/`, golden data `python/tests/
 ## Phase 3: M2 — faithful pairing live, quad-dominant (Priority: P1) 🎯 MVP
 
 **Goal**: per-layer every-other-edge sweep governed by the Ch 4 heuristics + recombination ops → correct quad topology (quad-dominant; leftover boundary tris still padded). Plan Phases 1–2.
-**Independent test**: per-layer matched pairs reproduce golden (T007); mean quality ≥ current matching (0.739) and trending to greedy 0.81; 0 interior tris; conforming.
+**Independent test**: per-layer matched pairs reproduce golden (T007); mean quality recovers from the bare-sweep quadmesh+ baseline (TC1 0.574, Block_O 0.251 — post-#46 default, no Ch 4 heuristics yet) toward greedy 0.81; 0 interior tris; conforming. (Pre-#46 the comparator was the since-removed `matching` method at 0.739.)
 
 ### Tests for M2 (write first, expect fail)
 - [ ] T009 [P] [M2] `python/tests/test_faithful_pairing.py`: per-layer matched-pair set vs golden for each fixture (skip if that fixture has no golden).
@@ -61,10 +66,10 @@ Python pkg `python/quadmesh/`, tests `python/tests/`, golden data `python/tests/
 - [ ] T014 [P] [M2] Vertex-duplication op `_recombine.py::vertex_duplication(...)` (Fig 3.3, p39).
 - [ ] T015 [P] [M2] Edge-flip op + walk driver `_recombine.py::edge_flip(...)` / `walk_isolated_tri(...)` (Fig 3.6 p40, Fig 4.4 p69).
 - [ ] T016 [M2] Verify/repair `identify_edges_in_layer` as the per-layer sweep primitive against golden (T009); fix corner-rotation (`identify_edges.py:94-103`), up/down seeding, `idown==2` flip, even/odd phase. (CR-1; `identifyEdgesFun_v2.m`.)
-- [ ] T017 [M2] Interior-layer heuristics on the sweep, `python/quadmesh/_match_faithful.py`: eligible-neighbor counting w/ flagged edges; IE-before-OE; T1 select (fewest-eligible → tiebreakers, thesis p64); T2 select (ladder p65-66); intra-before-inter-layer; innermost→outward. (Ch 4.1.)
-- [ ] T018 [M2] Boundary-layer heuristics in `_match_faithful.py`: OE-before-IE; walkability edge-flip pre-pass on RE_L + neighbor. (Ch 4.2, p70.) (depends on T015, T017)
+- [ ] T017 [M2] **🎯 highest-value next work** (quality recovery from 0.574/0.251 default baseline). Interior-layer heuristics on the sweep, `src/quadmesh/` (extend the existing `_faithful_per_layer` matcher in `tri2quad.py`, or factor into `_match_faithful.py`): eligible-neighbor counting w/ flagged edges; IE-before-OE; T1 select (fewest-eligible → tiebreakers, thesis p64); T2 select (ladder p65-66); intra-before-inter-layer; innermost→outward. (Ch 4.1.) Needs thesis Ch 4 — do not guess semantics; faithfulness invariant (`tests/test_no_interior_tris.py`) must stay green.
+- [ ] T018 [M2] Boundary-layer heuristics in the same matcher (`src/quadmesh/`): OE-before-IE; walkability edge-flip pre-pass on RE_L + neighbor. (Ch 4.2, p70.) (depends on T015, T017)
 - [ ] T019 [M2] Isolated-tri handling: intentional vertex-pairing + post-match edge-swap fixup (CR-5, p66) (depends on T013, T017)
-- [ ] T020 [M2] `tri2quad_routine(..., method="faithful")` branch in `python/quadmesh/tri2quad.py`: layer loop (mirror `Tri2QuadRoutine.m:21-49`) → `_match_faithful` → `merge_tri_pairs` → accumulate; keep `method="matching"` as fast fallback. (depends on T012, T016, T017, T018, T019)
+- [~] T020 [M2] Layer-ordered sweep in `src/quadmesh/tri2quad.py` — **scaffold landed** as `_faithful_per_layer` (layer loop mirroring `Tri2QuadRoutine.m:21-49` → per-layer match → `merge_tri_pairs` → accumulate), reached via `method="quadmesh+"` (sole + default per #46). Remaining: wire T017/T018/T019 heuristics into the existing matcher. (No `method="matching"` fallback — removed #46.) (depends on T012, T016, T017, T018, T019)
 - [ ] T021 [M2] Assemble output CHILmesh from accumulated quads + padded leftover tris (mirror `Tri2QuadRoutine.m:52-56`). (depends on T020)
 
 **Checkpoint**: faithful path produces correct-topology quad-dominant mesh; per-layer parity green; quality ≥ matching.
@@ -105,8 +110,8 @@ Python pkg `python/quadmesh/`, tests `python/tests/`, golden data `python/tests/
 ### Implementation for M4
 - [ ] T033 [M4] By-layer + prioritized post-process (CR-7, Ch 5.2) in `python/quadmesh/post_process.py`: apply doublet/QVM per layer with QVM-set ordering; keep MATLAB-disabled steps (valence-3/valence-6) unported.
 - [ ] T034 [P] [M4] Update `python/MAPPING.md`: `Tri2QuadRoutine`/`identifyEdgesFun_v2`/`removeTrianglesFun`/`edgeBisection`/`edgeInsertion` → real status; add edge-swap/flip/vertex-dup rows.
-- [ ] T035 [P] [M4] Reconcile docstrings: `tri2quad.py` (faithful default vs matching fallback), `_recombine.py`, `_tri_removal.py`; mark matching path "fast alt".
-- [ ] T036 [M4] Flip default to `method="faithful"` once T022+T031 pass; keep `method="matching"` documented. Update `pipeline.run_pipeline` + `cli.py`. (depends on T031, T022)
+- [ ] T035 [P] [M4] Reconcile docstrings in `src/quadmesh/`: `tri2quad.py` (`quadmesh+` sole/default — no matching path), `_recombine.py`, `_tri_removal.py`.
+- [x] T036 [M4] ~~Flip default to `method="faithful"`~~ — **done early by operator directive #46 (2026-06-12)**: `quadmesh+` is sole + default in `tri2quad`/`pipeline.run_pipeline`/`cli.py`; `faithful`/`matching` removed. Residual: drop the "WIP / quality recovery pending" caveat in docstrings + CLAUDE.md once T017/T018 land + T022/T031 pass.
 
 **Checkpoint**: faithful pipeline is the default, parity-verified, documented.
 
