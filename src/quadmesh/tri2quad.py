@@ -778,7 +778,7 @@ def count_fold_bridge_quads(
     return len(fold_bridge_quads(quads, flagged_edges))
 
 
-def _faithful_per_layer(
+def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
     can_remove_edges: bool,
@@ -853,6 +853,60 @@ def _faithful_per_layer(
             consumed.add(gb)
             local_consumed.add(la)
             local_consumed.add(lb)
+
+        # T017/T018: greedy interior-saturating pairing of remaining layer tris
+        # (thesis Ch 4.1 greedy extension; Ch 4.2 fold-seam forbiddance). Pairs
+        # adjacent unmatched tris into quads before routing genuine residuals.
+        from ._match_faithful import match_layer_heuristic
+        ie_ids = np.asarray(layers["IE"][li], dtype=int)
+        oe_ids = np.asarray(layers["OE"][li], dtype=int)
+        layer_conn = domain.connectivity_list[glob]
+
+        # T018 fold-seam: flagged_vert_pairs (parent verts) -> forbidden global elem pairs.
+        flagged_global_pairs: Set[frozenset] = set()
+        if sel.flagged_vert_pairs:
+            fv = {(int(min(p)), int(max(p))) for p in sel.flagged_vert_pairs}
+            n_sub_edges = sel.sub_mesh.n_edges
+            e2v_all = sel.sub_mesh.edge2vert(np.arange(n_sub_edges))
+            e2e_sub = sel.sub_mesh.adjacencies["Edge2Elem"]
+            for eidx in range(n_sub_edges):
+                u, v = int(e2v_all[eidx, 0]), int(e2v_all[eidx, 1])
+                if (min(u, v), max(u, v)) in fv:
+                    row = np.asarray(e2e_sub[eidx]).ravel()
+                    if row.size >= 2 and int(row[0]) >= 0 and int(row[1]) >= 0:
+                        la2, lb2 = int(row[0]), int(row[1])
+                        if la2 < glob.size and lb2 < glob.size:
+                            flagged_global_pairs.add(
+                                frozenset([int(glob[la2]), int(glob[lb2])])
+                            )
+
+        already = {int(glob[i]) for i in local_consumed}
+        try:
+            greedy_pairs, _ = match_layer_heuristic(
+                layer_conn=layer_conn,
+                layer_global_ids=glob,
+                ie_global_ids=ie_ids,
+                oe_global_ids=oe_ids,
+                pts=domain.points,
+                flagged_pairs=flagged_global_pairs,
+                already_consumed=already,
+                is_boundary_layer=(li == nl - 1),
+            )
+        except Exception:
+            greedy_pairs = []
+        for la, lb in greedy_pairs:
+            ga, gb = int(glob[la]), int(glob[lb])
+            if ga in consumed or gb in consumed:
+                continue
+            if la in local_consumed or lb in local_consumed:
+                continue
+            try:
+                quad = merge_tri_pair(sel.sub_mesh, la, lb)
+            except (ValueError, IndexError):
+                continue
+            work.add_quad(quad)
+            consumed.add(ga); consumed.add(gb)
+            local_consumed.add(la); local_consumed.add(lb)
 
         # Route leftover (unmatched) tris (removeTrianglesFun).
         # Outermost layer = mesh boundary layer (MATLAB: iLayer == nLayers).
@@ -987,7 +1041,7 @@ def tri2quad_routine(
             pts_snapshot = domain.points.copy()
             cl_snapshot = np.asarray(domain.connectivity_list).copy()
             try:
-                quads, leftover_idx, points = _faithful_per_layer(
+                quads, leftover_idx, points = _quadmesh_plus_per_layer(
                     domain, tris, can_remove_edges
                 )
             finally:

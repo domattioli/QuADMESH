@@ -24,23 +24,23 @@ from quadmesh import compute_quality_stats, post_process, tri2quad
 # after #46 removed "matching"/"faithful" entirely). Keys: input n_elems,
 # output n_elems, quad fraction, mean quality. Source: tri2quad -> post_process(3).
 #
-# Mean quality is markedly below the old matching-path pins (TC1 0.739->0.574,
-# Block_O 0.744->0.251): the QuADMESH+ per-layer sweep is still WIP — Ch 4
-# IE-before-OE interior heuristics (T017) and boundary-layer OE-before-IE +
-# walkability pre-pass (T018) are not yet implemented (see CLAUDE.md
-# Faithfulness invariant). Re-tighten these pins as T017/T018 land.
+# Mean quality recovered after T017/T018 landed (greedy interior-saturating
+# pairing of post-sweep layer leftovers, thesis Ch 4.1/4.2): TC1 0.574->0.696,
+# Block_O 0.251->0.680; output elem counts drop (more tri pairs merged into
+# quads). Pins re-tightened 2026-06-13. Still loose tolerances vs MATLAB
+# ground-truth (not yet captured).
 EXPECTED = {
     "Test_Case_1.14": {
         "n_elems_in": 2417,
-        "n_elems_out": 1352,
+        "n_elems_out": 1251,
         "quad_frac": 1.000,
-        "mean_quality": 0.574,
+        "mean_quality": 0.696,
     },
     "Block_O.14": {
         "n_elems_in": 5214,
-        "n_elems_out": 3851,
+        "n_elems_out": 2727,
         "quad_frac": 1.000,
-        "mean_quality": 0.251,
+        "mean_quality": 0.680,
     },
 }
 
