@@ -4,9 +4,9 @@
 
 Interior residual triangle (tri with NO domain-boundary edge) after tri2quad = **NOT a faithful QuADMESH+ implementation**. Zero interior tris is mandatory — a properly-implemented QuADMESH+ never leaves one. Only **boundary** tris may remain (thesis minimizes even those; ≤1 typical). Pinned by `tests/test_no_interior_tris.py`.
 
-Status: `method="matching"` has zero interior tris by construction (faithful on this axis). `method="quadmesh+"` (layer-ordered per-layer loop, T020/T004; `"layered"` mechanism-alias + `"faithful"` deprecated alias, kept for back-compat through v0.2) now implemented — zero interior tris confirmed, quality 0.375→0.573 on Test_Case_1. **Still WIP** — Ch 4 IE-before-OE interior heuristics (T017) and boundary-layer OE-before-IE + walkability pre-pass (T018) are not yet implemented; until those land, `method="quadmesh+"` must not be made default.
+Status: `method="quadmesh+"` (the published layer-ordered per-layer loop; `"layered"` mechanism alias) is the **sole and default** method — zero interior tris confirmed. `"matching"` and the deprecated `"faithful"` alias were **removed entirely** per operator directive on #46 (2026-06-12); both now raise `ValueError`. **T017/T018 landed 2026-06-13** (greedy interior-saturating pairing of post-sweep layer leftovers, thesis Ch 4.1 IE-before-OE + Ch 4.2 fold-seam forbiddance, wired into `_quadmesh_plus_per_layer`): post-process mean quality Test_Case_1 0.573→0.696, Block_O 0.251→0.680. Naming note: the per-layer loop is `_quadmesh_plus_per_layer` (renamed from `_faithful_per_layer` per #46 — code must not name the *method* "faithful"; the word still describes port *fidelity* only). Residual WIP: T019 isolated-tri edge-swap fixup; boundary-layer walkability still falls back to per-tri routing on a small residual.
 
-> Naming note (#46): canonical `method=` value for the layer-ordered sweep is **`"quadmesh+"`** — the published algorithm name (QuADMESH+, alternative to blossom-quad / paving), per operator 2026-06-09. `"layered"` (the mechanism name) is accepted as an alias; `"faithful"` is a deprecated alias (still works, emits `DeprecationWarning`). History: `"faithful"` named a *philosophy* (faithful MATLAB port), a category error next to `"matching"` (which names its mechanism) → renamed `"layered"` → now `"quadmesh+"`. The word "faithful" still describes port *fidelity* throughout the code; only the `method=` input value changed.
+> Naming note (#46): canonical `method=` value for the layer-ordered sweep is **`"quadmesh+"`** — the published algorithm name (QuADMESH+, alternative to blossom-quad / paving), per operator 2026-06-09. `"layered"` (the mechanism name) is accepted as an alias; `"faithful"` was a deprecated alias (now removed — raises `ValueError`). History: `"faithful"` named a *philosophy* (faithful MATLAB port), a category error next to `"matching"` (which names its mechanism) → renamed `"layered"` → now `"quadmesh+"`. The word "faithful" still describes port *fidelity* throughout the code; only the `method=` input value changed. Update 2026-06-12: operator directed removal of `"faithful"` and `"matching"` entirely (#46 comment 2026-06-11); `"quadmesh+"`/`"layered"` are the only accepted values.
 
 ## Routine
 
@@ -33,7 +33,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 
 ## chilmesh
 
-External Python dep. Issues filed against it for missing/slow APIs: #132 (`merge_elements`), #133 (`ccw_edges_around_vert`), #134 (adjacencies flag), #138 (`submesh`), #139 (`angle_based_smoother` perf).
+External Python dep. The five API issues QuADMESH filed against it (#132 `merge_elements`, #133 `ccw_edges_around_vert`, #134 adjacencies flag, #138 `submesh`, #139 `angle_based_smoother` perf) are **all closed upstream (2026-05-22…24) and consumed here**: `identify_edges.py` + `_topology.py` use the public `ccw_edges_around_vert` / `CHILmesh(compute_adjacencies=...)` APIs (no private calls remain); `two_part_smoother` is deprecated in favor of `fem_smoother` (moots #138 adoption); `tri2quad(aggressive=)` stays reserved — wiring it to upstream `merge_elements` is the v0.3 feature ticket. Do not re-file these.
 
 ## Test + run
 
@@ -72,8 +72,6 @@ Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
 
 ## Coding dispatch — Haiku subagent default
 
-All coding work (writing or editing source code) MUST be dispatched to a subagent running the Haiku model (`claude-haiku-4-5`) — not written inline by the main session. The orchestrator session plans, reviews, and integrates; implementation is delegated to the Haiku subagent.
+**Binding:** all code writing/editing MUST be dispatched to a Haiku subagent (`model: haiku`); the main session plans/reviews/integrates and verifies subagent output before commit. Non-code work (planning, research, docs, git/PR, review, editing memory) stays on main. Exception only on explicit operator instruction — never assumed.
 
-- **Default**: for any code-writing/editing task, spawn a subagent with `model: haiku`.
-- **Exception**: only when the operator explicitly directs otherwise (e.g. "do it inline", "use Sonnet/Opus for this"). Explicit operator instruction only — never assumed.
-- **Scope**: applies to code. Non-coding work (planning, research, docs, git/PR orchestration, review) stays on the main session.
+Canonical policy + rationale: DomI [`.claude/policies/coding-dispatch.md`](https://github.com/domattioli/DomI/blob/main/.claude/policies/coding-dispatch.md) (governance authority; #83). This is the binding summary.

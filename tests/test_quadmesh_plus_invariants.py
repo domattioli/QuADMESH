@@ -29,7 +29,7 @@ def domain(request):
     return CHILmesh.read_from_fort14(str(FIXTURES_DIR / request.param))
 
 
-def _run_faithful(domain):
+def _run_quadmesh_plus(domain):
     from quadmesh.tri2quad import tri2quad_routine
     return tri2quad_routine(domain, can_remove_edges=False, method="layered")
 
@@ -59,7 +59,7 @@ def _segments_cross(a, b, c, d):
 
 def test_conforming(domain):
     """No edge shared by more than 2 elements (conforming mesh)."""
-    result = _run_faithful(domain)
+    result = _run_quadmesh_plus(domain)
     conn = result.connectivity_list
     from collections import Counter
     cnt = Counter()
@@ -78,7 +78,7 @@ def test_conforming(domain):
 
 def test_no_bowtie_quads(domain):
     """No quad has crossing diagonals (bowtie)."""
-    result = _run_faithful(domain)
+    result = _run_quadmesh_plus(domain)
     conn = result.connectivity_list
     pts = result.points[:, :2]
     bowties = []
@@ -95,7 +95,7 @@ def test_no_bowtie_quads(domain):
 
 def test_zero_area_quads(domain):
     """No quad has near-zero area (degenerate)."""
-    result = _run_faithful(domain)
+    result = _run_quadmesh_plus(domain)
     conn = result.connectivity_list
     pts = result.points[:, :2]
     degenerate = []

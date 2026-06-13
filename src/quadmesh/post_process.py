@@ -17,9 +17,28 @@ from __future__ import annotations
 from chilmesh import CHILmesh
 
 from .cleanup_boundary_quads import cleanup_boundary_quads
-from .doublet_collapse import doublet_collapse
+from .doublet_collapse import _is_quad_row, doublet_collapse
 from .quad_vertex_merge import quad_vertex_merge
 from .remove_unused import remove_unused_vertices
+
+
+def _quad_rows(conn) -> "np.ndarray":
+    """Select genuine quad rows from a (possibly mixed) N×4 connectivity array.
+
+    Padded boundary triangles are stored as ``[v0, v1, v2, v2]`` (last vertex
+    repeated), so a length check is insufficient on a rectangular array — use the
+    canonical arity test (``row[2] != row[3]``). Returns an (M, 4) int array;
+    empty (shape ``(0, 4)``) when there are no quads.
+    """
+    import numpy as np
+
+    conn = np.asarray(conn)
+    if conn.ndim != 2 or conn.shape[1] != 4 or conn.shape[0] == 0:
+        return np.empty((0, 4), dtype=int)
+    rows = [row for row in conn if _is_quad_row(row)]
+    if not rows:
+        return np.empty((0, 4), dtype=int)
+    return np.asarray(rows, dtype=int)
 
 
 def _balendran_smooth(mesh: "CHILmesh") -> "np.ndarray":
@@ -88,13 +107,10 @@ def truss_smoother(
     p = mesh.points[:, :2].copy()
     n_orig = len(p)
 
-    # Get quads from connectivity; build 4-tri fan per quad with centroid
-    _conn = np.asarray(mesh.connectivity_list)
-    quads = [elem for elem in _conn if len(elem) == 4]
-    if not quads:
+    # Get genuine quads (padded boundary tris [v0,v1,v2,v2] are NOT quads — #88)
+    quads = _quad_rows(mesh.connectivity_list)
+    if len(quads) == 0:
         return mesh  # No quads; return unchanged
-
-    quads = np.asarray(quads)
     centroids = p[quads].mean(axis=1)  # (n_quads, 2)
     n_quads = len(quads)
 

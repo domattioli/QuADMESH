@@ -2,25 +2,27 @@
 
 from __future__ import annotations
 
-from chilmesh import CHILmesh
+import numpy as np
+
+from chilmesh import CHILmesh, element_quality
 
 
 def compute_quality_stats(mesh: CHILmesh) -> dict:
     """Compute element quality statistics.
 
-    Calls mesh.elem_quality() and returns aggregated stats.
+    Delegates to standalone chilmesh.element_quality(metric='skew') for canonical
+    quality scoring (MADMESHing#48 unification; CHILmesh#206 skew parity).
     """
-    quality_arr, _, stats_dict = mesh.elem_quality()
-    import numpy as np
+    quality_arr = element_quality(mesh.points, mesh.connectivity_list, metric="skew")
     n_bad = int(np.sum(quality_arr < 0.3))
     n_elems = mesh.n_elems
     pct_bad = 100.0 * n_bad / n_elems if n_elems > 0 else 0.0
 
     return {
-        "mean": float(stats_dict["mean"]),
-        "min": float(stats_dict["min"]),
-        "max": float(stats_dict["max"]),
-        "std": float(stats_dict["std"]),
+        "mean": float(np.mean(quality_arr)),
+        "min": float(np.min(quality_arr)),
+        "max": float(np.max(quality_arr)),
+        "std": float(np.std(quality_arr)),
         "n_bad": int(n_bad),
         "pct_bad": float(pct_bad),
         "n_elems": int(n_elems),

@@ -31,7 +31,7 @@ def domain(request):
 
 def _per_layer_pairs(domain):
     """Run the faithful per-layer loop and return {layer_idx: [(ga,gb)...]}."""
-    from quadmesh._match_faithful import match_layer_heuristic
+    from quadmesh._match_quadmesh_plus import match_layer_heuristic
     layers = domain.layers
     nl = int(getattr(domain, "n_layers", 0) or 0)
     result = {}

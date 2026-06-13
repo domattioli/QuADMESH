@@ -22,7 +22,6 @@ keep the quad-*dominant* matched output (padded boundary tris).
 from __future__ import annotations
 
 import heapq
-import warnings
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -744,10 +743,10 @@ def fold_bridge_quads(
 ) -> List[int]:
     """Indices of quads that bridge a fold seam (QuADMesh #33).
 
-    A *fold-bridge quad* is a faithful-matched quad whose diagonal (the merged
+    A *fold-bridge quad* is a quadmesh+-matched quad whose diagonal (the merged
     triangles' shared edge) is a **flagged edge** — an interior edge whose both
     endpoints are inner vertices, marking where a self-folding layer's two
-    bordering strips meet (thesis p39 / Figure 4.1). The faithful matcher
+    bordering strips meet (thesis p39 / Figure 4.1). The quadmesh+ matcher
     forbids these merges (#31); this metric makes the defect class measurable
     and regression-pinnable rather than relying on a bespoke per-test probe.
 
@@ -779,7 +778,7 @@ def count_fold_bridge_quads(
     return len(fold_bridge_quads(quads, flagged_edges))
 
 
-def _faithful_per_layer(
+def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
     can_remove_edges: bool,
@@ -855,6 +854,60 @@ def _faithful_per_layer(
             local_consumed.add(la)
             local_consumed.add(lb)
 
+        # T017/T018: greedy interior-saturating pairing of remaining layer tris
+        # (thesis Ch 4.1 greedy extension; Ch 4.2 fold-seam forbiddance). Pairs
+        # adjacent unmatched tris into quads before routing genuine residuals.
+        from ._match_quadmesh_plus import match_layer_heuristic
+        ie_ids = np.asarray(layers["IE"][li], dtype=int)
+        oe_ids = np.asarray(layers["OE"][li], dtype=int)
+        layer_conn = domain.connectivity_list[glob]
+
+        # T018 fold-seam: flagged_vert_pairs (parent verts) -> forbidden global elem pairs.
+        flagged_global_pairs: Set[frozenset] = set()
+        if sel.flagged_vert_pairs:
+            fv = {(int(min(p)), int(max(p))) for p in sel.flagged_vert_pairs}
+            n_sub_edges = sel.sub_mesh.n_edges
+            e2v_all = sel.sub_mesh.edge2vert(np.arange(n_sub_edges))
+            e2e_sub = sel.sub_mesh.adjacencies["Edge2Elem"]
+            for eidx in range(n_sub_edges):
+                u, v = int(e2v_all[eidx, 0]), int(e2v_all[eidx, 1])
+                if (min(u, v), max(u, v)) in fv:
+                    row = np.asarray(e2e_sub[eidx]).ravel()
+                    if row.size >= 2 and int(row[0]) >= 0 and int(row[1]) >= 0:
+                        la2, lb2 = int(row[0]), int(row[1])
+                        if la2 < glob.size and lb2 < glob.size:
+                            flagged_global_pairs.add(
+                                frozenset([int(glob[la2]), int(glob[lb2])])
+                            )
+
+        already = {int(glob[i]) for i in local_consumed}
+        try:
+            greedy_pairs, _ = match_layer_heuristic(
+                layer_conn=layer_conn,
+                layer_global_ids=glob,
+                ie_global_ids=ie_ids,
+                oe_global_ids=oe_ids,
+                pts=domain.points,
+                flagged_pairs=flagged_global_pairs,
+                already_consumed=already,
+                is_boundary_layer=(li == nl - 1),
+            )
+        except Exception:
+            greedy_pairs = []
+        for la, lb in greedy_pairs:
+            ga, gb = int(glob[la]), int(glob[lb])
+            if ga in consumed or gb in consumed:
+                continue
+            if la in local_consumed or lb in local_consumed:
+                continue
+            try:
+                quad = merge_tri_pair(sel.sub_mesh, la, lb)
+            except (ValueError, IndexError):
+                continue
+            work.add_quad(quad)
+            consumed.add(ga); consumed.add(gb)
+            local_consumed.add(la); local_consumed.add(lb)
+
         # Route leftover (unmatched) tris (removeTrianglesFun).
         # Outermost layer = mesh boundary layer (MATLAB: iLayer == nLayers).
         on_mesh_boundary = (li == nl - 1)
@@ -918,7 +971,7 @@ def tri2quad_routine(
     parent: Optional[CHILmesh] = None,
     aggressive: bool = False,
     remove_boundary_tris: bool = True,
-    method: str = "matching",
+    method: str = "quadmesh+",
     minimize_boundary_change: Optional[bool] = None,
     point_insert: bool = True,
 ) -> CHILmesh:
@@ -939,20 +992,17 @@ def tri2quad_routine(
         remove_boundary_tris: Eliminate leftover boundary triangles for a
             quad-pure result (default). Set False to emit them as padded rows
             (quad-dominant — the prior matching-only behaviour).
-        method: ``"matching"`` (default) = fast global interior-saturating
-            matching (``compute_layers`` not required). ``"quadmesh+"`` =
-            the published QuADMESH+ layer-ordered sweep (Ch 4 priority:
-            innermost layer first, IE before OE) + augmenting-path
-            saturation — **zero interior residual tris**, requires skeleton
-            layers. Default stays ``"matching"`` until the QuADMESH+ path
-            passes full MATLAB parity (spec FR-002a). (``"layered"`` accepted
-            as a mechanism-name alias for ``"quadmesh+"``; ``"faithful"`` is a
-            deprecated alias, still works, emits DeprecationWarning.)
+        method: ``"quadmesh+"`` (default and only method) = the published
+            QuADMESH+ layer-ordered sweep (Ch 4 priority: innermost layer
+            first, IE before OE) + augmenting-path saturation — **zero
+            interior residual tris**, requires skeleton layers. ``"layered"``
+            is accepted as a mechanism-name alias. ``"faithful"`` and
+            ``"matching"`` were removed entirely per #46 (2026-06-12) and now
+            raise ``ValueError``.
         minimize_boundary_change: prefer ops that do not alter ORIGINAL boundary
             vertices when clearing residual boundary tris — drop (preserve a,b)
             over squeeze (collapse, which moves+deletes them). ``None`` →
-            auto: True for ``method="layered"``, False for ``method="matching"``
-            (keeps matching's prior squeeze behaviour + parity baselines).
+            auto: True (preserve original boundary vertices).
         point_insert: layered path only — clear remaining lone boundary tris by
             pairing each with a neighbour quad + inserting an interior point →
             two quads (quad-pure, every original vertex preserved). Default True.
@@ -970,28 +1020,33 @@ def tri2quad_routine(
     tris = np.asarray(domain.connectivity_list)[:, :3].astype(int)
 
     if method == "quadmesh+":
-        # "quadmesh+" is the canonical published algorithm name (QuADMESH+),
-        # preferred over the mechanism-name "layered". No warning — preferred alias.
+        # "quadmesh+" is the canonical published algorithm name (QuADMESH+);
+        # "layered" remains the mechanism-name alias.
         method = "layered"
 
-    if method == "faithful":
-        warnings.warn(
-            "method='faithful' renamed to 'layered'; 'faithful' described the "
-            "MATLAB-port philosophy, not this mechanism. Alias drops in v0.2.",
-            DeprecationWarning,
-            stacklevel=2,
+    if method in ("faithful", "matching"):
+        raise ValueError(
+            f"method={method!r} was removed (QuADMesh#46, 2026-06-12); "
+            "use 'quadmesh+' (the published QuADMESH+ layer-ordered sweep)"
         )
-        method = "layered"
 
     if method == "layered":
         nl_check = int(getattr(domain, "n_layers", 0) or 0)
         if nl_check > 0:
             # True per-layer loop: identifyEdges → mergePairs → routeLeftovers per layer
-            # (mirrors Tri2QuadRoutine.m).  domain.points may be augmented in-place by
-            # route ops; points is re-synced from domain after the sweep.
-            quads, leftover_idx, points = _faithful_per_layer(
-                domain, tris, can_remove_edges
-            )
+            # (mirrors Tri2QuadRoutine.m).  Route ops mutate domain.points /
+            # domain.connectivity_list in place during the sweep; snapshot +
+            # restore so the caller's mesh comes back untouched (callers and
+            # session-scoped test fixtures share the input object).
+            pts_snapshot = domain.points.copy()
+            cl_snapshot = np.asarray(domain.connectivity_list).copy()
+            try:
+                quads, leftover_idx, points = _quadmesh_plus_per_layer(
+                    domain, tris, can_remove_edges
+                )
+            finally:
+                domain.points = pts_snapshot
+                domain.connectivity_list = cl_snapshot
         else:
             # No skeleton layers (e.g. mesh too coarse) — degrade gracefully.
             prio = _layer_priority(domain, len(tris))
@@ -1002,17 +1057,15 @@ def tri2quad_routine(
             quads, leftover_idx = _match_tris_to_quads(
                 tris, points, prio, seed_pairs=seed, forbidden_edges=forbidden
             )
-    elif method == "matching":
-        quads, leftover_idx = _match_tris_to_quads(tris, points)
     else:
-        raise ValueError(f"unknown method {method!r} (use 'matching' or 'quadmesh+')")
+        raise ValueError(f"unknown method {method!r} (use 'quadmesh+')")
 
     if remove_boundary_tris and leftover_idx:
         bset = _boundary_edge_set(tris)
         mbc = (
             minimize_boundary_change
             if minimize_boundary_change is not None
-            else (method == "layered")  # layered: preserve original boundary verts
+            else True  # layered (sole path) preserves original boundary verts
         )
         quads, points, leftover_idx = _remove_boundary_tris(
             quads, leftover_idx, tris, points, bset, can_remove_edges, mbc
@@ -1027,7 +1080,7 @@ def tri2quad_routine(
 
     # Point insertion: clear remaining lone tris by pairing each with a neighbour
     # quad (pentagon) + an interior point -> 2 quads. Adds resolution, preserves
-    # every original (incl. boundary) vertex. Makes the faithful path quad-pure.
+    # every original (incl. boundary) vertex. Makes the quadmesh+ path quad-pure.
     if point_insert and method == "layered" and surviving_tris.size > 0 and quads:
         quads, surviving_tris, points = _point_insert_tri_pairs(
             quads, surviving_tris, points

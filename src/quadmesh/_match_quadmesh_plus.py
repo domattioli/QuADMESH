@@ -7,7 +7,7 @@ Ports Chapter 4.1–4.2 of Mattioli (2017):
   Ch 4.2 boundary: OE-before-IE ordering, walkability edge-flip pre-pass on
     RE_L (removed-edge list) + neighbours before the main pairing sweep.
 
-These functions are called by ``tri2quad._faithful_per_layer``.
+These functions are called by ``tri2quad._quadmesh_plus_per_layer``.
 """
 
 from __future__ import annotations
