@@ -45,13 +45,13 @@
 
 ## Status & Roadmap
 
-**Current Status (June 2026):** Python port in active development.
+**Current status (June 2026):** the QuADMESH+ layer-ordered tri-to-quad conversion is implemented and is the default `method="quadmesh+"`. The interior-saturating per-layer sweep (thesis Ch 4.1 IE-before-OE, Ch 4.2 fold-seam forbiddance) leaves **zero interior residual triangles by construction** — the faithfulness invariant. Post-process mean element quality: Test_Case_1 0.696, Block_O 0.680.
 
-- **Now:** Porting core functionality from MATLAB to Python
-- **Next:** Performance optimization; evaluate C++ or Rust backend
-- **Future:** Formal implementation within unified ADMESH library; MATLAB wrapper for v1.0.0 (Est. Aug 2026)
+- **Now:** edge-case fixups (isolated-triangle edge-swap; boundary-layer walkability) and quality tuning.
+- **Next:** performance optimization; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
+- **Future:** formal integration within the unified ADMESH library.
 
-**Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`src/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/src/matlab/quadmesh). Version 1.0.0 will ship with a MATLAB wrapper of the modernized code (Est. Aug 2026).
+**Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`src/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/src/matlab/quadmesh).
 
 ---
 
@@ -67,7 +67,7 @@ pip install -e ".[plot]"    # + matplotlib for quality plots
 Test the installation:
 
 ```bash
-pytest -q                          # 79 tests
+pytest -q                          # 133 tests
 python -m quadmesh.cli in.14 -o out.14
 ```
 
@@ -93,9 +93,15 @@ archive/            in-repo holding pen: upstream dups, .mat binaries, old resul
 
 ## Quick Start
 
-<!-- TODO: flesh out once port lands; add example usage and algorithm overview -->
+Convert a triangular `fort.14` mesh to quad-dominant with the default QuADMESH+ method:
 
-For now, see [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function correspondence and current port status.
+```bash
+python -m quadmesh.cli input.14 -o output.14
+```
+
+Useful flags: `--polygon domain.poly` (supply the domain boundary), `--no-post-process` (skip the quality smoother), `--n-smooth-iter N` (smoother iterations). Run `python -m quadmesh.cli --help` for the full list.
+
+See [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function correspondence and current port status.
 
 ---
 
