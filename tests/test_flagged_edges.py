@@ -1,9 +1,9 @@
-"""Regression: faithful tri2quad must not merge across fold seams (QuADMesh #31).
+"""Regression: quadmesh+ tri2quad must not merge across fold seams (QuADMesh #31).
 
 A self-folding layer's two bordering strips meet along a *flagged edge* (thesis
 p39 / Figure 4.1): an interior edge whose both endpoints are inner vertices.
 Merging the two triangles across such an edge stitches the strips into a single
-quad that spans the fold. The faithful matcher forbids those merges.
+quad that spans the fold. The quadmesh+ matcher forbids those merges.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from quadmesh.tri2quad import (
 
 
 @pytest.mark.parametrize("fixture_name", ["test_case_1", "test_case_2", "_block_o"])
-def test_faithful_never_merges_across_fold(fixture_name, request):
-    """No faithful-matched quad uses a flagged (fold-seam) edge as its diagonal."""
+def test_quadmesh_plus_never_merges_across_fold(fixture_name, request):
+    """No quadmesh+-matched quad uses a flagged (fold-seam) edge as its diagonal."""
     mesh = request.getfixturevalue(fixture_name)
     tris = np.asarray(mesh.connectivity_list)[:, :3].astype(int)
     pts = mesh.points.copy()

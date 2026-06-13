@@ -119,8 +119,8 @@ def test_tri2quad_quad_pure(fixture_name):
 @pytest.mark.parametrize(
     "fixture_name", ["Test_Case_1.14", "square_mesh_test.14", "structuredMesh1.14"]
 )
-def test_tri2quad_faithful_path(fixture_name):
-    """Faithful layer-ordered path: ZERO interior residual tris (the invariant),
+def test_tri2quad_quadmesh_plus_path(fixture_name):
+    """QuadMesh+ layer-ordered path: ZERO interior residual tris (the invariant),
     conforming, bowtie-free, and quad-pure (default point_insert clears residual
     boundary tris by pairing each with a neighbour quad + an interior point,
     preserving every original vertex)."""
@@ -130,15 +130,15 @@ def test_tri2quad_faithful_path(fixture_name):
     mesh = CHILmesh.read_from_fort14(path)
     q = tri2quad(mesh, method="layered")
     assert _interior_tri_count(q) == 0, (
-        f"{fixture_name}: faithful path left interior residual tris — NOT faithful"
+        f"{fixture_name}: quadmesh+ path left interior residual tris — NOT faithful"
     )
-    assert _bowtie_count(q) == 0, f"{fixture_name}: faithful path produced bowties"
-    assert _tri_count(q) == 0, f"{fixture_name}: faithful path not quad-pure"
+    assert _bowtie_count(q) == 0, f"{fixture_name}: quadmesh+ path produced bowties"
+    assert _tri_count(q) == 0, f"{fixture_name}: quadmesh+ path not quad-pure"
 
 
 @pytest.mark.parametrize("fixture_name", ["Test_Case_1.14", "structuredMesh1.14"])
-def test_faithful_preserves_original_boundary_vertices(fixture_name):
-    """Faithful path must not move/delete ORIGINAL boundary vertices.
+def test_quadmesh_plus_preserves_original_boundary_vertices(fixture_name):
+    """QuadMesh+ path must not move/delete ORIGINAL boundary vertices.
 
     Residual boundary tris are dropped (apex exposed), not squeezed (which moves
     + deletes the two original boundary verts). Every original boundary-vertex
@@ -161,7 +161,7 @@ def test_faithful_preserves_original_boundary_vertices(fixture_name):
     missing = [v for v in bverts if tuple(np.round(P_in[v], 6)) not in out]
     assert not missing, (
         f"{fixture_name}: {len(missing)} original boundary verts altered/removed "
-        f"by faithful path (expected 0)"
+        f"by quadmesh+ path (expected 0)"
     )
 
 

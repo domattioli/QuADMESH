@@ -743,10 +743,10 @@ def fold_bridge_quads(
 ) -> List[int]:
     """Indices of quads that bridge a fold seam (QuADMesh #33).
 
-    A *fold-bridge quad* is a faithful-matched quad whose diagonal (the merged
+    A *fold-bridge quad* is a quadmesh+-matched quad whose diagonal (the merged
     triangles' shared edge) is a **flagged edge** — an interior edge whose both
     endpoints are inner vertices, marking where a self-folding layer's two
-    bordering strips meet (thesis p39 / Figure 4.1). The faithful matcher
+    bordering strips meet (thesis p39 / Figure 4.1). The quadmesh+ matcher
     forbids these merges (#31); this metric makes the defect class measurable
     and regression-pinnable rather than relying on a bespoke per-test probe.
 
@@ -1080,7 +1080,7 @@ def tri2quad_routine(
 
     # Point insertion: clear remaining lone tris by pairing each with a neighbour
     # quad (pentagon) + an interior point -> 2 quads. Adds resolution, preserves
-    # every original (incl. boundary) vertex. Makes the faithful path quad-pure.
+    # every original (incl. boundary) vertex. Makes the quadmesh+ path quad-pure.
     if point_insert and method == "layered" and surviving_tris.size > 0 and quads:
         quads, surviving_tris, points = _point_insert_tri_pairs(
             quads, surviving_tris, points
