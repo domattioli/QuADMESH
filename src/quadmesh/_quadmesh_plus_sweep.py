@@ -17,7 +17,7 @@ sub-mesh from the (mutated) ``Domain.connectivity_list`` and reads
 points, layers and adjacencies consistent after every mutation, the selection
 sees the current state, just like MATLAB.
 
-Returns ``(quads, residual_tris, points)`` from :func:`faithful_sweep`.
+Returns ``(quads, residual_tris, points)`` from :func:`quadmesh_plus_sweep`.
 """
 
 from __future__ import annotations
@@ -359,7 +359,7 @@ def _route_remaining(
 # ---------------------------------------------------------------------------
 # Top-level sweep
 # ---------------------------------------------------------------------------
-def faithful_sweep(
+def quadmesh_plus_sweep(
     domain_in: CHILmesh,
     minimize_boundary_change: bool = True,
     can_remove_edges: bool = True,

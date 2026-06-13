@@ -857,7 +857,7 @@ def _quadmesh_plus_per_layer(
         # T017/T018: greedy interior-saturating pairing of remaining layer tris
         # (thesis Ch 4.1 greedy extension; Ch 4.2 fold-seam forbiddance). Pairs
         # adjacent unmatched tris into quads before routing genuine residuals.
-        from ._match_faithful import match_layer_heuristic
+        from ._match_quadmesh_plus import match_layer_heuristic
         ie_ids = np.asarray(layers["IE"][li], dtype=int)
         oe_ids = np.asarray(layers["OE"][li], dtype=int)
         layer_conn = domain.connectivity_list[glob]
