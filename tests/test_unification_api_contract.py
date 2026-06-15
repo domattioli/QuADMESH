@@ -67,7 +67,8 @@ def test_run_pipeline_signature():
 
     MADMESHing calls: run_pipeline(mesh, polygon=None, can_remove_edges=True,
     n_smooth_iter=3, do_post_process=True, max_outer_iter=5, max_inner_iter=5,
-    method='quadmesh+', truss_smooth=False, truss_fh=None).
+    method='quadmesh+', truss_smooth=False, truss_fh=None, precondition=False,
+    precondition_kwargs=None).
     """
     from quadmesh.pipeline import run_pipeline
 
@@ -87,6 +88,8 @@ def test_run_pipeline_signature():
         "method",
         "truss_smooth",
         "truss_fh",
+        "precondition",
+        "precondition_kwargs",
     ]
     assert param_list == expected_params, (
         f"run_pipeline params in wrong order. Expected {expected_params}, got {param_list}"

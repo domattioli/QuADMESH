@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov"]
 plot = ["matplotlib>=3.6"]
+experimental = ["networkx>=3"]
 
 [project.scripts]
 quadmesh = "quadmesh.cli:main"

@@ -24,6 +24,8 @@ def run_pipeline(
     method: str = "quadmesh+",
     truss_smooth: bool = False,
     truss_fh=None,
+    precondition: bool = False,
+    precondition_kwargs: Optional[dict] = None,
 ) -> CHILmesh:
     """Full create_quad_domain → tri2quad → post_process sweep.
 
@@ -40,11 +42,16 @@ def run_pipeline(
             ``"faithful"`` removed per #46.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
+        precondition: If True, apply triangulation conditioning before tri2quad.
+        precondition_kwargs: Optional dict of kwargs for condition_triangulation.
 
     Returns:
         Final quad CHILmesh.
     """
     domain = create_quad_domain(mesh, polygon=polygon)
+    if precondition:
+        from .precondition import condition_triangulation
+        domain = condition_triangulation(domain, **(precondition_kwargs or {}))
     quad = tri2quad_routine(
         domain, can_remove_edges=can_remove_edges, parent=mesh, method=method
     )

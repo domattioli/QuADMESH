@@ -43,6 +43,8 @@ def main(argv=None) -> int:
                          help="Outer post-process loop cap (default 5).")
     parser.add_argument("--max-inner-iter", type=int, default=5,
                          help="Inner doublet+QVM loop cap (default 5).")
+    parser.add_argument("--precondition", action="store_true",
+                        help="Experimental: condition the triangulation (per-layer matching repair) before tri2quad.")
     args = parser.parse_args(argv)
 
     if not args.input.exists():
@@ -61,6 +63,7 @@ def main(argv=None) -> int:
         do_post_process=not args.no_post_process,
         max_outer_iter=args.max_outer_iter,
         max_inner_iter=args.max_inner_iter,
+        precondition=args.precondition,
     )
 
     stats = compute_quality_stats(out)
