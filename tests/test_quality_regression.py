@@ -21,6 +21,8 @@ BASELINES_FILE = Path(__file__).resolve().parent / "fixtures" / "quality_baselin
 
 
 def _load_baselines() -> dict:
+    if not BASELINES_FILE.exists():
+        return {}
     with open(BASELINES_FILE) as f:
         return {k: v for k, v in json.load(f).items() if not k.startswith("_")}
 
