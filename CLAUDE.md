@@ -23,7 +23,7 @@ New session branches discouraged — work directly on `development`, PR → `mai
 Conventional src-layout Python package (reorganized 2026-05-24, was numeric-prefix MATLAB-project layout):
 
 - `src/quadmesh/` — Python port of QuADMESH+ (the package; `pip install -e .` from root).
-- `tests/` — pytest suite; `tests/fixtures/meshes/` holds the `.14` test meshes.
+- `tests/` — pytest suite. `.14` test meshes are NOT vendored (removed `4dc5eea`); provisioned on demand into gitignored `tests/fixtures/meshes/` from the `domattioli/Valence` registry. See `tests/fixtures/README.md`.
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
 - `specs/001-matlab-to-python-port/`, `specs/003-root-reorg/` — speckit spec/plan/tasks.
@@ -44,9 +44,17 @@ PyPI — it must be editable-installed from the sibling `../CHILmesh` checkout.
 ```
 bash scripts/dev_setup.sh         # venv + editable chilmesh + quadmesh[dev]
 . .venv/bin/activate
-pytest tests/                     # 87 tests, ~20s
+GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py   # provision .14 meshes from Valence (optional)
+pytest tests/                     # 151 collected; mesh-dependent tests skip w/o fixtures
 python -m quadmesh.cli <input.14> -o <out.14>
 ```
+
+**Test meshes are not vendored** (removed `4dc5eea`, now on `domattioli/Valence`).
+`conftest.py` auto-provisions them when a token with cross-repo Valence read is
+present (`GITHUB_TOKEN`/`GH_TOKEN`); without one, mesh-dependent tests — incl.
+the faithfulness gate `test_no_interior_tris.py` — **skip silently**. CI needs a
+cross-repo read PAT secret to run them (default CI `GITHUB_TOKEN` can't read
+another private repo). See `tests/fixtures/README.md`.
 
 ## Session lifecycle
 
