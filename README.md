@@ -149,7 +149,7 @@ Recombining two triangles into one quadrilateral trades a measurable amount of p
   <em>QuADMESH+ output over the Gulf of California (subset of the ENPAC2003 domain).</em>
 </p>
 
-The boundary-layer quality limitation is a tracked issue; both measurements above are reproducible from the repository:
+The boundary-layer quality limitation is tracked in [#90](https://github.com/domattioli/QuADMESH/issues/90); both measurements above are reproducible from the repository:
 
 ```bash
 # per-phase timing + quality histogram for any fort.14 mesh
