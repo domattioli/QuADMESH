@@ -14,3 +14,7 @@ media/
 
 # Benchmark/render generated artifacts
 output/
+
+# Self-symlink + agent worktrees (never commit)
+QuADMESH
+.claude/worktrees/
