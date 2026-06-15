@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quadmesh"
-version = "0.1.0"
+version = "0.1.1"
 description = "QuADMESH+: Quadrangular ADvanced Mesh generator. Python port of MATLAB QuADMESH library."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ authors = [
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
-    "chilmesh>=0.4.0",
+    "chilmesh>=1.2.1",
 ]
 
 [project.optional-dependencies]

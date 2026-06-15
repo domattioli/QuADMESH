@@ -56,3 +56,32 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip_slow)
+
+
+def pytest_configure(config):
+    """Best-effort provision of test meshes from the Valence registry.
+
+    Meshes are not vendored in this repo (see Valence registry); when a
+    GITHUB_TOKEN / GH_TOKEN with cross-repo read on domattioli/Valence is
+    available, fetch + integrity-check them into tests/fixtures/meshes/.
+    No token or offline -> no-op; mesh-dependent tests skip as before.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    mod_path = Path(__file__).resolve().parent / "_mesh_provision.py"
+    spec = importlib.util.spec_from_file_location("_mesh_provision", mod_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    results = mod.provision()
+    fetched = [n for n, s in results.items() if s == "fetched"]
+    errors = {n: s for n, s in results.items() if s.startswith("error")}
+    if fetched:
+        reporter = config.pluginmanager.get_plugin("terminalreporter")
+        if reporter:
+            print(
+                f"[fixtures] provisioned {len(fetched)} mesh(es) from Valence: "
+                f"{', '.join(sorted(fetched))}"
+            )
+    if errors:
+        print(f"[fixtures] provision errors (tests will skip): {errors}")

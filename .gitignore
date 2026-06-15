@@ -14,3 +14,7 @@ media/
 
 # Benchmark/render generated artifacts
 output/
+
+# Test mesh fixtures — provisioned on demand from domattioli/Valence
+# (registry_data/meshes), not vendored here. See tests/fixtures/README.md.
+tests/fixtures/meshes/
