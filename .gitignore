@@ -11,3 +11,6 @@ dist/
 
 # Manim render output
 media/
+
+# Benchmark/render generated artifacts
+output/
