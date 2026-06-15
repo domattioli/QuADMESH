@@ -74,7 +74,25 @@ def _unmatched_locals(tris, iv_set) -> set[int]:
     return {n for n in G.nodes if n not in matched}
 
 
-def condition_triangulation(domain, *, max_passes_per_layer=6, collect_stats=False):
+def _tri_quality(pts, tri, metric: str = "aspect_ratio") -> float:
+    """Quality of a single triangle (higher = better; ~1 ideal, ~0 sliver).
+
+    Returns 0.0 on degenerate/failed evaluation so a bad result never reads as
+    'good'. Lazy-imports element_quality so the module still imports on a
+    chilmesh build that lacks it (quality_aware is opt-in).
+    """
+    try:
+        from chilmesh import element_quality
+        q = element_quality(pts, [[int(tri[0]), int(tri[1]), int(tri[2])]], metric=metric)
+        v = float(np.asarray(q).ravel()[0])
+        return 0.0 if v != v else v  # nan -> 0.0
+    except Exception:
+        return 0.0
+
+
+def condition_triangulation(domain, *, max_passes_per_layer=6, quality_aware=False,
+                            quality_metric="aspect_ratio", quality_eps=1e-9,
+                            collect_stats=False):
     """Return NEW CHILmesh with rewired connectivity for cleaner per-layer matching.
 
     Does NOT mutate input. Same points, same element count (swaps preserve both).
@@ -82,6 +100,12 @@ def condition_triangulation(domain, *, max_passes_per_layer=6, collect_stats=Fal
     Args:
         domain: Input triangular CHILmesh (from create_quad_domain).
         max_passes_per_layer: Max edge-swap iterations per layer.
+        quality_aware: If True, accept a swap only when it BOTH reduces the
+            unmatched count AND does not lower the worst incident triangle
+            quality (worst_after >= worst_before - quality_eps).
+        quality_metric: Metric for incident-quality check ("aspect_ratio" or "skew";
+            higher = better for both).
+        quality_eps: Tolerance for the worst-incident-quality comparison.
         collect_stats: If True, return (mesh, stats_list).
 
     Returns:
@@ -145,7 +169,15 @@ def condition_triangulation(domain, *, max_passes_per_layer=6, collect_stats=Fal
                     # Try swap
                     if edge_swap(work, va, vb, pts):
                         new_unmatched = len(_unmatched_locals(work.tris, iv_set))
-                        if new_unmatched < cur:
+                        accept = new_unmatched < cur
+                        if accept and quality_aware:
+                            worst_before = min(_tri_quality(pts, snap_i, quality_metric),
+                                               _tri_quality(pts, snap_j, quality_metric))
+                            worst_after = min(_tri_quality(pts, work.tris[i], quality_metric),
+                                              _tri_quality(pts, work.tris[j], quality_metric))
+                            if worst_after < worst_before - quality_eps:
+                                accept = False
+                        if accept:
                             swaps += 1
                             made = True
                             break
