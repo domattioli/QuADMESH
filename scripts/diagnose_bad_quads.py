@@ -52,8 +52,9 @@ def load_mesh(path: Path) -> tuple[np.ndarray, np.ndarray, object]:
     elif path.suffix == '.npz':
         data = np.load(path)
         points = data['points']
-        conn = data['connectivity_list']
-        return points, conn, None
+        conn = data['conn'] if 'conn' in data.files else data['connectivity_list']
+        mesh = CHILmesh(connectivity=conn, points=points)
+        return points, conn, mesh
     else:
         raise ValueError(f"Unsupported format: {path.suffix}")
 
