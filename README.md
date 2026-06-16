@@ -4,7 +4,8 @@
 
 <p align="center">
   <strong>A Quadrangular ADvanced, automatic unstructured MESH generator for 2D shallow-water models.</strong><br>
-  Python port of the MATLAB QuADMESH library and a Pythonic API.
+  Python API and port of the QuADMESH and MATLAB library <a href="https://github.com/user-attachments/files/19724263/QuADMESH-Thesis.pdf">
+    <img src="https://img.shields.io/badge/Thesis-QuADMESH-ba0c2f?style=flat-square&logo=book&logoColor=white&labelColor=cfd4d8" alt="QuADMESH Thesis"></a> 
 </p>
 
 <p align="center">
