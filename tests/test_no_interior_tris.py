@@ -22,6 +22,7 @@ FIXTURES = [
     "Test_Case_3.14",
     "simple_test_case.14",
     "square_mesh_test.14",
+    "Block_O.14",
     "structuredMesh1.14",
 ]
 
@@ -205,3 +206,49 @@ def test_quadmesh_plus_alias_no_warn():
         "method='quadmesh+' must NOT emit DeprecationWarning"
     )
     assert _tri_count(q) == 0, "quadmesh+ must produce quad-pure output"
+
+
+@pytest.mark.parametrize("fixture_name", FIXTURES)
+def test_no_interior_geometric_tris(fixture_name):
+    """A quad with a ~180 deg corner is geometrically a triangle; the index-based
+    check misses it. The quadmesh+ path must leave ZERO *interior* geometric
+    triangles (boundary ones are allowed, like residual boundary tris)."""
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+")
+    P = np.asarray(q.points)[:, :2]
+    cl = np.asarray(q.connectivity_list)
+    # boundary edges over normalized elems
+    ecount = {}
+    for row in cl:
+        el = _normalize(row)
+        for e in _edges(el):
+            ecount[e] = ecount.get(e, 0) + 1
+    bset = {e for e, c in ecount.items() if c == 1}
+    interior_geo = 0
+    for row in cl:
+        idx = [int(x) for x in row]
+        if len(set(idx)) != 4:
+            continue
+        pts = P[idx]
+        flat = -1
+        for i in range(4):
+            v1 = pts[(i - 1) % 4] - pts[i]; v2 = pts[(i + 1) % 4] - pts[i]
+            n1 = np.linalg.norm(v1); n2 = np.linalg.norm(v2)
+            if n1 < 1e-12 or n2 < 1e-12:
+                flat = i; break
+            ang = np.degrees(np.arccos(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0)))
+            if ang >= 178.0:
+                flat = i; break
+        if flat < 0:
+            continue
+        # "interior" iff none of the element's actual edges is a boundary edge
+        elem_edges = _edges(_normalize(row))
+        if not any(e in bset for e in elem_edges):
+            interior_geo += 1
+    assert interior_geo == 0, (
+        f"{fixture_name}: {interior_geo} interior geometric triangles "
+        f"(quad with ~180 deg corner, no boundary edge)"
+    )
