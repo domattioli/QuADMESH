@@ -251,3 +251,31 @@ def test_no_interior_geometric_tris(fixture_name):
         f"{fixture_name}: {interior_geo} interior geometric triangles "
         f"(quad with ~180 deg corner, no boundary edge)"
     )
+
+
+@pytest.mark.parametrize("fixture_name", FIXTURES)
+def test_no_degenerate_quads(fixture_name):
+    """Regression gate: the index-based interior-tri check passes even when the
+    mesh is full of geometrically-degenerate quads (4 distinct indices but a
+    ~180-degree corner = a triangle in disguise). Use chilmesh's order-independent
+    element_quality to bound the count of near-degenerate elements. quadmesh+
+    emitted ~100-274 of these before the CCW-reorder + leftover-deferral fixes;
+    after, it's a handful. This gate catches a regression back to the flood.
+    """
+    from chilmesh import element_quality
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+")
+    aspect = np.asarray(
+        element_quality(q.points, q.connectivity_list, metric="aspect_ratio")
+    ).ravel()
+    n_elems = aspect.size
+    n_degen = int((aspect < 0.01).sum())
+    bound = max(5, int(0.01 * n_elems))
+    assert n_degen <= bound, (
+        f"{fixture_name}: {n_degen} near-degenerate quads (aspect<0.01) of "
+        f"{n_elems} elements exceeds bound {bound} — likely a quad-ordering or "
+        f"leftover-routing regression"
+    )
