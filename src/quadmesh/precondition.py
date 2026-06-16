@@ -102,7 +102,7 @@ def _layer_paired_globals(domain, li) -> set:
     return paired
 
 
-def condition_triangulation(domain, *, max_hops=4, collect_stats=False):
+def condition_triangulation(domain, *, max_hops=4, layers=None, collect_stats=False):
     """Return NEW CHILmesh with point-preserving rewired connectivity for cleaner per-layer matching.
 
     Walks layers 0→N (outer to inner). For each layer, detects which tris would be
@@ -113,6 +113,9 @@ def condition_triangulation(domain, *, max_hops=4, collect_stats=False):
     Args:
         domain: Input triangular CHILmesh (from create_quad_domain).
         max_hops: Max edge-flip walk depth per leftover tri (passed to walk_isolated_tri).
+        layers: Optional iterable of layer indices to condition. None (default) =
+            all layers. e.g. layers=[0] conditions only the boundary layer;
+            layers=[0, 1] the outer two. Layers not listed are left untouched.
         collect_stats: If True, return (mesh, stats_list).
 
     Returns:
@@ -129,6 +132,10 @@ def condition_triangulation(domain, *, max_hops=4, collect_stats=False):
     for li in range(nl):  # Outer (0) to inner (N)
         elem_ids = _layer_elem_ids(domain, li)
         if elem_ids.size == 0:
+            continue
+
+        # Skip unlisted layers entirely (left untouched, no detection, no flips)
+        if layers is not None and li not in set(layers):
             continue
 
         # Detect which tris quadmesh+ would pair in this layer
