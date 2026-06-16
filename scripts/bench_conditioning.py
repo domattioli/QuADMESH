@@ -83,6 +83,66 @@ def _interior_tris(connectivity_list) -> int:
     return interior
 
 
+def _quad_rows(connectivity_list):
+    """Yield normalized 4-vertex quad tuples (skip tris)."""
+    out = []
+    for row in connectivity_list:
+        nrm = _normalize(row)
+        if len(nrm) == 4:
+            out.append(nrm)
+    return out
+
+
+def _high_valence_count(connectivity_list, n_pts, thresh=5):
+    """# vertices whose element-incidence >= thresh (irregular/singular nodes; lower=better)."""
+    inc = np.zeros(int(n_pts), dtype=int)
+    for row in connectivity_list:
+        for v in set(int(x) for x in _normalize(row)):
+            if 0 <= v < inc.size:
+                inc[v] += 1
+    return int((inc >= thresh).sum())
+
+
+def _quad_min_angles(points, connectivity_list):
+    """Return np.array of per-quad minimum interior angle (degrees)."""
+    P = np.asarray(points)[:, :2]
+    mins = []
+    for q in _quad_rows(connectivity_list):
+        pts = P[list(q)]
+        angs = []
+        for i in range(4):
+            prev = pts[(i - 1) % 4]; cur = pts[i]; nxt = pts[(i + 1) % 4]
+            v1 = prev - cur; v2 = nxt - cur
+            n1 = np.linalg.norm(v1); n2 = np.linalg.norm(v2)
+            if n1 < 1e-12 or n2 < 1e-12:
+                angs.append(0.0); continue
+            c = float(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0))
+            angs.append(float(np.degrees(np.arccos(c))))
+        mins.append(min(angs) if angs else 0.0)
+    return np.asarray(mins, dtype=float)
+
+
+def _grid_alignment_s4(points, connectivity_list):
+    """4-fold order parameter over quad edge directions: |mean(exp(i*4*phi))|.
+
+    1.0 = all edges aligned to one orthogonal frame (perfectly gridded);
+    0.0 = isotropic/no directional structure. Higher = better grid adherence.
+    """
+    P = np.asarray(points)[:, :2]
+    phis = []
+    for q in _quad_rows(connectivity_list):
+        pts = P[list(q)]
+        for i in range(4):
+            d = pts[(i + 1) % 4] - pts[i]
+            if np.linalg.norm(d) < 1e-12:
+                continue
+            phis.append(np.arctan2(d[1], d[0]))
+    if not phis:
+        return 0.0
+    phis = np.asarray(phis)
+    return float(np.abs(np.mean(np.exp(1j * 4.0 * phis))))
+
+
 def resolve_mesh(spec: str, registry_dir: str, manifest_path: str) -> tuple[CHILmesh, str]:
     """Resolve a mesh spec to a CHILmesh and display name.
 
@@ -152,14 +212,12 @@ def resolve_mesh(spec: str, registry_dir: str, manifest_path: str) -> tuple[CHIL
     )
 
 
-def benchmark_mesh(name: str, mesh: CHILmesh, max_passes: int | None = None,
-                   quality_aware: bool = False) -> dict | None:
+def benchmark_mesh(name: str, mesh: CHILmesh) -> dict | None:
     """Run baseline and conditioned pipeline, return comparison dict.
 
     Args:
         name: display name for the mesh.
         mesh: CHILmesh instance.
-        max_passes: optional max_passes_per_layer for conditioning.
 
     Returns:
         dict with metrics, or None on exception.
@@ -188,13 +246,16 @@ def benchmark_mesh(name: str, mesh: CHILmesh, max_passes: int | None = None,
         baseline_interior_tris = _interior_tris(baseline.connectivity_list)
         n_elems_base = np.asarray(baseline.connectivity_list).shape[0]
 
+        baseline_high_valence = _high_valence_count(baseline.connectivity_list, np.asarray(baseline.points).shape[0])
+        baseline_ma = _quad_min_angles(baseline.points, baseline.connectivity_list)
+        baseline_mean_min_angle = float(np.nanmean(baseline_ma)) if baseline_ma.size else 0.0
+        baseline_n_low_angle45 = int((baseline_ma < 45).sum())
+        baseline_n_low_angle30 = int((baseline_ma < 30).sum())
+        baseline_grid_s4 = _grid_alignment_s4(baseline.points, baseline.connectivity_list)
+
         # Conditioned
         t0 = time.time()
         cond_kwargs = {}
-        if max_passes is not None:
-            cond_kwargs["max_passes_per_layer"] = max_passes
-        if quality_aware:
-            cond_kwargs["quality_aware"] = True
         conditioned = run_pipeline(mesh, precondition=True, precondition_kwargs=cond_kwargs)
         cond_secs = time.time() - t0
 
@@ -213,6 +274,13 @@ def benchmark_mesh(name: str, mesh: CHILmesh, max_passes: int | None = None,
         cond_total_tris = _total_tris(conditioned.connectivity_list)
         cond_interior_tris = _interior_tris(conditioned.connectivity_list)
         n_elems_cond = np.asarray(conditioned.connectivity_list).shape[0]
+
+        cond_high_valence = _high_valence_count(conditioned.connectivity_list, np.asarray(conditioned.points).shape[0])
+        cond_ma = _quad_min_angles(conditioned.points, conditioned.connectivity_list)
+        cond_mean_min_angle = float(np.nanmean(cond_ma)) if cond_ma.size else 0.0
+        cond_n_low_angle45 = int((cond_ma < 45).sum())
+        cond_n_low_angle30 = int((cond_ma < 30).sum())
+        cond_grid_s4 = _grid_alignment_s4(conditioned.points, conditioned.connectivity_list)
 
         # Conditioning stats (same conditioning kwargs as the pipeline run)
         domain = create_quad_domain(mesh)
@@ -249,6 +317,18 @@ def benchmark_mesh(name: str, mesh: CHILmesh, max_passes: int | None = None,
             "n_layers": n_layers,
             "baseline_secs": baseline_secs,
             "cond_secs": cond_secs,
+            "baseline_high_valence": baseline_high_valence,
+            "cond_high_valence": cond_high_valence,
+            "baseline_mean_min_angle": baseline_mean_min_angle,
+            "cond_mean_min_angle": cond_mean_min_angle,
+            "mean_min_angle_delta": cond_mean_min_angle - baseline_mean_min_angle,
+            "baseline_n_low_angle45": baseline_n_low_angle45,
+            "cond_n_low_angle45": cond_n_low_angle45,
+            "baseline_n_low_angle30": baseline_n_low_angle30,
+            "cond_n_low_angle30": cond_n_low_angle30,
+            "baseline_grid_s4": baseline_grid_s4,
+            "cond_grid_s4": cond_grid_s4,
+            "grid_s4_delta": cond_grid_s4 - baseline_grid_s4,
         }
 
     except Exception as e:
@@ -292,6 +372,24 @@ def print_table(results: list[dict]) -> None:
               f"{r['cond_secs']:>9.2f}")
 
     print("=" * 160)
+    print(f"{'Mesh':<20} | {'Base HiVal':<10} | {'Cond HiVal':<10} | {'Base MinAng':<12} | "
+          f"{'Cond MinAng':<12} | {'MinAng Δ':<10} | {'Base <45':<8} | {'Cond <45':<8} | "
+          f"{'Base GridS4':<12} | {'Cond GridS4':<12} | {'S4 Δ':<10}")
+    print("=" * 160)
+
+    for r in results:
+        print(f"{r['name']:<20} | {r.get('baseline_high_valence', 'N/A'):>9} | "
+              f"{r.get('cond_high_valence', 'N/A'):>9} | "
+              f"{r.get('baseline_mean_min_angle', 'N/A'):>11} | "
+              f"{r.get('cond_mean_min_angle', 'N/A'):>11} | "
+              f"{r.get('mean_min_angle_delta', 'N/A'):>9} | "
+              f"{r.get('baseline_n_low_angle45', 'N/A'):>7} | "
+              f"{r.get('cond_n_low_angle45', 'N/A'):>7} | "
+              f"{r.get('baseline_grid_s4', 'N/A'):>11} | "
+              f"{r.get('cond_grid_s4', 'N/A'):>11} | "
+              f"{r.get('grid_s4_delta', 'N/A'):>9}")
+
+    print("=" * 160)
 
 
 def main():
@@ -317,18 +415,6 @@ def main():
         default=None,
         help="Path to manifest.toml. If not given, inferred from registry-dir."
     )
-    parser.add_argument(
-        "--max-passes",
-        type=int,
-        default=None,
-        help="Max passes per layer for conditioning (optional)."
-    )
-    parser.add_argument(
-        "--quality-aware",
-        action="store_true",
-        help="Accept a swap only if it also does not lower worst incident triangle quality."
-    )
-
     args = parser.parse_args()
 
     # Infer manifest path if not given
@@ -348,8 +434,7 @@ def main():
             ("structured", ex.structured()),
         ]
         for name, mesh in meshes:
-            result = benchmark_mesh(name, mesh, max_passes=args.max_passes,
-                                    quality_aware=args.quality_aware)
+            result = benchmark_mesh(name, mesh)
             if result is not None:
                 results.append(result)
 
@@ -359,8 +444,7 @@ def main():
         for spec in args.mesh:
             try:
                 mesh, display_name = resolve_mesh(spec, args.registry_dir, args.manifest)
-                result = benchmark_mesh(display_name, mesh, max_passes=args.max_passes,
-                                        quality_aware=args.quality_aware)
+                result = benchmark_mesh(display_name, mesh)
                 if result is not None:
                     results.append(result)
             except Exception as e:
