@@ -1,0 +1,17 @@
+{
+  "tag": "wnat_hagen_1k",
+  "n_tris": 98365,
+  "default_start_routed": 5509,
+  "random_mean_routed": 5531.144,
+  "random_min_routed": 5499,
+  "random_max_routed": 5569,
+  "best_random_vs_default_delta": 10,
+  "n_never_routed": 87389,
+  "n_swing_routed": 6251,
+  "n_always_routed": 4725,
+  "n_frequent_ge50pct": 5405,
+  "pct_routed_that_are_structural": 0.430484693877551,
+  "always_clustering_obs": 0.020317460317460314,
+  "always_clustering_baseline": 0.04803537843745235,
+  "always_clustering_ratio": 0.4229686738893087
+}
