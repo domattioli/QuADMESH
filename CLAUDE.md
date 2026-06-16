@@ -26,7 +26,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 - `tests/` — pytest suite. `.14` test meshes are NOT vendored (removed `4dc5eea`); provisioned on demand into gitignored `tests/fixtures/meshes/` from the `domattioli/Valence` registry. See `tests/fixtures/README.md`.
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
-- `specs/001-matlab-to-python-port/`, `specs/003-root-reorg/` — speckit spec/plan/tasks.
+- `.specify/specs/001-matlab-to-python-port/`, `.specify/specs/003-root-reorg/` — speckit spec/plan/tasks.
 - `matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
 - `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
 - `videos/` — README demo assets.
@@ -58,7 +58,7 @@ another private repo). See `tests/fixtures/README.md`.
 
 ## Session lifecycle
 
-**Start of session**: invoke `session-resume` skill from DomI upstream (read latest `docs/sessions/session-NNN.md`, restore context: branch, PR, in-progress tasks, blockers). If skill not yet available upstream, do the equivalent manually: read latest handoff + `specs/001-matlab-to-python-port/tasks.md`.
+**Start of session**: invoke `session-resume` skill from DomI upstream (read latest `docs/sessions/session-NNN.md`, restore context: branch, PR, in-progress tasks, blockers). If skill not yet available upstream, do the equivalent manually: read latest handoff + `.specify/specs/001-matlab-to-python-port/tasks.md`.
 
 **End of session**: invoke `handoff` skill from DomI upstream to write `docs/sessions/session-NNN.md` (next N) with: what changed, key decisions, files touched, what comes next, branch/PR state, open chilmesh issues. If skill not yet available upstream, do the equivalent manually.
 
