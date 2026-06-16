@@ -1,4 +1,4 @@
-"""Conditions a triangular CHILmesh by walking layers 0→N, detecting tris that quadmesh+ would leave unpaired (via identify_edges + match_layer_heuristic), and rewiring each with point-preserving edge flips (walk_isolated_tri). No points added/moved; element + vertex counts preserved. No max-cardinality/blossom matching. Experimental, opt-in."""
+"""Conditions a triangular CHILmesh by walking layers 0→N, detecting tris that quadmesh+ would leave unpaired (via identify_edges + match_layer_heuristic), and rewiring each with point-preserving edge flips (edge_flip on each leftover; topology-only, triangle-count preserving). No points added/moved; element + vertex counts preserved. No max-cardinality/blossom matching. Experimental, opt-in."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 from chilmesh import CHILmesh
 
-from ._recombine import walk_isolated_tri
+from ._recombine import edge_flip
 from ._tri_removal import WorkingMesh
 
 
@@ -147,7 +147,7 @@ def condition_triangulation(domain, *, max_hops=4, collect_stats=False):
             if work.tris[loc] is None:
                 continue
             try:
-                if walk_isolated_tri(work, loc, pts, max_hops=max_hops):
+                if edge_flip(work, loc, pts):
                     rewired += 1
             except Exception:
                 pass
