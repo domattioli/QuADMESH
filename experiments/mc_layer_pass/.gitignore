@@ -1,0 +1,13 @@
+# Large regenerable per-triangle CSVs (rebuild via run_mc.py)
+results/*_features.csv
+results/*_merged.csv
+results/*_pass.csv
+# Run logs
+results/*_run.log
+*.log
+# Dev/scratch smoke artifacts
+results/smoke_*
+figures/smoke_*
+# Python caches
+__pycache__/
+*.pyc
