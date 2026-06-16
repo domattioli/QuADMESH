@@ -243,9 +243,9 @@ def test_no_interior_geometric_tris(fixture_name):
                 flat = i; break
         if flat < 0:
             continue
-        tri = [idx[j] for j in range(4) if j != flat]
-        te = [tuple(sorted((tri[k], tri[(k + 1) % 3]))) for k in range(3)]
-        if not any(e in bset for e in te):
+        # "interior" iff none of the element's actual edges is a boundary edge
+        elem_edges = _edges(_normalize(row))
+        if not any(e in bset for e in elem_edges):
             interior_geo += 1
     assert interior_geo == 0, (
         f"{fixture_name}: {interior_geo} interior geometric triangles "

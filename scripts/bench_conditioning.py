@@ -116,10 +116,11 @@ def _geometric_tri_count(points, connectivity_list, angle_thresh=178.0):
         if flat_pos < 0:
             continue
         total += 1
-        # underlying triangle = the 3 vertices excluding the flat (colinear) one
-        tri = [idx[j] for j in range(4) if j != flat_pos]
-        tri_edges = [tuple(sorted((tri[k], tri[(k + 1) % 3]))) for k in range(3)]
-        if not any(e in bset for e in tri_edges):
+        # "interior" iff none of the element's ACTUAL edges is a domain-boundary edge.
+        # (Do NOT reconstruct the triangle's collapsed side — the flat vertex splits
+        #  it into two real edges, so the reconstructed side is never a real edge.)
+        elem_edges = _edges(_normalize(row))
+        if not any(e in bset for e in elem_edges):
             interior += 1
     return total, interior
 
