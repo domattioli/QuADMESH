@@ -314,12 +314,14 @@ def route_leftover_tri(
     can_remove_edges: bool,
     sub_b_edge_set: set,
     sub_b_vert_set: set,
-) -> None:
+) -> bool:
     """Apply the right sub-op given tri's boundary-edge count.
 
-    Mirrors MATLAB ``removeTrianglesFun`` switch. ``sub_b_edge_set`` is the
-    set of sub-mesh boundary edge IDs in *parent* indexing; ``sub_b_vert_set``
-    likewise for verts.
+    Returns True if the tri was genuinely consumed (edge_removal collapse).
+    The former edge_bisection / edge_insertion paths produced a DEGENERATE quad
+    (a triangle with a colinear inserted node); those are now DEFERRED (return
+    False) so the leftover survives to the genuine `_point_insert_tri_pairs`
+    pairing (neighbour quad + interior point -> two real quads).
     """
     edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
     bdy_edges_local = [
@@ -327,32 +329,12 @@ def route_leftover_tri(
     ]
     n_bdy = len(bdy_edges_local)
 
-    conn = domain.connectivity_list[tri_elem_id, :3].astype(int)
-    bdy_verts_in_tri = [int(v) for v in conn if int(v) in sub_b_vert_set]
-
-    if not on_mesh_boundary and n_bdy >= 1:
-        # MATLAB edgeBisection Case 2: bisect the layer-interior edge, then
-        # re-triangulate the iLayer-1 neighbour at the new midpoint so the
-        # working tri domain stays conforming (edgeBisection.m:47-79).
-        eid = int(edge_ids[bdy_edges_local[0]])
-        np_id = edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
-        if np_id is not None:
-            _split_opposing_tri(domain, eid, np_id, tri_elem_id, work)
-    elif on_mesh_boundary and n_bdy == 0:
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif not on_mesh_boundary and n_bdy == 0:
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif on_mesh_boundary and n_bdy in (2, 3):
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif on_mesh_boundary and n_bdy == 1 and can_remove_edges:
+    if on_mesh_boundary and n_bdy == 1 and can_remove_edges:
         edge_removal(domain, work, tri_elem_id, bdy_edges_local[0])
-    elif on_mesh_boundary and n_bdy == 1 and not can_remove_edges:
-        # MATLAB removeTrianglesFun: edgeBisection(1) when canRemoveEdges=false.
-        edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
-    # Else: silently leave as triangle (degenerate, rare).
+        return True
+    # All other cases formerly used edge_bisection/edge_insertion -> degenerate
+    # quads. Defer: leave the tri unconsumed for the genuine pairing pass.
+    return False
 
 
 # ── T019 — isolated-tri handling ─────────────────────────────────────────────

@@ -146,17 +146,16 @@ def test_edge_bisection_quad_is_ccw(three_tri_strip, work_for):
     assert area > 0, f"quad not CCW (area={area})"
 
 
-def test_edge_bisection_route_leftover_tri_picks_bisection(three_tri_strip, work_for):
-    """Regression for v0.3 / T14.2 bug fix: when on_mesh_boundary=True,
-    n_bdy=1, can_remove_edges=False, route must pick edge_bisection (NOT
-    edge_removal). Pre-fix this case silently called edge_removal."""
-    # tri 0 has boundary edges 0 and 2 (n_bdy=2 normally); construct a sub_b
-    # set that yields exactly one boundary edge for tri 0.
+def test_route_defers_when_bisection_would_be_needed(three_tri_strip, work_for):
+    """on_mesh_boundary=True, n_bdy=1, can_remove_edges=False used to dispatch
+    edge_bisection -> a DEGENERATE quad (triangle + colinear node). That path was
+    removed; route_leftover_tri now DEFERS (returns False, emits no quad) so the
+    leftover survives to the genuine `_point_insert_tri_pairs` pairing."""
     edge_ids = three_tri_strip.elem2edge(0).ravel().astype(int)
     sub_b_edge_set = {int(edge_ids[0])}  # only edge 0 is "on boundary"
     sub_b_vert_set = set(three_tri_strip.edge2vert(int(edge_ids[0])).ravel().astype(int).tolist())
 
-    route_leftover_tri(
+    handled = route_leftover_tri(
         three_tri_strip,
         work_for,
         tri_elem_id=0,
@@ -166,8 +165,8 @@ def test_edge_bisection_route_leftover_tri_picks_bisection(three_tri_strip, work
         sub_b_edge_set=sub_b_edge_set,
         sub_b_vert_set=sub_b_vert_set,
     )
-    # Bisection produces a quad; edge_removal would not.
-    assert len(work_for.quads) == 1
+    assert handled is False          # deferred, not consumed
+    assert len(work_for.quads) == 0  # no degenerate quad emitted
 
 
 # ---------------------------------------------------------------------------
@@ -254,13 +253,15 @@ def test_route_dispatches_edge_removal_when_can_remove(three_tri_strip, work_for
     assert three_tri_strip.points.shape[0] == n_pts_before
 
 
-def test_route_dispatches_edge_bisection_when_interior(three_tri_strip, work_for):
-    """on_mesh_boundary=False, n_bdy>=1 → edge_bisection (case 2)."""
+def test_route_defers_interior_leftover(three_tri_strip, work_for):
+    """on_mesh_boundary=False, n_bdy>=1 used to dispatch edge_bisection (case 2)
+    -> degenerate quad. Now DEFERS (returns False, no quad) so the interior
+    leftover flows to the genuine pairing instead of being faked into a quad."""
     edge_ids = three_tri_strip.elem2edge(1).ravel().astype(int)
     sub_b_edge_set = {int(edge_ids[0])}
     sub_b_vert_set = set(three_tri_strip.edge2vert(int(edge_ids[0])).ravel().astype(int).tolist())
 
-    route_leftover_tri(
+    handled = route_leftover_tri(
         three_tri_strip,
         work_for,
         tri_elem_id=1,
@@ -270,8 +271,8 @@ def test_route_dispatches_edge_bisection_when_interior(three_tri_strip, work_for
         sub_b_edge_set=sub_b_edge_set,
         sub_b_vert_set=sub_b_vert_set,
     )
-    # Bisection adds one quad.
-    assert len(work_for.quads) == 1
+    assert handled is False
+    assert len(work_for.quads) == 0
 
 
 def test_route_silently_skips_unmapped_case(three_tri_strip, work_for):

@@ -918,8 +918,9 @@ def _quadmesh_plus_per_layer(
             gid_i = int(gid)
             if gid_i in consumed:
                 continue
+            handled = False
             try:
-                route_leftover_tri(
+                handled = route_leftover_tri(
                     domain, work, gid_i, li,
                     on_mesh_boundary=on_mesh_boundary,
                     can_remove_edges=can_remove_edges,
@@ -927,8 +928,9 @@ def _quadmesh_plus_per_layer(
                     sub_b_vert_set=b_vert_set,
                 )
             except Exception:
-                pass  # degenerate — tri collected in leftover_idx below
-            consumed.add(gid_i)
+                handled = False
+            if handled:
+                consumed.add(gid_i)
 
     # Global matcher fallback for any elems not covered by skeleton layers.
     unclaimed_idx = [
