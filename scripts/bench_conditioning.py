@@ -83,6 +83,47 @@ def _interior_tris(connectivity_list) -> int:
     return interior
 
 
+def _geometric_tri_count(points, connectivity_list, angle_thresh=178.0):
+    """Count quad rows that are geometrically triangles: 4 distinct vertices but
+    one interior angle >= angle_thresh degrees (a vertex colinear on an edge).
+    Returns (total, interior) where interior = those whose underlying triangle has
+    no domain-boundary edge."""
+    P = np.asarray(points)[:, :2]
+    # domain boundary edges (appear in exactly one element, over normalized elems)
+    edge_count = {}
+    for row in connectivity_list:
+        el = _normalize(row)
+        for e in _edges(el):
+            edge_count[e] = edge_count.get(e, 0) + 1
+    bset = {e for e, c in edge_count.items() if c == 1}
+    total = 0
+    interior = 0
+    for row in connectivity_list:
+        idx = [int(x) for x in row]
+        if len(set(idx)) != 4:
+            continue  # only genuine 4-distinct-index quads
+        pts = P[idx]
+        flat_pos = -1
+        for i in range(4):
+            v1 = pts[(i - 1) % 4] - pts[i]
+            v2 = pts[(i + 1) % 4] - pts[i]
+            n1 = np.linalg.norm(v1); n2 = np.linalg.norm(v2)
+            if n1 < 1e-12 or n2 < 1e-12:
+                flat_pos = i; break
+            ang = np.degrees(np.arccos(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0)))
+            if ang >= angle_thresh:
+                flat_pos = i; break
+        if flat_pos < 0:
+            continue
+        total += 1
+        # underlying triangle = the 3 vertices excluding the flat (colinear) one
+        tri = [idx[j] for j in range(4) if j != flat_pos]
+        tri_edges = [tuple(sorted((tri[k], tri[(k + 1) % 3]))) for k in range(3)]
+        if not any(e in bset for e in tri_edges):
+            interior += 1
+    return total, interior
+
+
 def _quad_rows(connectivity_list):
     """Yield normalized 4-vertex quad tuples (skip tris)."""
     out = []
@@ -244,6 +285,7 @@ def benchmark_mesh(name: str, mesh: CHILmesh) -> dict | None:
 
         baseline_total_tris = _total_tris(baseline.connectivity_list)
         baseline_interior_tris = _interior_tris(baseline.connectivity_list)
+        baseline_geo_total, baseline_geo_interior = _geometric_tri_count(baseline.points, baseline.connectivity_list)
         n_elems_base = np.asarray(baseline.connectivity_list).shape[0]
 
         baseline_high_valence = _high_valence_count(baseline.connectivity_list, np.asarray(baseline.points).shape[0])
@@ -273,6 +315,7 @@ def benchmark_mesh(name: str, mesh: CHILmesh) -> dict | None:
 
         cond_total_tris = _total_tris(conditioned.connectivity_list)
         cond_interior_tris = _interior_tris(conditioned.connectivity_list)
+        cond_geo_total, cond_geo_interior = _geometric_tri_count(conditioned.points, conditioned.connectivity_list)
         n_elems_cond = np.asarray(conditioned.connectivity_list).shape[0]
 
         cond_high_valence = _high_valence_count(conditioned.connectivity_list, np.asarray(conditioned.points).shape[0])
@@ -311,6 +354,10 @@ def benchmark_mesh(name: str, mesh: CHILmesh) -> dict | None:
             "cond_total_tris": cond_total_tris,
             "baseline_interior_tris": baseline_interior_tris,
             "cond_interior_tris": cond_interior_tris,
+            "baseline_geo_tri": baseline_geo_total,
+            "baseline_geo_tri_interior": baseline_geo_interior,
+            "cond_geo_tri": cond_geo_total,
+            "cond_geo_tri_interior": cond_geo_interior,
             "unmatched_before": unmatched_before,
             "unmatched_after": unmatched_after,
             "swaps": swaps,
@@ -388,6 +435,16 @@ def print_table(results: list[dict]) -> None:
               f"{r.get('baseline_grid_s4', 'N/A'):>11} | "
               f"{r.get('cond_grid_s4', 'N/A'):>11} | "
               f"{r.get('grid_s4_delta', 'N/A'):>9}")
+
+    print("=" * 160)
+    print(f"{'Mesh':<20} | {'Base GeoTri':<12} | {'Cond GeoTri':<12} | {'Base GeoTri Int':<15} | {'Cond GeoTri Int':<15}")
+    print("=" * 160)
+
+    for r in results:
+        print(f"{r['name']:<20} | {r.get('baseline_geo_tri', 'N/A'):>11} | "
+              f"{r.get('cond_geo_tri', 'N/A'):>11} | "
+              f"{r.get('baseline_geo_tri_interior', 'N/A'):>14} | "
+              f"{r.get('cond_geo_tri_interior', 'N/A'):>14}")
 
     print("=" * 160)
 
