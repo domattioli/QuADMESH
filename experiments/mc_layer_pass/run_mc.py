@@ -72,6 +72,7 @@ def _run_one(seed: int):
 def main() -> int:
     import multiprocessing as mp
     from features import compute_tri_features  # same dir on sys.path
+    from features_extra import compute_extra_features
     from chilmesh import CHILmesh
 
     ap = argparse.ArgumentParser()
@@ -91,6 +92,7 @@ def main() -> int:
     n_verts = int(base.n_verts)
     n_layers = int(base.n_layers)
     feats = compute_tri_features(base)
+    feats.update(compute_extra_features(base))
     feat_keys = list(feats.keys())
 
     seeds = [args.base_seed + i for i in range(args.runs)]

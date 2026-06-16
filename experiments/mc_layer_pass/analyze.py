@@ -31,6 +31,9 @@ FEATURE_COLS = [
     "min_angle_deg", "max_angle_deg", "radius_ratio", "n_boundary_edges",
     "deg_mean", "deg_max", "deg_min", "layer", "is_IE", "is_OE",
     "n_tri_neighbours", "size_ratio", "bdy_dist",
+    "mean_valence", "max_valence", "min_valence", "valence_irreg_mean",
+    "valence_irreg_max", "n_irregular_verts", "flow_disorder", "flow_misalign",
+    "log_size_gradient", "layer_flow_misalign",
 ]
 
 
