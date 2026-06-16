@@ -1,7 +1,7 @@
 """Provision test .14 meshes from domattioli/Valence registry via authenticated GitHub API.
 
 Meshes are integrity-checked by git-blob-sha1 and cached into tests/fixtures/meshes/
-(gitignored). Gracefully no-ops when no auth token is present.
+(gitignored). Falls back to installed chilmesh package data dir when network/token unavailable.
 """
 from __future__ import annotations
 
@@ -18,6 +18,18 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "meshes"
 VALENCE_OWNER = "domattioli"
 VALENCE_REPO = "Valence"
 VALENCE_PATH = "registry_data/meshes"
+
+
+def _chilmesh_data_bytes(name: str) -> bytes | None:
+    """Return bytes of `name` from the installed chilmesh package data dir, or None."""
+    try:
+        from importlib import resources
+        res = resources.files("chilmesh").joinpath("data", name)
+        if res.is_file():
+            return res.read_bytes()
+    except (ModuleNotFoundError, FileNotFoundError, OSError, AttributeError):
+        return None
+    return None
 
 MANIFEST: dict[str, str] = {
     "Block_O.14": "9a98cf04ca54cd1d2a7a96efab317e854888fb90",
@@ -67,10 +79,29 @@ def _download(name: str, token: str) -> bytes:
     return base64.b64decode(j["content"])
 
 
+def _try_chilmesh_fallback(
+    name: str, dest: Path, verify: bool = True
+) -> str | None:
+    """Attempt to provision mesh from chilmesh.data. Return status string or None."""
+    data = _chilmesh_data_bytes(name)
+    if data is None:
+        return None
+    if verify and name in MANIFEST:
+        got = _git_blob_sha1(data)
+        if got != MANIFEST[name]:
+            return None  # Mismatch; don't use the fallback.
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / name).write_bytes(data)
+        return "fetched-chilmesh"
+    except OSError:
+        return None
+
+
 def provision(
     names: list[str] | None = None, dest: Path | None = None, *, verify: bool = True
 ) -> dict[str, str]:
-    """Provision test meshes from Valence registry.
+    """Provision test meshes from Valence registry, with chilmesh.data offline fallback.
 
     Parameters
     ----------
@@ -84,20 +115,12 @@ def provision(
     Returns
     -------
     dict[str, str]
-        Mapping name -> status in {"present", "fetched", "skip-no-token", "error: <msg>"}.
+        Mapping name -> status in {"present", "fetched", "fetched-chilmesh", "skip-no-token", "error: <msg>"}.
     """
     if names is None:
         names = list(MANIFEST)
     if dest is None:
         dest = FIXTURE_DIR
-
-    # Honor offline mode.
-    if os.environ.get("QUADMESH_NO_FETCH"):
-        results = {}
-        for name in names:
-            local = dest / name
-            results[name] = "present" if local.exists() else "skip-no-token"
-        return results
 
     token = _token()
     results = {}
@@ -107,16 +130,27 @@ def provision(
     except OSError:
         pass
 
+    no_fetch = os.environ.get("QUADMESH_NO_FETCH")
+
     for name in names:
         local = dest / name
         if local.exists():
             results[name] = "present"
             continue
 
-        if token is None:
-            results[name] = "skip-no-token"
+        # If NO_FETCH is set, skip network entirely but try chilmesh fallback.
+        if no_fetch:
+            fallback_status = _try_chilmesh_fallback(name, dest, verify)
+            results[name] = fallback_status if fallback_status else "skip-no-token"
             continue
 
+        # If no token, skip network but try chilmesh fallback.
+        if token is None:
+            fallback_status = _try_chilmesh_fallback(name, dest, verify)
+            results[name] = fallback_status if fallback_status else "skip-no-token"
+            continue
+
+        # Token present, not NO_FETCH: try network download.
         try:
             data = _download(name, token)
             if verify and name in MANIFEST:
@@ -133,7 +167,12 @@ def provision(
             RuntimeError,
             json.JSONDecodeError,
         ) as e:
-            results[name] = f"error: {type(e).__name__}: {e}"
+            # Network download failed; try chilmesh fallback before giving up.
+            fallback_status = _try_chilmesh_fallback(name, dest, verify)
+            if fallback_status:
+                results[name] = fallback_status
+            else:
+                results[name] = f"error: {type(e).__name__}: {e}"
 
     return results
 
