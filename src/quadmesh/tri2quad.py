@@ -1092,6 +1092,16 @@ def tri2quad_routine(
         else np.empty((0, 4), dtype=int)
     )
 
+    # Reorder every quad's vertices to CCW convex-perimeter order. quad_from_tri_pair
+    # and the leftover-routing builders (edge_bisection/edge_insertion) can emit
+    # non-cyclic vertex order, which makes a valid quad read as degenerate and render
+    # as a triangle. `points` is finalized here and quads_arr indexes into it (pre-remap).
+    if quads_arr.size > 0:
+        from ._topology import _ccw_order
+        quads_arr = np.array(
+            [_ccw_order(points, row) for row in quads_arr], dtype=int
+        ).reshape(-1, 4)
+
     if quads_arr.size == 0 and surviving_tris.size == 0:
         raise RuntimeError("tri2quad produced empty mesh")
 
