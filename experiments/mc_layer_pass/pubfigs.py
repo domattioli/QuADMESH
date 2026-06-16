@@ -98,8 +98,8 @@ def fig_default_vs_random(tag, per_run, meta, summary):
 
     ax.set_xlabel("triangles passed downstream per run")
     ax.set_ylabel("probability density")
-    ax.set_title("Start-vertex choice barely changes how many triangles are left over",
-                 loc="left", fontweight="bold")
+    ax.set_title("Start-vertex choice barely changes the leftover count",
+                 loc="left", fontweight="bold", fontsize=13)
     ax.margins(x=0.01)
     ax.grid(axis="y", color="0.85", lw=0.7)
     ax.set_axisbelow(True)
@@ -116,26 +116,30 @@ def fig_drivers(tag, meta):
     cdf["label"] = cdf["feature"].map(lambda f: LABELS.get(f, f))
     cdf = cdf.sort_values("spearman")
     vals = cdf["spearman"].to_numpy()
+    labels = cdf["label"].tolist()
     colors = [RED if v > 0 else BLUE for v in vals]
 
-    fig, ax = plt.subplots(figsize=(8.8, 7.4))
-    ax.axvspan(-0.1, 0.1, color="0.6", alpha=0.10, zorder=0)
-    bars = ax.barh(cdf["label"], vals, color=colors, edgecolor="white", zorder=3)
+    fig, ax = plt.subplots(figsize=(9.5, 9.2))
+    ax.axvspan(-0.1, 0.1, color="0.6", alpha=0.10, zorder=0,
+               label="|ρ| < 0.1  (negligible effect)")
+    ax.barh(labels, vals, color=colors, edgecolor="white", height=0.74, zorder=3)
     ax.axvline(0, color="k", lw=0.9, zorder=4)
-    xmax = max(0.16, np.abs(vals).max() * 1.25)
+    xmax = max(0.16, float(np.abs(vals).max()) * 1.30)
     ax.set_xlim(-xmax, xmax)
-    for v, b in zip(vals, bars):
-        ax.text(v + (0.006 if v >= 0 else -0.006), b.get_y() + b.get_height() / 2,
-                f"{v:+.2f}", va="center", ha="left" if v >= 0 else "right",
-                fontsize=9.5, color="0.25")
-    ax.text(0.0, -1.15, "shaded |ρ| < 0.1 = negligible effect",
-            ha="center", va="top", fontsize=9.5, color="0.4", transform=ax.get_xaxis_transform())
+    ax.set_ylim(-0.7, len(vals) - 0.3)
+    for y, v in enumerate(vals):
+        ax.text(v + (0.004 if v >= 0 else -0.004), y, f"{v:+.3f}",
+                va="center", ha="left" if v >= 0 else "right",
+                fontsize=8.5, color="0.25", zorder=5)
     ax.set_xlabel("Spearman ρ with triangle pass-frequency\n"
-                  "red = passed downstream more often · blue = less often")
-    ax.set_title("Outer-edge membership is the only real predictor of a leftover triangle",
-                 loc="left", fontweight="bold", fontsize=14)
+                  "red = passed downstream more often   ·   blue = less often")
+    ax.set_title("No single feature dominates the leftover triangles\n"
+                 "(weak, multifactorial drivers)",
+                 loc="left", fontweight="bold", fontsize=13)
+    ax.legend(loc="lower right", frameon=False, fontsize=10)
     ax.grid(axis="x", color="0.88", lw=0.7, zorder=0)
     ax.set_axisbelow(True)
+    ax.tick_params(axis="y", labelsize=10)
     fig.tight_layout()
     out = FIGURES / f"{tag}_pub_drivers.png"
     fig.savefig(out)
