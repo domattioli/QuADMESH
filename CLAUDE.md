@@ -45,7 +45,7 @@ PyPI — it must be editable-installed from the sibling `../CHILmesh` checkout.
 bash scripts/dev_setup.sh         # venv + editable chilmesh + quadmesh[dev]
 . .venv/bin/activate
 GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py   # provision .14 meshes from Valence (optional)
-pytest tests/                     # 151 collected; mesh-dependent tests skip w/o fixtures
+pytest tests/                     # 169 collected; offline = 97 run / 72 skipped (mesh-dependent skip w/o fixtures)
 python -m quadmesh.cli <input.14> -o <out.14>
 ```
 
