@@ -14,8 +14,6 @@
 
 ---
 
-## Badges
-
 <p align="center">
   <a href="https://pypi.org/project/quadmesh/"><img src="https://img.shields.io/pypi/v/quadmesh.svg?label=PyPI" alt="PyPI version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
@@ -24,10 +22,6 @@
   <a href="https://doi.org/10.5281/zenodo.20351165"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20351165.svg" alt="DOI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20NC%20%2B%20No--AI-red.svg" alt="License"></a>
 </p>
-
-<!-- TODO: Add PyPI badge once v0.1.0 is published -->
-
----
 
 ## Table of Contents
 
