@@ -1,13 +1,13 @@
-"""Conditions a triangular CHILmesh so each layer admits a cleaner intra-layer perfect matching, by detecting tris antagonistic to perfect matching and applying edge swaps (thesis Fig 3.2 recombination) to rewire them. Points are never moved or added — only connectivity is rewired. Experimental, opt-in."""
+"""Conditions a triangular CHILmesh by walking layers 0→N, detecting tris that quadmesh+ would leave unpaired (via identify_edges + match_layer_heuristic), and rewiring each with point-preserving edge flips (walk_isolated_tri). No points added/moved; element + vertex counts preserved. No max-cardinality/blossom matching. Experimental, opt-in."""
 
 from __future__ import annotations
 
-from typing import Optional, List, Tuple, Set
+from typing import Optional
 
 import numpy as np
 from chilmesh import CHILmesh
 
-from ._recombine import edge_swap
+from ._recombine import walk_isolated_tri
 from ._tri_removal import WorkingMesh
 
 
@@ -19,93 +19,100 @@ def _layer_elem_ids(domain, li) -> np.ndarray:
     return np.concatenate([oe, ie]) if oe.size or ie.size else np.empty(0, dtype=int)
 
 
-def _tri_edges(row) -> list[tuple[int, int]]:
-    """Return 3 undirected edges of triangle (first 3 verts of row) as sorted tuples."""
-    v = [int(row[0]), int(row[1]), int(row[2])]
-    return [tuple(sorted((v[0], v[1]))), tuple(sorted((v[1], v[2]))), tuple(sorted((v[2], v[0])))]
+def _layer_paired_globals(domain, li) -> set:
+    """Return set of global elem IDs that would be paired in this layer via quadmesh+ heuristic.
 
-
-def _build_dual_graph(tris, iv_set):
-    """Build dual graph: nodes are local tri indices, edges connect tris sharing non-fold-seam edges.
-
-    Returns (G, edge_to_local) where:
-    - G is networkx.Graph with nodes = live tri indices
-    - edge_to_local maps vertex-edge tuple -> list of local tri indices sharing it
+    Mirrors the pairing logic in tri2quad._quadmesh_plus_per_layer (lines ~813-909):
+    - identify_edges_in_layer to get the removed edges (structural pairs)
+    - match_layer_heuristic T1+T2 to get the greedy heuristic pairs
+    - Returns union of both sets of paired global IDs
     """
+    from .identify_edges import identify_edges_in_layer
+    from ._match_quadmesh_plus import match_layer_heuristic
+
     try:
-        import networkx as nx
-    except ImportError:
-        raise ImportError("conditioning requires networkx: pip install quadmesh[experimental]")
-
-    edge_to_local = {}
-    for i, t in enumerate(tris):
-        if t is None:
-            continue
-        for e in _tri_edges(t):
-            edge_to_local.setdefault(e, []).append(i)
-
-    G = nx.Graph()
-    G.add_nodes_from([i for i, t in enumerate(tris) if t is not None])
-
-    for e, locs in edge_to_local.items():
-        if len(locs) != 2:
-            continue
-        # Skip fold-seam edges (both endpoints in inner-vertex set)
-        if (e[0] in iv_set) and (e[1] in iv_set):
-            continue
-        G.add_edge(locs[0], locs[1])
-
-    return G, edge_to_local
-
-
-def _unmatched_locals(tris, iv_set) -> set[int]:
-    """Return set of local tri indices not matched in max cardinality matching."""
-    try:
-        import networkx as nx
-    except ImportError:
-        raise ImportError("conditioning requires networkx: pip install quadmesh[experimental]")
-
-    G, _ = _build_dual_graph(tris, iv_set)
-    matching = nx.max_weight_matching(G, maxcardinality=True)
-    matched = set()
-    for a, b in matching:
-        matched.add(a)
-        matched.add(b)
-    return {n for n in G.nodes if n not in matched}
-
-
-def _tri_quality(pts, tri, metric: str = "aspect_ratio") -> float:
-    """Quality of a single triangle (higher = better; ~1 ideal, ~0 sliver).
-
-    Returns 0.0 on degenerate/failed evaluation so a bad result never reads as
-    'good'. Lazy-imports element_quality so the module still imports on a
-    chilmesh build that lacks it (quality_aware is opt-in).
-    """
-    try:
-        from chilmesh import element_quality
-        q = element_quality(pts, [[int(tri[0]), int(tri[1]), int(tri[2])]], metric=metric)
-        v = float(np.asarray(q).ravel()[0])
-        return 0.0 if v != v else v  # nan -> 0.0
+        sel = identify_edges_in_layer(domain, li)
     except Exception:
-        return 0.0
+        return set()
+
+    if sel.sub_mesh is None:
+        return set()
+
+    glob = np.asarray(sel.elem_ids_global, dtype=int)
+    paired = set()
+
+    # Phase 1: pairs from removed edges (structural, first priority)
+    e2e = sel.sub_mesh.adjacencies["Edge2Elem"]
+    for eid in sel.removed_edge_ids:
+        row = np.asarray(e2e[int(eid)]).ravel()
+        if row.size < 2 or int(row[0]) < 0 or int(row[1]) < 0:
+            continue
+        la, lb = int(row[0]), int(row[1])
+        if la >= glob.size or lb >= glob.size:
+            continue
+        paired.add(int(glob[la]))
+        paired.add(int(glob[lb]))
+
+    # Phase 2: greedy heuristic pairs (T017/T018 interior-saturating)
+    ie_ids = np.asarray(domain.layers["IE"][li], dtype=int)
+    oe_ids = np.asarray(domain.layers["OE"][li], dtype=int)
+    layer_conn = domain.connectivity_list[glob]
+
+    # Flagged pairs (fold-seam forbiddance, T018)
+    flagged_global_pairs = set()
+    if sel.flagged_vert_pairs:
+        fv = {(int(min(p)), int(max(p))) for p in sel.flagged_vert_pairs}
+        n_sub_edges = sel.sub_mesh.n_edges
+        e2v_all = sel.sub_mesh.edge2vert(np.arange(n_sub_edges))
+        e2e_sub = sel.sub_mesh.adjacencies["Edge2Elem"]
+        for eidx in range(n_sub_edges):
+            u, v = int(e2v_all[eidx, 0]), int(e2v_all[eidx, 1])
+            if (min(u, v), max(u, v)) in fv:
+                row = np.asarray(e2e_sub[eidx]).ravel()
+                if row.size >= 2 and int(row[0]) >= 0 and int(row[1]) >= 0:
+                    la2, lb2 = int(row[0]), int(row[1])
+                    if la2 < glob.size and lb2 < glob.size:
+                        flagged_global_pairs.add(
+                            frozenset([int(glob[la2]), int(glob[lb2])])
+                        )
+
+    already = {int(glob[i]) for i in range(glob.size) if int(glob[i]) in paired}
+    nl = int(getattr(domain, "n_layers", 0) or 0)
+    is_boundary_layer = (li == nl - 1)
+
+    try:
+        greedy_pairs, _ = match_layer_heuristic(
+            layer_conn=layer_conn,
+            layer_global_ids=glob,
+            ie_global_ids=ie_ids,
+            oe_global_ids=oe_ids,
+            pts=domain.points,
+            flagged_pairs=flagged_global_pairs,
+            already_consumed=already,
+            is_boundary_layer=is_boundary_layer,
+        )
+    except Exception:
+        greedy_pairs = []
+
+    for la, lb in greedy_pairs:
+        if la < glob.size and lb < glob.size:
+            paired.add(int(glob[la]))
+            paired.add(int(glob[lb]))
+
+    return paired
 
 
-def condition_triangulation(domain, *, max_passes_per_layer=6, quality_aware=False,
-                            quality_metric="aspect_ratio", quality_eps=1e-9,
-                            collect_stats=False):
-    """Return NEW CHILmesh with rewired connectivity for cleaner per-layer matching.
+def condition_triangulation(domain, *, max_hops=4, collect_stats=False):
+    """Return NEW CHILmesh with point-preserving rewired connectivity for cleaner per-layer matching.
 
-    Does NOT mutate input. Same points, same element count (swaps preserve both).
+    Walks layers 0→N (outer to inner). For each layer, detects which tris would be
+    leftover (unpaired) after quadmesh+'s own pairing heuristic, then applies edge-flip
+    walks (walk_isolated_tri) to rewire them so they can pair. Does NOT mutate input.
+    Same points, same element count (walks only flip edges — no point add/move).
 
     Args:
         domain: Input triangular CHILmesh (from create_quad_domain).
-        max_passes_per_layer: Max edge-swap iterations per layer.
-        quality_aware: If True, accept a swap only when it BOTH reduces the
-            unmatched count AND does not lower the worst incident triangle
-            quality (worst_after >= worst_before - quality_eps).
-        quality_metric: Metric for incident-quality check ("aspect_ratio" or "skew";
-            higher = better for both).
-        quality_eps: Tolerance for the worst-incident-quality comparison.
+        max_hops: Max edge-flip walk depth per leftover tri (passed to walk_isolated_tri).
         collect_stats: If True, return (mesh, stats_list).
 
     Returns:
@@ -114,101 +121,49 @@ def condition_triangulation(domain, *, max_passes_per_layer=6, quality_aware=Fal
                                  'unmatched_after': int, 'swaps': int}
     """
     # Copy to avoid mutating input
-    work_domain = domain.copy()
-    conn = np.asarray(work_domain.connectivity_list).copy()
-    pts = np.asarray(work_domain.points)
-    nl = int(getattr(work_domain, "n_layers", 0) or 0)
+    conn = np.asarray(domain.connectivity_list).copy()
+    pts = np.asarray(domain.points)
+    nl = int(getattr(domain, "n_layers", 0) or 0)
     stats = []
 
     for li in range(nl):  # Outer (0) to inner (N)
-        elem_ids = _layer_elem_ids(work_domain, li)
+        elem_ids = _layer_elem_ids(domain, li)
         if elem_ids.size == 0:
             continue
 
-        iv_set = set(int(v) for v in np.asarray(work_domain.layers["IV"][li], dtype=int))
+        # Detect which tris quadmesh+ would pair in this layer
+        paired = _layer_paired_globals(domain, li)
 
-        # Build WorkingMesh local tris with mapping to global elem ids
+        # Build local mapping and identify leftovers
         local_to_global = [int(g) for g in elem_ids]
-        tris = [conn[g, :3].astype(int).copy() for g in local_to_global]
+        leftovers_local = [loc for loc, g in enumerate(local_to_global) if g not in paired]
+
+        # Build WorkingMesh for this layer
         work = WorkingMesh(points=pts, quads=[])
-        work.tris = tris
+        work.tris = [conn[g, :3].astype(int).copy() for g in local_to_global]
 
-        before = len(_unmatched_locals(work.tris, iv_set))
-        swaps = 0
-
-        # Iterative edge-swap: greedily reduce unmatched count per layer
-        for _ in range(max_passes_per_layer):
-            unmatched = _unmatched_locals(work.tris, iv_set)
-            if not unmatched:
-                break
-
-            improved = False
-            cur = len(unmatched)
-
-            for u in list(unmatched):
-                if work.tris[u] is None:
-                    continue
-
-                made = False
-                for (va, vb) in _tri_edges(work.tris[u]):
-                    # Skip fold-seam edges
-                    if (va in iv_set) and (vb in iv_set):
-                        continue
-
-                    # Find tris sharing this edge
-                    sharers = [k for k, t in enumerate(work.tris)
-                               if t is not None and va in set(int(x) for x in t[:3])
-                               and vb in set(int(x) for x in t[:3])]
-                    if len(sharers) != 2:
-                        continue
-
-                    i, j = sharers
-                    snap_i = work.tris[i].copy()
-                    snap_j = work.tris[j].copy()
-
-                    # Try swap
-                    if edge_swap(work, va, vb, pts):
-                        new_unmatched = len(_unmatched_locals(work.tris, iv_set))
-                        accept = new_unmatched < cur
-                        if accept and quality_aware:
-                            worst_before = min(_tri_quality(pts, snap_i, quality_metric),
-                                               _tri_quality(pts, snap_j, quality_metric))
-                            worst_after = min(_tri_quality(pts, work.tris[i], quality_metric),
-                                              _tri_quality(pts, work.tris[j], quality_metric))
-                            if worst_after < worst_before - quality_eps:
-                                accept = False
-                        if accept:
-                            swaps += 1
-                            made = True
-                            break
-                        else:
-                            # Revert
-                            work.tris[i] = snap_i
-                            work.tris[j] = snap_j
-
-                if made:
-                    improved = True
-                    break
-
-            if not improved:
-                break
-
-        after = len(_unmatched_locals(work.tris, iv_set))
+        rewired = 0
+        for loc in leftovers_local:
+            if work.tris[loc] is None:
+                continue
+            try:
+                if walk_isolated_tri(work, loc, pts, max_hops=max_hops):
+                    rewired += 1
+            except Exception:
+                pass
 
         # Write rewired tris back to conn
         for loc, g in enumerate(local_to_global):
             if work.tris[loc] is None:
                 continue
-            conn[g, 0] = int(work.tris[loc][0])
-            conn[g, 1] = int(work.tris[loc][1])
-            conn[g, 2] = int(work.tris[loc][2])
+            conn[g, 0:3] = [int(work.tris[loc][0]), int(work.tris[loc][1]), int(work.tris[loc][2])]
 
         stats.append({
             'layer': li,
             'n_elems': int(elem_ids.size),
-            'unmatched_before': int(before),
-            'unmatched_after': int(after),
-            'swaps': int(swaps)
+            'unmatched_before': int(len(leftovers_local)),
+            'unmatched_after': int(len(leftovers_local) - rewired),
+            'swaps': int(rewired),
         })
 
     out = CHILmesh(conn, pts.copy(), grid_name=getattr(domain, "grid_name", None))
