@@ -18,3 +18,7 @@ output/
 # Test mesh fixtures — provisioned on demand from domattioli/Valence
 # (registry_data/meshes), not vendored here. See tests/fixtures/README.md.
 tests/fixtures/meshes/
+
+# Harness-injected self-symlink (repo-name → /workspace/<repo>) created at
+# container boot. Env plumbing, not repo content — never commit it.
+/QuADMESH
