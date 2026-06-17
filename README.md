@@ -68,7 +68,7 @@ pip install -e ".[plot]"    # + matplotlib for quality plots
 Test the installation:
 
 ```bash
-pytest -q                          # 169 tests (97 run offline; mesh-dependent
+pytest -q                          # 169 tests (101 run offline; mesh-dependent
                                    # tests need a Valence PAT — see tests/fixtures/README.md)
 python -m quadmesh.cli in.14 -o out.14
 ```

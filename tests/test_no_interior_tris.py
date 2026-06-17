@@ -26,6 +26,18 @@ FIXTURES = [
     "structuredMesh1.14",
 ]
 
+# Meshes provisionable offline (chilmesh.data fallback) — tests that only need
+# *a* valid mesh use these so they run in CI / offline instead of skipping.
+_OFFLINE_FIXTURES = ["structuredMesh1.14", "Block_O.14"]
+
+
+def _first_available(names):
+    for n in names:
+        p = FIXTURE_DIR / n
+        if p.exists():
+            return p
+    return None
+
 
 def _edges(el):
     n = len(el)
@@ -168,9 +180,9 @@ def test_quadmesh_plus_preserves_original_boundary_vertices(fixture_name):
 
 def test_tri2quad_conforming_and_valid():
     """Quads must be non-degenerate and the mesh conforming (no edge in >2 elems)."""
-    path = FIXTURE_DIR / "Test_Case_1.14"
-    if not path.exists():
-        pytest.skip("fixture missing")
+    path = _first_available(_OFFLINE_FIXTURES)
+    if path is None:
+        pytest.skip("no offline fixture provisioned")
     mesh = CHILmesh.read_from_fort14(path)
     q = tri2quad(mesh, can_remove_edges=True)
     cl = np.asarray(q.connectivity_list)
@@ -184,9 +196,9 @@ def test_tri2quad_conforming_and_valid():
 @pytest.mark.parametrize("removed", ["faithful", "matching"])
 def test_removed_methods_raise(removed):
     """'faithful' and 'matching' were removed entirely (#46) — ValueError."""
-    path = FIXTURE_DIR / "Test_Case_1.14"
-    if not path.exists():
-        pytest.skip("fixture missing")
+    path = _first_available(_OFFLINE_FIXTURES)
+    if path is None:
+        pytest.skip("no offline fixture provisioned")
     mesh = CHILmesh.read_from_fort14(path)
     with pytest.raises(ValueError, match="was removed"):
         tri2quad(mesh, method=removed)
@@ -195,9 +207,9 @@ def test_removed_methods_raise(removed):
 def test_quadmesh_plus_alias_no_warn():
     """method='quadmesh+' is the canonical (sole) method — no warning, quad-pure."""
     import warnings as _w
-    path = FIXTURE_DIR / "Test_Case_1.14"
-    if not path.exists():
-        pytest.skip(f"fixture missing: {path}")
+    path = _first_available(_OFFLINE_FIXTURES)
+    if path is None:
+        pytest.skip("no offline fixture provisioned")
     mesh = CHILmesh.read_from_fort14(path)
     with _w.catch_warnings(record=True) as rec:
         _w.simplefilter("always")
