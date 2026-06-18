@@ -52,3 +52,18 @@
 ## Open chilmesh issues
 - None new. The five filed API issues (#132/#133/#134/#138/#139) remain closed +
   consumed.
+
+## Introspection (R5)
+- **What worked:** Maintenance-track triage was fast — #48 closed + #82
+  follow-up already shipped by hour-11 → no duplicate effort (verify-don't-dup).
+  Caught a real README rendering defect + typo in the step-4b roadmap audit.
+- **Pain (recurring, ≥4 sessions: 022/024/025/026):** the Valence cross-repo
+  read PAT gate. Autonomous env has no `GITHUB_TOKEN`/`GH_TOKEN` with Valence
+  read → `tests/fixtures/meshes/` never provisions → faithfulness gate
+  `test_no_interior_tris.py` and ALL mesh-dependent quality work
+  (T019, #76, #90, #97/#98) skip silently. Every rotation slot that draws a
+  code/quality issue degrades to docs/triage. This is the single biggest
+  throughput limiter for QuADMESH rotations.
+  - *matrix-row:* `repo=QuADMESH | pain=valence-pat-gate | freq=recurring | impact=blocks-all-faithfulness-code-work | fix=operator: add Valence read PAT secret to autonomous env + CI (#93)`
+- **No new `request: skill`** (#203 probation honored). Pain routes to existing
+  operator gate #93, not a new skill request.
