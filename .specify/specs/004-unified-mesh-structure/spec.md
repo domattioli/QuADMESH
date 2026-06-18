@@ -1,8 +1,14 @@
 # Feature Specification: Unified mesh-structure entrypoint (layers / skeleton / medial axis)
 
+> **SUPERSEDED / REMOVED (2026-06-18, issue #82 cross-repo dedup).** The shipped
+> `compute_mesh_structure` / `MeshStructure` API and its modules (`mesh_structure.py`,
+> `_layer_state.py`, `_medial_axis.py`) were removed — unused by the production `tri2quad`
+> pipeline and duplicating upstream-owned functionality (CHILmesh `mesh.layers`/`skeleton()`,
+> ADMESH stage-05 medial axis). No QuADMESH or MADMESHing code consumed them. Historical only.
+
 **Feature Branch**: `daily-maintenance`
 **Created**: 2026-05-29 · **Last Amended**: 2026-05-30 (medial_axis implemented)
-**Status**: Active (layers + medial_axis shipped; skeleton reserved-research)
+**Status**: Superseded — implementation removed per #82 (2026-06-18); was Active (layers + medial_axis shipped; skeleton reserved-research)
 **Input**: User description (QuADMesh #55): "medial axis, layers, and skeleton are all similar but different. i think skeleton for a mesh should be defined/derived in the same way it is for an image. we need to create a unifying function that computes all three of these and the user can designate which with an input. id also like to investigate the differences that the skeleton has in comparison to the layer when trying to identify tris to convert to quads."
 
 ## Context
