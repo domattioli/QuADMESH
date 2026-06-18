@@ -23,6 +23,31 @@ from chilmesh.layer_paths import paths_on_outer_vertices
 from ._topology import ccw_edges_around_vert
 
 
+# Start-vertex selector for the per-layer outer-path walk.
+#
+# The walk that flags every-other interior edge (identifyEdgesFun_v2) must begin
+# at some vertex of each outer-vertex path; the choice fixes the parity of the
+# every-other pairing and therefore *which* triangles end up unpaired and routed
+# to the leftover handler. By default the walk starts just after the first outer
+# "corner" (a path vertex attached to a single layer element), reproducing the
+# MATLAB heuristic exactly. Assigning a callable to ``_START_INDEX_SELECTOR``
+# overrides the choice (used by the Monte-Carlo start-sensitivity study in
+# experiments/mc_layer_pass). The callable takes
+# ``(path_verts: np.ndarray, layer_counts: np.ndarray)`` and returns an int
+# index into ``path_verts`` (the path is rotated to start just AFTER that index,
+# identical to the default corner rotation) or ``None`` to leave it unrotated.
+_START_INDEX_SELECTOR = None
+
+
+def _select_start_index(verts: np.ndarray, counts: np.ndarray):
+    """Index of the walk start vertex for one outer path (see _START_INDEX_SELECTOR)."""
+    sel = _START_INDEX_SELECTOR
+    if sel is not None:
+        return sel(verts, counts)
+    corner = np.where(counts == 1)[0]
+    return int(corner[0]) if corner.size > 0 else None
+
+
 @dataclass
 class LayerEdgeSelection:
     """Output of one layer's identify_edges pass.
@@ -135,9 +160,9 @@ def identify_edges_in_layer(domain: CHILmesh, layer_idx: int) -> LayerEdgeSelect
         if verts[0] == verts[-1]:
             verts = verts[:-1]
         counts = vert_layer_count[verts]
-        corner = np.where(counts == 1)[0]
-        if corner.size > 0:
-            i = int(corner[0])
+        i = _select_start_index(verts, counts)
+        if i is not None:
+            i = int(i) % verts.size
             verts = np.concatenate([verts[i + 1:], verts[:i + 1]])
         rotated_paths.append(verts)
 

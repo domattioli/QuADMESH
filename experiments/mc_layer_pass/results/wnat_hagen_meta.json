@@ -1,0 +1,15 @@
+{
+  "mesh": "/tmp/WNAT_Hagen.14",
+  "tag": "wnat_hagen",
+  "n_runs": 200,
+  "n_tris": 98365,
+  "n_verts": 52774,
+  "n_layers": 30,
+  "total_seconds": 942.4776406288147,
+  "mean_n_routed": 5532.3,
+  "std_n_routed": 11.389029809426264,
+  "min_n_routed": 5505.0,
+  "max_n_routed": 5561.0,
+  "n_tris_ever_routed": 9743,
+  "n_tris_always_routed": 4854
+}

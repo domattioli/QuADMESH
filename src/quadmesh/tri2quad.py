@@ -782,6 +782,7 @@ def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
     can_remove_edges: bool,
+    trace: Optional[dict] = None,
 ) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray]:
     """True MATLAB Tri2QuadRoutine per-layer loop.
 
@@ -796,6 +797,12 @@ def _quadmesh_plus_per_layer(
     from ._tri_removal import WorkingMesh, route_leftover_tri
     from ._topology import merge_tri_pair
     from .identify_edges import identify_edges_in_layer
+
+    if trace is not None:
+        trace.setdefault("merged", set())
+        trace.setdefault("routed", set())
+        trace.setdefault("merged_layer", {})
+        trace.setdefault("routed_layer", {})
 
     work = WorkingMesh(points=domain.points.copy(), quads=[])
     consumed: Set[int] = set()  # global elem IDs already merged or routed
@@ -853,6 +860,11 @@ def _quadmesh_plus_per_layer(
             consumed.add(gb)
             local_consumed.add(la)
             local_consumed.add(lb)
+            if trace is not None:
+                trace["merged"].add(ga)
+                trace["merged"].add(gb)
+                trace["merged_layer"][ga] = li
+                trace["merged_layer"][gb] = li
 
         # T017/T018: greedy interior-saturating pairing of remaining layer tris
         # (thesis Ch 4.1 greedy extension; Ch 4.2 fold-seam forbiddance). Pairs
@@ -907,6 +919,11 @@ def _quadmesh_plus_per_layer(
             work.add_quad(quad)
             consumed.add(ga); consumed.add(gb)
             local_consumed.add(la); local_consumed.add(lb)
+            if trace is not None:
+                trace["merged"].add(ga)
+                trace["merged"].add(gb)
+                trace["merged_layer"][ga] = li
+                trace["merged_layer"][gb] = li
 
         # Route leftover (unmatched) tris (removeTrianglesFun).
         # Outermost layer = mesh boundary layer (MATLAB: iLayer == nLayers).
@@ -928,6 +945,9 @@ def _quadmesh_plus_per_layer(
                 )
             except Exception:
                 pass  # degenerate — tri collected in leftover_idx below
+            if trace is not None:
+                trace["routed"].add(gid_i)
+                trace["routed_layer"][gid_i] = li
             consumed.add(gid_i)
 
     # Global matcher fallback for any elems not covered by skeleton layers.
