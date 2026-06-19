@@ -86,6 +86,120 @@ def is_geometric_triangle(
     return False
 
 
+def _count_geo_tris(mesh) -> int:
+    """Count geometric triangles (4-vertex quads with ~180° corner) in mesh.
+
+    Args:
+        mesh: CHILmesh object
+
+    Returns:
+        Total count of geometric triangles
+    """
+    P = np.asarray(mesh.points)[:, :2]
+    cl = np.asarray(mesh.connectivity_list)
+    count = 0
+    for row in cl:
+        normalized = _normalize(row)
+        if len(normalized) == 4:
+            quad_verts = P[normalized]
+            if is_geometric_triangle(quad_verts):
+                count += 1
+    return count
+
+
+def diagnose_ops(q, threshold: float):
+    """Diagnose why cleanup_boundary_quads operators fail to clear boundary geo-triangles.
+
+    Measures:
+    - COLLAPSE: how many geo-tris flagged but rejected (not collapsed)
+    - SHIFT: skew improvement + interior geo-tri count after shift iterations
+
+    Args:
+        q: CHILmesh post-tri2quad
+        threshold: quality threshold (for context; not used in this diagnostic)
+    """
+    from quadmesh import cleanup_boundary_quads as _cbq
+    from chilmesh import element_quality
+
+    print("\n=== DIAGNOSE_OPS ===")
+
+    # Collapse diagnostic
+    print("collapse diagnostic:")
+    m = q
+    geo_before_collapse = _count_geo_tris(m)
+    print(f"  geo-tris before: {geo_before_collapse}")
+
+    pass_num = 1
+    total_removed = 0
+    pass1_flagged = None
+    pass1_removed = None
+
+    while pass_num <= 15:
+        flagged = len(list(_cbq._scan_bad_quads(m)))
+        n_before = m.n_elems
+        m = _cbq.cleanup_boundary_quads(m, can_remove_edges=True)
+        n_after = m.n_elems
+        removed = n_before - n_after
+
+        if pass_num == 1:
+            pass1_flagged = flagged
+            pass1_removed = removed
+
+        total_removed += removed
+
+        if removed == 0:
+            break
+
+        pass_num += 1
+
+    geo_after_collapse = _count_geo_tris(m)
+
+    # Compute pass1 rejection rate
+    pass1_rejection = 0.0
+    if pass1_flagged is not None and pass1_flagged > 0:
+        pass1_rejection = 100.0 * (pass1_flagged - pass1_removed) / pass1_flagged
+
+    print(f"  collapse: flagged_pass1={pass1_flagged} total_removed={total_removed} "
+          f"over {pass_num-1} passes; pass1 rejection={pass1_rejection:.0f}% "
+          f"(flagged-but-not-collapsed)")
+    print(f"  geo-tris after collapse: {geo_after_collapse}")
+
+    # Shift diagnostic
+    print("shift diagnostic (6 iterations):")
+    m = q
+    qual_before = element_quality(m.points, m.connectivity_list, metric="skew")
+    mean_skew_before = np.mean(qual_before)
+    min_skew_before = np.min(qual_before)
+    geo_before_shift = _count_geo_tris(m)
+    print(f"  geo-tris before shift: {geo_before_shift}")
+    print(f"  skew before: mean={mean_skew_before:.3f} min={min_skew_before:.3f}")
+
+    for _ in range(6):
+        m = _cbq.cleanup_boundary_quads(m, can_remove_edges=False)
+
+    qual_after = element_quality(m.points, m.connectivity_list, metric="skew")
+    mean_skew_after = np.mean(qual_after)
+    min_skew_after = np.min(qual_after)
+    geo_after_shift = _count_geo_tris(m)
+
+    # Count interior geo-tris after shift
+    P = np.asarray(m.points)[:, :2]
+    cl = np.asarray(m.connectivity_list)
+    bset = build_boundary_edge_set(cl)
+    interior_geo_count = 0
+    for row in cl:
+        normalized = _normalize(row)
+        if len(normalized) == 4:
+            quad_verts = P[normalized]
+            if is_geometric_triangle(quad_verts):
+                edges = _edges(normalized)
+                if not any(e in bset for e in edges):
+                    interior_geo_count += 1
+
+    print(f"  skew after:  mean={mean_skew_after:.3f} min={min_skew_after:.3f}")
+    print(f"  geo-tris after shift: {geo_after_shift} (interior={interior_geo_count})")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Boundary-layer quality diagnostic for QuADMESH+ output."
@@ -100,6 +214,11 @@ def main():
         type=float,
         default=0.3,
         help="Quality threshold for 'bad' classification",
+    )
+    parser.add_argument(
+        "--diagnose-ops",
+        action="store_true",
+        help="Measure why cleanup_boundary_quads ops leave boundary geo-triangles (collapse-rejection rate + shift-mode effect).",
     )
     args = parser.parse_args()
 
@@ -221,6 +340,10 @@ def main():
         )
     else:
         print(f"OK: zero interior geometric triangles (invariant holds)")
+
+    # Run diagnostic if requested
+    if args.diagnose_ops:
+        diagnose_ops(q, args.quality_threshold)
 
 
 if __name__ == "__main__":
