@@ -264,3 +264,81 @@ def test_no_interior_geometric_tris(fixture_name):
         f"{fixture_name}: {interior_geo} interior geometric triangles "
         f"(quad with ~180 deg corner, no boundary edge)"
     )
+
+
+def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
+    """Return (total, interior, boundary) geometric-triangle counts.
+
+    A geometric triangle is a 4-distinct-index quad with a corner angle
+    >= 178 deg (or a zero-length edge). interior = no element edge is a
+    domain-boundary edge; boundary = at least one edge is a boundary edge.
+    """
+    P = np.asarray(mesh.points)[:, :2]
+    cl = np.asarray(mesh.connectivity_list)
+    ecount: dict = {}
+    for row in cl:
+        for e in _edges(_normalize(row)):
+            ecount[e] = ecount.get(e, 0) + 1
+    bset = {e for e, c in ecount.items() if c == 1}
+    total = interior = boundary = 0
+    for row in cl:
+        idx = [int(x) for x in row]
+        if len(set(idx)) != 4:
+            continue
+        pts = P[idx]
+        flat = False
+        for i in range(4):
+            v1 = pts[(i - 1) % 4] - pts[i]
+            v2 = pts[(i + 1) % 4] - pts[i]
+            n1 = np.linalg.norm(v1)
+            n2 = np.linalg.norm(v2)
+            if n1 < 1e-12 or n2 < 1e-12:
+                flat = True
+                break
+            ang = np.degrees(
+                np.arccos(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0))
+            )
+            if ang >= 178.0:
+                flat = True
+                break
+        if not flat:
+            continue
+        total += 1
+        if any(e in bset for e in _edges(_normalize(row))):
+            boundary += 1
+        else:
+            interior += 1
+    return total, interior, boundary
+
+
+# Characterization baseline for issue #98 (boundary-layer conditioning).
+# total = boundary geometric-triangle count on the offline fixtures at the
+# current quadmesh+ HEAD. interior MUST stay 0 (faithfulness invariant). A
+# successful boundary-layer conditioning pass should LOWER `total` while
+# keeping interior == 0; when it does, update these numbers with evidence
+# from `scripts/bench_boundary_layer.py --mesh <name>`.
+_GEO_TRI_BASELINE = {
+    "Block_O.14": 273,
+    "structuredMesh1.14": 20,
+}
+
+
+@pytest.mark.parametrize("fixture_name", list(_GEO_TRI_BASELINE))
+def test_boundary_geo_tri_baseline(fixture_name):
+    """Pin the boundary geometric-triangle count on offline fixtures (#98 gate)."""
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+")
+    total, interior, boundary = _geo_tri_counts(q)
+    assert interior == 0, (
+        f"{fixture_name}: {interior} INTERIOR geometric triangles "
+        f"(faithfulness invariant violated)"
+    )
+    expected = _GEO_TRI_BASELINE[fixture_name]
+    assert total == expected, (
+        f"{fixture_name}: boundary geo-tri count {total} != baseline {expected}. "
+        f"If a boundary-layer conditioning pass legitimately changed this, update "
+        f"_GEO_TRI_BASELINE with `scripts/bench_boundary_layer.py --mesh {fixture_name}`."
+    )
