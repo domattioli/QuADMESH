@@ -782,7 +782,8 @@ def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
     can_remove_edges: bool,
-) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray]:
+    refuse_boundary_merge: bool = False,
+) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray, set]:
     """True MATLAB Tri2QuadRoutine per-layer loop.
 
     Mirrors ``Tri2QuadRoutine.m``: innermost layer first, per-layer
@@ -799,6 +800,7 @@ def _quadmesh_plus_per_layer(
 
     work = WorkingMesh(points=domain.points.copy(), quads=[])
     consumed: Set[int] = set()  # global elem IDs already merged or routed
+    refused: set = set()
 
     nl = int(getattr(domain, "n_layers", 0) or 0)
     layers = domain.layers
@@ -919,15 +921,18 @@ def _quadmesh_plus_per_layer(
             if gid_i in consumed:
                 continue
             try:
-                route_leftover_tri(
+                handled = route_leftover_tri(
                     domain, work, gid_i, li,
                     on_mesh_boundary=on_mesh_boundary,
                     can_remove_edges=can_remove_edges,
                     sub_b_edge_set=b_edge_set,
                     sub_b_vert_set=b_vert_set,
+                    refuse_boundary_merge=refuse_boundary_merge,
                 )
             except Exception:
-                pass  # degenerate — tri collected in leftover_idx below
+                handled = True  # degenerate — preserve prior consume behavior
+            if handled is False:
+                refused.add(gid_i)
             consumed.add(gid_i)
 
     # Global matcher fallback for any elems not covered by skeleton layers.
@@ -962,7 +967,7 @@ def _quadmesh_plus_per_layer(
     work.flush_points_to_domain(domain)
     points_out = domain.points.copy()
 
-    return [tuple(int(v) for v in q) for q in work.quads], leftover_idx, points_out
+    return [tuple(int(v) for v in q) for q in work.quads], leftover_idx, points_out, refused
 
 
 def tri2quad_routine(
@@ -974,6 +979,7 @@ def tri2quad_routine(
     method: str = "quadmesh+",
     minimize_boundary_change: Optional[bool] = None,
     point_insert: bool = True,
+    refuse_boundary_merge: bool = False,
 ) -> CHILmesh:
     """Convert ``domain`` (triangular) into a quad CHILmesh.
 
@@ -1008,6 +1014,10 @@ def tri2quad_routine(
             two quads (quad-pure, every original vertex preserved). Default True.
             Set False to leave them as residual tris (quad-dominant, higher
             per-element quality; point placement is currently crude/centroid).
+        refuse_boundary_merge: opt-in (#98 option A, default OFF). When True,
+            leftover boundary tris with 2-3 domain-boundary edges are emitted as
+            boundary triangles (mixed tri/quad mesh) instead of being merged into
+            degenerate ~180-degree quads. Default OFF = byte-identical behavior.
 
     Returns:
         A new CHILmesh of quads (quad-pure by default), or quads plus residual
@@ -1041,14 +1051,16 @@ def tri2quad_routine(
             pts_snapshot = domain.points.copy()
             cl_snapshot = np.asarray(domain.connectivity_list).copy()
             try:
-                quads, leftover_idx, points = _quadmesh_plus_per_layer(
-                    domain, tris, can_remove_edges
+                quads, leftover_idx, points, refused_idx = _quadmesh_plus_per_layer(
+                    domain, tris, can_remove_edges,
+                    refuse_boundary_merge=refuse_boundary_merge,
                 )
             finally:
                 domain.points = pts_snapshot
                 domain.connectivity_list = cl_snapshot
         else:
             # No skeleton layers (e.g. mesh too coarse) — degrade gracefully.
+            refused_idx: set = set()
             prio = _layer_priority(domain, len(tris))
             try:
                 seed, forbidden = _sweep_pairs(domain)
@@ -1084,6 +1096,17 @@ def tri2quad_routine(
     if point_insert and method == "layered" and surviving_tris.size > 0 and quads:
         quads, surviving_tris, points = _point_insert_tri_pairs(
             quads, surviving_tris, points
+        )
+
+    # #98 option A: append refused boundary tris as padded triangles AFTER all
+    # tri-clearing passes (edge-swap / point-insert / squeeze) so they survive
+    # as boundary triangles rather than being re-merged into degenerate quads.
+    if refused_idx:
+        refused_tris = tris[sorted(refused_idx)]
+        surviving_tris = (
+            np.vstack([surviving_tris, refused_tris])
+            if surviving_tris.size
+            else refused_tris
         )
 
     quads_arr = (

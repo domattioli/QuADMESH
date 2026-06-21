@@ -24,6 +24,7 @@ def run_pipeline(
     method: str = "quadmesh+",
     truss_smooth: bool = False,
     truss_fh=None,
+    refuse_boundary_merge: bool = False,
 ) -> CHILmesh:
     """Full create_quad_domain → tri2quad → post_process sweep.
 
@@ -40,13 +41,17 @@ def run_pipeline(
             ``"faithful"`` removed per #46.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
+        refuse_boundary_merge: pass-through to tri2quad_routine (#98 option A,
+            default OFF). Emit 2-3-boundary-edge leftover tris as boundary
+            triangles instead of degenerate quads.
 
     Returns:
         Final quad CHILmesh.
     """
     domain = create_quad_domain(mesh, polygon=polygon)
     quad = tri2quad_routine(
-        domain, can_remove_edges=can_remove_edges, parent=mesh, method=method
+        domain, can_remove_edges=can_remove_edges, parent=mesh, method=method,
+        refuse_boundary_merge=refuse_boundary_merge,
     )
     if do_post_process:
         quad = post_process_routine(

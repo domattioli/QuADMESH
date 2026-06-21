@@ -342,3 +342,43 @@ def test_boundary_geo_tri_baseline(fixture_name):
         f"If a boundary-layer conditioning pass legitimately changed this, update "
         f"_GEO_TRI_BASELINE with `scripts/bench_boundary_layer.py --mesh {fixture_name}`."
     )
+
+
+# #98 option A (refuse_boundary_merge, default OFF) — flag-ON characterization.
+# FINDING (offline measurement, 2026-06-21): refusing the leftover n_bdy in (2,3)
+# merge is a NEAR NO-OP on the offline fixtures. Block_O is UNCHANGED (273): its
+# boundary ~180-degree quads are produced by the main per-layer PAIRING MERGE
+# (two boundary tris -> one degenerate quad), not by leftover-tri routing or
+# point insertion (verified: count is invariant under point_insert=False AND
+# remove_boundary_tris=False). Only structuredMesh1 drops by one (a single
+# genuine n_bdy in (2,3) leftover -> boundary triangle). So option A alone does
+# NOT address the offline boundary degeneracy; the real offline lever is the
+# pairing-merge acceptance criterion. The flag remains the WNAT/ENPAC-scale lever
+# per #90 (PAT-gated, not validatable here). These pins guard the invariant under
+# the flag and prevent re-characterization churn.
+_GEO_TRI_FLAG_ON = {
+    "Block_O.14": 273,
+    "structuredMesh1.14": 19,
+}
+
+
+@pytest.mark.parametrize("fixture_name", list(_GEO_TRI_FLAG_ON))
+def test_refuse_boundary_merge_keeps_invariant(fixture_name):
+    """refuse_boundary_merge=True must keep interior geo-tris == 0 and match the
+    measured flag-ON boundary count (#98 option A characterization)."""
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+", refuse_boundary_merge=True)
+    total, interior, boundary = _geo_tri_counts(q)
+    assert interior == 0, (
+        f"{fixture_name}: {interior} INTERIOR geometric triangles under "
+        f"refuse_boundary_merge=True (faithfulness invariant violated)"
+    )
+    expected = _GEO_TRI_FLAG_ON[fixture_name]
+    assert total == expected, (
+        f"{fixture_name}: flag-ON boundary geo-tri count {total} != measured "
+        f"{expected}. If a code change legitimately altered this, re-measure and "
+        f"update _GEO_TRI_FLAG_ON."
+    )
