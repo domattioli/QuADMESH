@@ -264,3 +264,121 @@ def test_no_interior_geometric_tris(fixture_name):
         f"{fixture_name}: {interior_geo} interior geometric triangles "
         f"(quad with ~180 deg corner, no boundary edge)"
     )
+
+
+def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
+    """Return (total, interior, boundary) geometric-triangle counts.
+
+    A geometric triangle is a 4-distinct-index quad with a corner angle
+    >= 178 deg (or a zero-length edge). interior = no element edge is a
+    domain-boundary edge; boundary = at least one edge is a boundary edge.
+    """
+    P = np.asarray(mesh.points)[:, :2]
+    cl = np.asarray(mesh.connectivity_list)
+    ecount: dict = {}
+    for row in cl:
+        for e in _edges(_normalize(row)):
+            ecount[e] = ecount.get(e, 0) + 1
+    bset = {e for e, c in ecount.items() if c == 1}
+    total = interior = boundary = 0
+    for row in cl:
+        idx = [int(x) for x in row]
+        if len(set(idx)) != 4:
+            continue
+        pts = P[idx]
+        flat = False
+        for i in range(4):
+            v1 = pts[(i - 1) % 4] - pts[i]
+            v2 = pts[(i + 1) % 4] - pts[i]
+            n1 = np.linalg.norm(v1)
+            n2 = np.linalg.norm(v2)
+            if n1 < 1e-12 or n2 < 1e-12:
+                flat = True
+                break
+            ang = np.degrees(
+                np.arccos(np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0))
+            )
+            if ang >= 178.0:
+                flat = True
+                break
+        if not flat:
+            continue
+        total += 1
+        if any(e in bset for e in _edges(_normalize(row))):
+            boundary += 1
+        else:
+            interior += 1
+    return total, interior, boundary
+
+
+# Characterization baseline for issue #98 (boundary-layer conditioning).
+# total = boundary geometric-triangle count on the offline fixtures at the
+# current quadmesh+ HEAD. interior MUST stay 0 (faithfulness invariant). A
+# successful boundary-layer conditioning pass should LOWER `total` while
+# keeping interior == 0; when it does, update these numbers with evidence
+# from `scripts/bench_boundary_layer.py --mesh <name>`.
+_GEO_TRI_BASELINE = {
+    "Block_O.14": 273,
+    "structuredMesh1.14": 20,
+}
+
+
+@pytest.mark.parametrize("fixture_name", list(_GEO_TRI_BASELINE))
+def test_boundary_geo_tri_baseline(fixture_name):
+    """Pin the boundary geometric-triangle count on offline fixtures (#98 gate)."""
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+")
+    total, interior, boundary = _geo_tri_counts(q)
+    assert interior == 0, (
+        f"{fixture_name}: {interior} INTERIOR geometric triangles "
+        f"(faithfulness invariant violated)"
+    )
+    expected = _GEO_TRI_BASELINE[fixture_name]
+    assert total == expected, (
+        f"{fixture_name}: boundary geo-tri count {total} != baseline {expected}. "
+        f"If a boundary-layer conditioning pass legitimately changed this, update "
+        f"_GEO_TRI_BASELINE with `scripts/bench_boundary_layer.py --mesh {fixture_name}`."
+    )
+
+
+# #98 option A (refuse_boundary_merge, default OFF) — flag-ON characterization.
+# FINDING (offline measurement, 2026-06-21): refusing the leftover n_bdy in (2,3)
+# merge is a NEAR NO-OP on the offline fixtures. Block_O is UNCHANGED (273): its
+# boundary ~180-degree quads are produced by the main per-layer PAIRING MERGE
+# (two boundary tris -> one degenerate quad), not by leftover-tri routing or
+# point insertion (verified: count is invariant under point_insert=False AND
+# remove_boundary_tris=False). Only structuredMesh1 drops by one (a single
+# genuine n_bdy in (2,3) leftover -> boundary triangle). So option A alone does
+# NOT address the offline boundary degeneracy; the real offline lever is the
+# pairing-merge acceptance criterion. The flag remains the WNAT/ENPAC-scale lever
+# per #90 (PAT-gated, not validatable here). These pins guard the invariant under
+# the flag and prevent re-characterization churn.
+_GEO_TRI_FLAG_ON = {
+    "Block_O.14": 273,
+    "structuredMesh1.14": 19,
+}
+
+
+@pytest.mark.parametrize("fixture_name", list(_GEO_TRI_FLAG_ON))
+def test_refuse_boundary_merge_keeps_invariant(fixture_name):
+    """refuse_boundary_merge=True must keep interior geo-tris == 0 and match the
+    measured flag-ON boundary count (#98 option A characterization)."""
+    path = FIXTURE_DIR / fixture_name
+    if not path.exists():
+        pytest.skip(f"fixture missing: {path}")
+    mesh = CHILmesh.read_from_fort14(path)
+    q = tri2quad(mesh, method="quadmesh+", refuse_boundary_merge=True)
+    total, interior, boundary = _geo_tri_counts(q)
+    assert interior == 0, (
+        f"{fixture_name}: {interior} INTERIOR geometric triangles under "
+        f"refuse_boundary_merge=True (faithfulness invariant violated)"
+    )
+    expected = _GEO_TRI_FLAG_ON[fixture_name]
+    assert total == expected, (
+        f"{fixture_name}: flag-ON boundary geo-tri count {total} != measured "
+        f"{expected}. If a code change legitimately altered this, re-measure and "
+        f"update _GEO_TRI_FLAG_ON."
+    )

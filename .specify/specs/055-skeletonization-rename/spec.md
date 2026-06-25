@@ -1,8 +1,16 @@
 # Feature Specification: Skeletonization Rename — Unify layers / skeleton / medial axis
 
+> **SUPERSEDED / REMOVED (2026-06-18, issue #82 cross-repo dedup).** The implementing
+> modules (`mesh_structure.py`, `_layer_state.py`, `_medial_axis.py`, `domains.py`) were
+> removed: they were disconnected from the production `tri2quad` pipeline and duplicated
+> functionality owned upstream — layers/skeleton by CHILmesh (`mesh.layers`, `skeleton()`),
+> medial axis by ADMESH stage-05 (`src/admesh/medial_axis.py`), demo domains by ADMESH
+> `domains.py` + the Valence registry. `_layer_state.LayerState` also duplicated the live
+> `_tri_removal.py::LayerState` used by the sweep. Retained here for historical context only.
+
 **Feature Branch**: `daily-maintenance`
 **Created**: 2026-05-31
-**Status**: Complete (rename pass done, skeleton implemented per operator 2026-05-30 definition)
+**Status**: Superseded — implementation removed per #82 (2026-06-18); was Complete (rename pass done, skeleton implemented per operator 2026-05-30 definition)
 **Input**: Issue #55: "medial axis, layers, and skeleton are all similar but different. i think skeleton for a mesh should be defined/derived in the same way it is for an image. we need to create a unifying function that computes all three of these and the user can designate which with an input."
 **Cross-ref**: `specs/004-unified-mesh-structure/spec.md` (API already implemented; this spec covers the rename sweep and remaining research tasks)
 

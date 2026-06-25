@@ -314,12 +314,15 @@ def route_leftover_tri(
     can_remove_edges: bool,
     sub_b_edge_set: set,
     sub_b_vert_set: set,
-) -> None:
+    refuse_boundary_merge: bool = False,
+) -> bool:
     """Apply the right sub-op given tri's boundary-edge count.
 
     Mirrors MATLAB ``removeTrianglesFun`` switch. ``sub_b_edge_set`` is the
     set of sub-mesh boundary edge IDs in *parent* indexing; ``sub_b_vert_set``
     likewise for verts.
+
+    Returns True if the tri was handled (paired/cleared/consumed in place), False if it was refused (left as a boundary triangle) because refuse_boundary_merge is set.
     """
     edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
     bdy_edges_local = [
@@ -345,6 +348,8 @@ def route_leftover_tri(
         if bdy_verts_in_tri:
             edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
     elif on_mesh_boundary and n_bdy in (2, 3):
+        if refuse_boundary_merge:
+            return False  # #98 option A: leave as a boundary triangle
         if bdy_verts_in_tri:
             edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
     elif on_mesh_boundary and n_bdy == 1 and can_remove_edges:
@@ -353,6 +358,7 @@ def route_leftover_tri(
         # MATLAB removeTrianglesFun: edgeBisection(1) when canRemoveEdges=false.
         edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
     # Else: silently leave as triangle (degenerate, rare).
+    return True
 
 
 # ── T019 — isolated-tri handling ─────────────────────────────────────────────
