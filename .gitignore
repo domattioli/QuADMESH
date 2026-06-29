@@ -22,3 +22,6 @@ tests/fixtures/meshes/
 # Harness-injected self-symlink (repo-name → /workspace/<repo>) created at
 # container boot. Env plumbing, not repo content — never commit it.
 /QuADMESH
+.introspect/
+docs/introspections/
+.planning/introspections/
