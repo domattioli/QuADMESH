@@ -5,6 +5,7 @@ __version__ = "0.1.1"
 
 from .tri2quad import tri2quad_routine as tri2quad
 from .post_process import post_process_routine as post_process, fem_smoother
+from .hierarchical_smooth import HierarchicalResult, hierarchical_smoother, select_region
 from .quality_report import compute_quality_stats, format_quality_report
 from .repair import repair_chilmesh, repair_mesh
 
@@ -12,6 +13,9 @@ __all__ = [
     "tri2quad",
     "post_process",
     "fem_smoother",
+    "hierarchical_smoother",
+    "select_region",
+    "HierarchicalResult",
     "compute_quality_stats",
     "format_quality_report",
     "repair_mesh",

@@ -319,6 +319,8 @@ def post_process_routine(
     repair: bool = False,
     truss_smooth: bool = False,
     truss_fh=None,
+    hierarchical: bool = False,
+    hierarchical_opts: dict = None,
 ) -> CHILmesh:
     """Iteratively improve quad-mesh quality.
 
@@ -335,6 +337,12 @@ def post_process_routine(
             ``repair_chilmesh`` directly after this routine.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
+        hierarchical: Opt-in spec-056 supplement composition — hierarchical
+            pre-pass, then fem_smoother with hierarchical_opts["n_global"]
+            (default 1) passes instead of n_smooth_iter. False = path
+            byte-identical to prior releases.
+        hierarchical_opts: kwargs forwarded to hierarchical_smoother, plus
+            "n_global" (global passes after the pre-pass, default 1).
     """
     outer = 0
     n_elems_prev = mesh.n_elems
@@ -359,7 +367,14 @@ def post_process_routine(
     if truss_smooth:
         mesh = truss_smoother(mesh, fh=truss_fh)
 
-    mesh = fem_smoother(mesh, n_iter=n_smooth_iter)
+    if hierarchical:
+        from .hierarchical_smooth import hierarchical_smoother
+        _opts = dict(hierarchical_opts or {})
+        _n_global = int(_opts.pop("n_global", 1))
+        mesh = hierarchical_smoother(mesh, **_opts)
+        mesh = fem_smoother(mesh, n_iter=_n_global)
+    else:
+        mesh = fem_smoother(mesh, n_iter=n_smooth_iter)
 
     # Smoother moves vertices without bowtie guard; fix any self-intersecting
     # quads it creates by reordering their vertices (no point added/deleted).
