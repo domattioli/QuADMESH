@@ -6,6 +6,16 @@
 **Driving issue**: [#104](https://github.com/domattioli/QuADMESH/issues/104)
 **Input**: User description: "Hierarchical (selective/local-first) smoothing routine for QuADMESH+ post-processing. fem_smoother runs n_iter=3 GLOBAL Balendran FEM passes (2n×2n sparse assembly + spsolve each) and post_process_routine is 69.5% of total wall-clock on ENPAC2003 (537.6 s of 773.3 s), while quality defects are concentrated — per #90, 99.86% of sub-0.30-skew quads sit in skeleton layer 0 and interior layers are already ≥0.80 mean skew. Build an opt-in smoother that smooths only where it matters, hands the rest to a cheaper pass, cuts smoothing wall-clock ≥2× at WNAT scale, and improves or preserves mean/median skew — leveraging existing pieces (Balendran assembly with pinning, truss_smoother, layer decomposition, skew metric), no new smoother physics."
 
+## Clarifications
+
+### Session 2026-07-03
+
+- Q: When the hierarchical smoother is enabled with no further options, does the cheap global pass run by default? → A: No — local-FEM-only is the default stage plan; the cheap pass is opt-in per stage plan.
+- Q: What counts inside the "smoothing phase wall-clock" for the ≥2× gate (SC-001)? → A: End-to-end — skew scan, region selection, patch construction/merging, and all solves count; nothing excluded as "overhead".
+- Q: Does the post_process_routine opt-in kwarg REPLACE the fem_smoother stage or SUPPLEMENT it? → A: Supplement — hierarchical local-FEM runs as a pre-pass, then the global FEM stage runs as today; the standalone callable remains available for replacement-style composition.
+- Q: Default halt criterion for patch convergence iteration (FR-007)? → A: Quality delta — a patch stops iterating when its mean-skew improvement falls below epsilon (hard iteration cap still applies); displacement tolerance available as an alternative.
+- Q: In supplement mode, how many global FEM passes follow the hierarchical pre-pass (needed to keep the ≥2× gate satisfiable)? → A: One global pass by default (configurable) — pre-pass + 1 global solve vs the baseline's 3 global solves is the arithmetic the 2× gate binds against; SC-001 unchanged.
+
 ## Problem
 
 The post-process smoother spends global effort on a local problem. Every FEM pass
@@ -143,8 +153,14 @@ recommended-variant line.
 
 - **FR-001**: The system MUST provide a new, opt-in hierarchical smoothing
   routine, exposed both as a standalone callable and as an opt-in parameter of
-  the existing post-process entry point. The default behavior of the existing
-  smoother and the post-process routine MUST remain unchanged (additive only).
+  the existing post-process entry point. In the post-process entry point the
+  opt-in composes as a SUPPLEMENT: the hierarchical local-FEM pre-pass runs
+  first, then the existing global FEM stage runs with a configurable number of
+  global passes, DEFAULT 1 (vs the baseline's 3 — this is what makes the ≥2×
+  gate satisfiable in supplement mode). The standalone callable supports
+  replacement-style use. The
+  default behavior of the existing smoother and the post-process routine with
+  the opt-in absent MUST remain unchanged (additive only).
 - **FR-002**: The routine MUST identify a target region for FEM smoothing via a
   pluggable selection policy, with at least three policies implemented:
   (a) worst-N% elements by skew quality plus their 1-ring neighborhoods
@@ -161,13 +177,18 @@ recommended-variant line.
 - **FR-005**: The routine MUST support an optional cheap global pass (an
   existing iterative smoother: spring-force or guarded Laplacian) applied to the
   non-FEM region, with a quality guard that prevents net quality loss on
-  already-good elements; the cheap pass MUST be skippable by configuration.
+  already-good elements. The cheap pass is OFF in the default stage plan
+  (local-FEM-only default); enabling it is an explicit stage-plan opt-in.
+  SC-001/SC-002 are measured against the default plan.
 - **FR-006**: The routine MUST support configurable stage ordering — at minimum
   local-FEM-then-cheap-global and cheap-global-then-local-FEM — so the ordering
   question in #104 is measurable rather than hard-coded.
-- **FR-007**: Patch-local FEM solves MAY iterate to convergence, halting on a
-  displacement/quality tolerance with a hard iteration cap; caps and tolerances
-  MUST be configurable with safe defaults.
+- **FR-007**: Patch-local FEM solves MAY iterate to convergence. The default
+  halt criterion is quality delta: a patch stops when its mean-skew improvement
+  for a pass falls below a configurable epsilon; a displacement-tolerance
+  criterion MUST be available as an alternative. A hard iteration cap always
+  applies. Caps, epsilon, and criterion choice MUST be configurable with safe
+  defaults.
 - **FR-008**: Domain-boundary nodes MUST remain exactly pinned through every
   stage (no tangential slide).
 - **FR-009**: The zero-interior-residual-triangle faithfulness invariant MUST
@@ -208,7 +229,9 @@ recommended-variant line.
 
 - **SC-001**: On WNAT_Onur, the smoothing phase completes in ≤ 50% of the
   baseline 3-pass global smoother's wall-clock (≥ 2× speedup), same machine,
-  single thread.
+  single thread. Measured end-to-end on the default stage plan: selection scan,
+  patch construction/merging, and all solves are inside the measured phase —
+  no overhead is excluded.
 - **SC-002**: On every benchmarked mesh, mean and median skew of the
   hierarchical output are ≥ baseline − 0.005, and the sub-0.30-skew element
   count is ≤ baseline.
