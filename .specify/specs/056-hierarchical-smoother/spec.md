@@ -146,6 +146,9 @@ recommended-variant line.
 - **Cheap-pass regression risk**: an iterative global pass (springs/Laplacian)
   may *worsen* already-good elements; it must be quality-guarded (revert moves
   that reduce local quality below tolerance) or skipped when it doesn't pay.
+- **Layer policy without layer data**: requesting layer-based selection on a
+  mesh with no layer decomposition raises an error directing the caller to the
+  skew policy; the smoother never triggers a skeletonization pass itself.
 
 ## Requirements *(mandatory)*
 
@@ -164,9 +167,11 @@ recommended-variant line.
 - **FR-002**: The routine MUST identify a target region for FEM smoothing via a
   pluggable selection policy, with at least three policies implemented:
   (a) worst-N% elements by skew quality plus their 1-ring neighborhoods
-  (default N in 5–10, configurable); (b) skeleton-layer-based selection (layer 0,
-  optionally 0–1); (c) vertex-valence-irregularity-based selection. Policy choice
-  and parameters MUST be caller-configurable.
+  (default N = 7.5%, configurable within and beyond 5–10); (b) skeleton-layer-based
+  selection (layer 0, optionally 0–1) — requesting this policy on a mesh whose
+  layer decomposition is absent is an error, not a silent skeletonization pass;
+  (c) vertex-valence-irregularity-based selection. Policy choice and parameters
+  MUST be caller-configurable.
 - **FR-003**: The routine MUST smooth the selected region by patch-local FEM
   solves that reuse the existing Balendran stiffness formulation, pinning each
   patch's rim (interface) nodes and all domain-boundary nodes so that non-selected
@@ -215,9 +220,11 @@ recommended-variant line.
   elements. Attributes: name, parameters (percentile / layer indices / valence
   thresholds), deterministic output.
 - **Patch**: A connected set of selected elements plus its node partition into
-  interior (free) nodes and rim (pinned interface) nodes. Patches are disjoint
-  after merging; the union of patch interiors is the only geometry the FEM stage
-  may move.
+  interior (free) nodes and rim (pinned interface) nodes. "Connected" means
+  shared-EDGE adjacency between elements; the "1-ring" dilation of a selection
+  is vertex-based (all elements sharing any vertex with a seed element).
+  Patches are disjoint after merging; the union of patch interiors is the only
+  geometry the FEM stage may move.
 - **Stage plan**: Ordered list of smoothing stages (local-FEM, cheap-global)
   with per-stage configuration; the unit the benchmark sweeps over.
 - **Benchmark record**: One row per (mesh, variant): timings, quality metrics,
@@ -229,9 +236,12 @@ recommended-variant line.
 
 - **SC-001**: On WNAT_Onur, the smoothing phase completes in ≤ 50% of the
   baseline 3-pass global smoother's wall-clock (≥ 2× speedup), same machine,
-  single thread. Measured end-to-end on the default stage plan: selection scan,
-  patch construction/merging, and all solves are inside the measured phase —
-  no overhead is excluded.
+  single thread. Measured end-to-end: selection scan, patch construction/merging,
+  and all solves are inside the measured phase — no overhead is excluded. The
+  gate binds the SUPPLEMENT default (hierarchical pre-pass + 1 global pass —
+  what a pipeline user gets via the opt-in kwarg, per Clarifications Q3/Q5);
+  the benchmark also reports standalone local-FEM-only rows for the decision
+  record.
 - **SC-002**: On every benchmarked mesh, mean and median skew of the
   hierarchical output are ≥ baseline − 0.005, and the sub-0.30-skew element
   count is ≤ baseline.
