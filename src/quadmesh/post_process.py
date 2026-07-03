@@ -371,6 +371,7 @@ def post_process_routine(
         from .hierarchical_smooth import hierarchical_smoother
         _opts = dict(hierarchical_opts or {})
         _n_global = int(_opts.pop("n_global", 1))
+        _opts.pop("return_info", None)  # never leak the (mesh, info) tuple into fem_smoother (#104 review)
         mesh = hierarchical_smoother(mesh, **_opts)
         mesh = fem_smoother(mesh, n_iter=_n_global)
     else:

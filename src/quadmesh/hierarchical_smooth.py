@@ -175,16 +175,31 @@ def _build_patches(mesh: CHILmesh, elem_ids: np.ndarray, min_interior: int = 4) 
     return patches
 
 
+def _signed_areas(points: np.ndarray, conn: np.ndarray) -> np.ndarray:
+    """Shoelace signed area per element. Padded tri rows [a,b,c,c] yield the
+    triangle area (the c->c edge contributes 0)."""
+    p = np.asarray(points)[:, :2][conn]  # (m, k, 2)
+    pn = np.roll(p, -1, axis=1)
+    return 0.5 * (p[:, :, 0] * pn[:, :, 1] - pn[:, :, 0] * p[:, :, 1]).sum(axis=1)
+
+
 def _solve_patch(patch: Patch, eps: float = 1e-3, max_patch_iter: int = 10) -> int:
     """Iterate Balendran FEM on the patch submesh to a quality-delta halt.
 
     Best-so-far coordinates kept; a worsening pass reverts and halts
     (spec-056 FR-007, clarification Q4). Returns passes applied.
+
+    A pass that INVERTS any element is rejected outright, even if it raises
+    mean skew — skew is orientation-blind (unsigned arccos angles), so a
+    tangled patch can score higher; accepting it would write negative-area
+    elements back to the parent (#104 review). Signed-area sign per element
+    must match the pre-solve baseline.
     """
     from .post_process import _balendran_smooth
 
     sub = patch.submesh
     conn = np.asarray(sub.connectivity_list)
+    base_sign = np.sign(_signed_areas(sub.points, conn))
     best_pts = np.asarray(sub.points).copy()
     best_q = _mean_skew(best_pts, conn)
     prev_q = best_q
@@ -196,6 +211,9 @@ def _solve_patch(patch: Patch, eps: float = 1e-3, max_patch_iter: int = 10) -> i
             break
         sub.points[:, :2] = new_pts[:, :2]
         iters += 1
+        if not np.array_equal(np.sign(_signed_areas(sub.points, conn)), base_sign):
+            sub.points[...] = best_pts  # pass tangled an element -> reject, halt
+            break
         q = _mean_skew(np.asarray(sub.points), conn)
         if q > best_q:
             best_q = q
@@ -280,6 +298,13 @@ def hierarchical_smoother(
 
     mesh = remove_unused_vertices(mesh)
 
+    # FR-008: capture domain-boundary coords now; restore bitwise at exit on
+    # EVERY path. fem_smoother's penalty solve (kinf) drifts boundary ~1e-13
+    # per pass, so the fallback + supplement paths need an explicit re-pin
+    # (#104 review). Boundary vertex ids are stable — no path renumbers verts.
+    _bverts = np.unique(mesh.edge2vert(mesh.boundary_edges()).ravel())
+    _bcoords = np.asarray(mesh.points)[_bverts].copy()
+
     t_sel0 = time.perf_counter()
     sel = select_region(mesh, policy, frac=frac, layers=layers, dev=dev, dilate=dilate)
     info.n_selected = int(sel.size)
@@ -315,6 +340,8 @@ def hierarchical_smoother(
         mesh = CHILmesh(
             conn_fixed, mesh.points, grid_name=getattr(mesh, "grid_name", None)
         )
+
+    mesh.points[_bverts] = _bcoords  # FR-008 re-pin (see capture above)
 
     info.timings["total"] = time.perf_counter() - t0
     if return_info:

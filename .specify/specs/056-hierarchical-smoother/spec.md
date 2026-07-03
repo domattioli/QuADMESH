@@ -1,8 +1,8 @@
 # Feature Specification: Hierarchical Smoothing Routine
 
-**Feature Branch**: `development` (repo policy: no feature branches; spec dir `056-hierarchical-smoother`)
+**Feature Branch**: `056-hierarchical-smoother` (operator-authorized 2026-07-03)
 **Created**: 2026-07-03
-**Status**: Draft
+**Status**: Implemented (US1 + US3); SC-001 speed gate deferred (WNAT_Onur fixture unavailable in-container)
 **Driving issue**: [#104](https://github.com/domattioli/QuADMESH/issues/104)
 **Input**: User description: "Hierarchical (selective/local-first) smoothing routine for QuADMESH+ post-processing. fem_smoother runs n_iter=3 GLOBAL Balendran FEM passes (2n×2n sparse assembly + spsolve each) and post_process_routine is 69.5% of total wall-clock on ENPAC2003 (537.6 s of 773.3 s), while quality defects are concentrated — per #90, 99.86% of sub-0.30-skew quads sit in skeleton layer 0 and interior layers are already ≥0.80 mean skew. Build an opt-in smoother that smooths only where it matters, hands the rest to a cheaper pass, cuts smoothing wall-clock ≥2× at WNAT scale, and improves or preserves mean/median skew — leveraging existing pieces (Balendran assembly with pinning, truss_smoother, layer decomposition, skew metric), no new smoother physics."
 
@@ -284,3 +284,69 @@ recommended-variant line.
 - Boundary-node motion (tangential slide) stays out of scope (#90/#98 own it);
   this feature cannot fix boundary-pinned degenerate quads and is not measured
   against them beyond the tail-count guardrail.
+
+---
+
+## Decision Log (implementation, 2026-07-03)
+
+### Bench results — Test_Case_1 (1251 quads) + Block_O (2726 quads)
+
+End-to-end smoothing wall-clock, skew, sub-0.30 tail, interior-tri invariant.
+Baseline = `fem_smoother(n_iter=3)`. Speedup = baseline / variant.
+
+| mesh | variant | wall_s | speedup | mean skew | sub-0.30 | interior_tris |
+|---|---|---|---|---|---|---|
+| TC1 | baseline_global3 | 0.233 | 1.00 | 0.6959 | 104 | 0 |
+| TC1 | supplement_skew_g1 | 0.599 | 0.39 | 0.6959 | 104 | 0 |
+| TC1 | standalone_skew | 0.397 | 0.59 | 0.5707 | 101 | 0 |
+| TC1 | standalone_valence | 0.031 | 7.52 | 0.5609 | 109 | 0 |
+| Block_O | baseline_global3 | 0.577 | 1.00 | 0.6806 | 277 | 0 |
+| Block_O | supplement_skew_g1 | 0.989 | 0.58 | 0.6806 | 277 | 0 |
+| Block_O | standalone_skew | 0.875 | 0.66 | 0.5498 | 296 | 0 |
+
+**Findings (honest):**
+
+1. **Correctness gates all hold** on every variant + both meshes: zero interior
+   residual tris, zero inverted elements (post the orientation guard fix),
+   boundary pinned bitwise, deterministic. These are the non-negotiables and
+   they pass.
+2. **Supplement mode preserves quality exactly** — mean/median skew identical to
+   the 3-pass baseline (the single final global pass dominates), satisfying
+   SC-002 at parity. Standalone (local-only) mode is *lower* quality by design
+   (it does strictly less smoothing than 3 global passes) — not the shipped
+   default.
+3. **No speed win at these scales** — supplement is 0.39–0.58× (SLOWER): on a
+   ~1–3k-elem mesh the patch-build overhead exceeds the 2 saved global passes.
+   This is exactly the spec Risk-section prediction. The `standalone_valence`
+   7.5× "speedup" is an artifact of near-empty selection (few irregular verts →
+   almost no work → also worse quality); not a real win.
+4. **SC-001 (≥2× on WNAT_Onur) is DEFERRED, not met** — the 246k-elem gate mesh
+   is not provisioned in-container and would not complete through pure-Python
+   chilmesh here. The ≥2× arithmetic only turns positive where one giant global
+   `spsolve` dominates patch overhead (WNAT scale); a hosted runner with the
+   C++ chilmesh backend is required to measure it. **Do not claim SC-001 met.**
+5. `standalone_layer` fell back to the global path on both meshes (layer-0
+   selection exceeded `fallback_frac`=0.5) — the FR-012 safety valve firing
+   correctly, visible as speedup≈1.0 + identical quality.
+
+**Recommended default (pending WNAT confirmation):** `supplement_skew_g1` —
+the only variant that holds baseline quality; ship it as the `hierarchical=True`
+composition, gate the speed claim on a hosted WNAT_Onur run.
+
+### Known limitations (review findings 4–5, LOW — deferred, not blocking)
+
+- `_cheap_global_guarded` and the `valence` selection policy use pure-Python
+  O(n_verts) loops → tens of seconds on WNAT-class meshes. Both are opt-in
+  (cheap stage is off by default; valence is a non-default policy), so they do
+  not affect the default `skew`+`local_fem` path. Vectorize before relying on
+  either at scale.
+- The post-smooth `_fix_bowties` rebuild uses the default `CHILmesh` ctor
+  (re-runs layerization); with the pure-Python backend a bowtie rebuild on a
+  large mesh is costly. Pass a fast-init path if this bites at scale.
+
+### Pre-existing failure (NOT introduced here)
+
+`tests/test_no_interior_tris.py::test_no_interior_geometric_tris[Test_Case_1.14]`
+fails `2 == 0` on the clean tree (verified via git stash) — the known T019
+boundary-tri routing residual (CLAUDE.md), on the DEFAULT pipeline this feature
+does not touch. Out of scope for #104.
