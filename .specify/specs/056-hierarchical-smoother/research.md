@@ -53,11 +53,15 @@ non-trivial at ENPAC scale, and would silently blow the end-to-end wall-clock ac
 
 ## R4 — Quality metric
 
-**Decision**: `mesh.element_quality(metric="skew", elem_ids=...)` (CHILmesh.py:1272) for both
-selection and patch-halt measurement; patch-halt measures only patch element ids.
+**Decision**: standalone `chilmesh.element_quality(points, connectivity, metric="skew")` —
+the repo's established pattern (`quality_report.py:16`, `scripts/bench_boundary_layer.py`) —
+for both selection and patch-halt measurement; subsets by slicing the connectivity rows.
 
-**Rationale**: subset `elem_ids` supported natively; same metric as #90/#104 evidence and the
-spec's SC-002, so gates and selection speak one language.
+**Rationale**: the METHOD `mesh.element_quality` computes aspect_ratio/min_angle/max_angle
+only (no skew); skew lives on the standalone function and on `mesh.elem_quality` (tuple
+return). The standalone call matches #90/#104 evidence and SC-002, so gates and selection
+speak one language. (Corrected during implement-phase anchor check — the plan's earlier
+method-call sketch was wrong.)
 
 ## R5 — Fixtures / bench ladder
 
