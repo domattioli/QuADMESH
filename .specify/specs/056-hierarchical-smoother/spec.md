@@ -408,13 +408,25 @@ Consequences:
    figure that motivated #104 does not transfer to this configuration; re-profile
    before investing further in smoother wall-clock.
 
-### Not measured
+### Cheap-global orderings — measured at small scale (2026-07-04, operator ask)
 
-`local_then_cheap` / `cheap_then_local` orderings (--skip-cheap) — the only
-compositions that do NOT end in a global FEM pass, hence the only ones the
-erasure finding does not condemn a priori. `_cheap_global_guarded` is
-pure-Python O(n_verts) (Known limitations above) — vectorize before a WNAT-scale
-run is meaningful.
+The only compositions that do NOT end in a global FEM pass (hence not condemned
+a priori by the erasure finding). Full sweep re-run on TC1 + Block_O:
+
+| mesh | variant | wall_s | speedup | mean skew | sub-0.30 |
+|---|---|---|---|---|---|
+| TC1 | skew_local_then_cheap | 0.515 | 0.43 | 0.6150 | 101 |
+| TC1 | skew_cheap_then_local | 0.529 | 0.41 | 0.6150 | 101 |
+| Block_O | skew_local_then_cheap | 1.115 | 0.45 | 0.6025 | 286 |
+| Block_O | skew_cheap_then_local | 1.120 | 0.44 | 0.6025 | 286 |
+
+Both worse than baseline on quality (−0.08) AND slower; both orderings land on
+identical metrics (ordering is irrelevant). Condemned at small scale. A
+WNAT-scale run stays blocked on vectorizing `_cheap_global_guarded`
+(pure-Python O(n_verts), Known limitations above) and has no quality signal to
+chase. With this, all 7 grid variants are measured on TC1 + Block_O and 5 of 7
+on WNAT_Onur; every composition is either erased by, or worse than, one global
+Balendran pass — reinforcing the n_iter=1 recommendation (#107).
 
 ### Recommendation (supersedes "pending WNAT confirmation" above)
 
