@@ -7,7 +7,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `00_Main/Main.m` | `cli.py` + `pipeline.run_pipeline` | done |
 | `01_Create_Quad_Domain/createQuadDomain.m` | `create_quad_domain` | done (polygon mode) |
 | `01_Create_Quad_Domain/drawSubdomain.m` | - | skip (GUI) |
-| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done — layer-ordered per-layer sweep (`method="layered"`, MATLAB-faithful; `"faithful"` deprecated alias) mirrors MATLAB; `method="matching"` fast fallback |
+| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done — layer-ordered per-layer sweep (`method="quadmesh+"`, MATLAB-faithful; `"matching"` and `"faithful"` aliases removed per #46, raise ValueError) |
 | `02_Tri2Quad_Routine/identifyEdgesFun.m` | - | skip (superseded by v2) |
 | `02_Tri2Quad_Routine/identifyEdgesFun_v2.m` | `identify_edges.identify_edges_in_layer` | done |
 | `02_Tri2Quad_Routine/mergeTrianglesFun.m` | `_topology.merge_tri_pairs` | done |
@@ -100,8 +100,8 @@ Current Python (v0.2+): MATLAB-aligned.
 | Fig 3.2 (p39) — edge-swap | `_recombine.edge_swap` | done |
 | Fig 3.3 (p39) — vertex-duplication | `_recombine.vertex_duplication` | done |
 | Fig 3.6 (p40) / Fig 4.4 (p69) — edge-flip + walk | `_recombine.edge_flip`, `walk_isolated_tri` | done |
-| Ch 4.1 — IE-before-OE, T1/T2 heuristics | `_match_faithful.match_layer_heuristic` | done |
-| Ch 4.2 — OE-before-IE, walkability pre-pass | `_match_faithful.walkability_prepass` | done |
+| Ch 4.1 — IE-before-OE, T1/T2 heuristics | `_match_quadmesh_plus.match_layer_heuristic` | done |
+| Ch 4.2 — OE-before-IE, walkability pre-pass | `_match_quadmesh_plus.walkability_prepass` | done |
 | T007 — LayerState | `_tri_removal.LayerState` | done |
 
 ## chilmesh gaps (open issues)

@@ -4,13 +4,13 @@
 
 Interior residual triangle (tri with NO domain-boundary edge) after tri2quad = **NOT a faithful QuADMESH+ implementation**. Zero interior tris is mandatory — a properly-implemented QuADMESH+ never leaves one. Only **boundary** tris may remain (thesis minimizes even those; ≤1 typical). Pinned by `tests/test_no_interior_tris.py`.
 
-Status: `method="quadmesh+"` (the published layer-ordered per-layer loop; `"layered"` mechanism alias) is the **sole and default** method — zero interior tris confirmed. `"matching"` and the deprecated `"faithful"` alias were **removed entirely** per operator directive on #46 (2026-06-12); both now raise `ValueError`. **T017/T018 landed 2026-06-13** (greedy interior-saturating pairing of post-sweep layer leftovers, thesis Ch 4.1 IE-before-OE + Ch 4.2 fold-seam forbiddance, wired into `_quadmesh_plus_per_layer`): post-process mean quality Test_Case_1 0.573→0.696, Block_O 0.251→0.680. Naming note: the per-layer loop is `_quadmesh_plus_per_layer` (renamed from `_faithful_per_layer` per #46 — code must not name the *method* "faithful"; the word still describes port *fidelity* only). Residual WIP: T019 isolated-tri edge-swap fixup; boundary-layer walkability still falls back to per-tri routing on a small residual.
+Status: `method="quadmesh+"` (the published layer-ordered per-layer loop; `"layered"` mechanism alias) is the **sole and default** method — zero interior tris confirmed. `"matching"` and the deprecated `"faithful"` alias were **removed entirely** per operator directive on #46 (2026-06-12); both now raise `ValueError`. **T017/T018 landed 2026-06-13** (greedy interior-saturating pairing of post-sweep layer leftovers, thesis Ch 4.1 IE-before-OE + Ch 4.2 fold-seam forbiddance, wired into `_quadmesh_plus_per_layer`): post-process mean quality Test_Case_1 0.573→0.696, Block_O 0.251→0.680. Naming note: the per-layer loop is `_quadmesh_plus_per_layer` (renamed from `_faithful_per_layer` per #46 — code must not name the *method* "faithful"; the word still describes port *fidelity* only). **T019 isolated-tri edge-swap: confirmed no-op/dead code per session-027/030 findings** (`_tri_removal.py` `handle_isolated_tris` never called) — disposition pending spec-019 deprecation policy, not WIP.
 
 > Naming note (#46): canonical `method=` value for the layer-ordered sweep is **`"quadmesh+"`** — the published algorithm name (QuADMESH+, alternative to blossom-quad / paving), per operator 2026-06-09. `"layered"` (the mechanism name) is accepted as an alias; `"faithful"` was a deprecated alias (now removed — raises `ValueError`). History: `"faithful"` named a *philosophy* (faithful MATLAB port), a category error next to `"matching"` (which names its mechanism) → renamed `"layered"` → now `"quadmesh+"`. The word "faithful" still describes port *fidelity* throughout the code; only the `method=` input value changed. Update 2026-06-12: operator directed removal of `"faithful"` and `"matching"` entirely (#46 comment 2026-06-11); `"quadmesh+"`/`"layered"` are the only accepted values.
 
 ## Routine
 
-Routine lives in `DomI/claude_routine_instructions.md` (private). Textbox payload format + per-repo profile knobs in §6–7 there. Do not duplicate routine prose here.
+Routine lives in DomI at `.claude/claude_routine_instructions.md` (root `claude_routine_instructions.md` is a redirect stub). Textbox payload format + per-repo profile knobs in §6–7 there. Do not duplicate routine prose here.
 
 ## Branch rule
 
@@ -27,7 +27,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
 - `.specify/specs/001-matlab-to-python-port/`, `.specify/specs/003-root-reorg/` — speckit spec/plan/tasks.
-- `matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
+- `src/matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
 - `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
 - `videos/` — README demo assets.
 
