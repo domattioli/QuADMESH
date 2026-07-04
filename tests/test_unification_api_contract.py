@@ -88,6 +88,10 @@ def test_run_pipeline_signature():
         "truss_smooth",
         "truss_fh",
         "refuse_boundary_merge",
+        # spec-056 #104 — appended AFTER the pinned contract params so every
+        # existing positional index is unchanged (MADMESHing calls by keyword).
+        "hierarchical",
+        "hierarchical_opts",
     ]
     assert param_list == expected_params, (
         f"run_pipeline params in wrong order. Expected {expected_params}, got {param_list}"

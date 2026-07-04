@@ -25,6 +25,8 @@ def run_pipeline(
     truss_smooth: bool = False,
     truss_fh=None,
     refuse_boundary_merge: bool = False,
+    hierarchical: bool = False,
+    hierarchical_opts: dict = None,
 ) -> CHILmesh:
     """Full create_quad_domain → tri2quad → post_process sweep.
 
@@ -62,5 +64,7 @@ def run_pipeline(
             max_inner_iter=max_inner_iter,
             truss_smooth=truss_smooth,
             truss_fh=truss_fh,
+            hierarchical=hierarchical,
+            hierarchical_opts=hierarchical_opts,
         )
     return quad

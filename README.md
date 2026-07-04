@@ -125,6 +125,8 @@ Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 
 | `post_process_routine` (collapse + cleanup + FEM smooth) | 537.6 | 69.5% |
 | **Total** | **773.3** | **100%** |
 
+> **Experimental — hierarchical smoothing** ([#104](https://github.com/domattioli/QuADMESH/issues/104), spec-056). Because the FEM smoother dominates the budget above yet the quality defects concentrate in the boundary band ([#90](https://github.com/domattioli/QuADMESH/issues/90)), an opt-in `hierarchical_smoother()` smooths only a selected region with small patch-local Balendran solves (rim + boundary pinned), leaving the already-good interior alone. Enable via `post_process_routine(mesh, hierarchical=True)` — default path unchanged. Correctness gates (zero interior tris, no inverted elements, boundary pinned, deterministic) hold and supplement mode preserves quality; the ≥2× speed target is verified only at WNAT scale and is **not yet demonstrated** (small meshes are patch-overhead-dominated — see the spec Decision Log). `scripts/bench_hierarchical_smooth.py` reproduces the sweep.
+
 ### Element quality
 
 Skew quality on the unit interval (1 = an ideal square; the `chilmesh` `element_quality(metric="skew")` metric), reported before (input triangles) and after (output quadrilaterals).
