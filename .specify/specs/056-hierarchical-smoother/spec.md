@@ -2,7 +2,7 @@
 
 **Feature Branch**: `056-hierarchical-smoother` (operator-authorized 2026-07-03)
 **Created**: 2026-07-03
-**Status**: Implemented (US1 + US3); SC-001 speed gate deferred (WNAT_Onur fixture unavailable in-container)
+**Status**: Implemented (US1 + US3); SC-001 gate MEASURED on WNAT_Onur 2026-07-04: **FAILED** (supplement 0.61×, gate needs ≥2×) — see Decision Log "SC-001 gate run"
 **Driving issue**: [#104](https://github.com/domattioli/QuADMESH/issues/104)
 **Input**: User description: "Hierarchical (selective/local-first) smoothing routine for QuADMESH+ post-processing. fem_smoother runs n_iter=3 GLOBAL Balendran FEM passes (2n×2n sparse assembly + spsolve each) and post_process_routine is 69.5% of total wall-clock on ENPAC2003 (537.6 s of 773.3 s), while quality defects are concentrated — per #90, 99.86% of sub-0.30-skew quads sit in skeleton layer 0 and interior layers are already ≥0.80 mean skew. Build an opt-in smoother that smooths only where it matters, hands the rest to a cheaper pass, cuts smoothing wall-clock ≥2× at WNAT scale, and improves or preserves mean/median skew — leveraging existing pieces (Balendran assembly with pinning, truss_smoother, layer decomposition, skew metric), no new smoother physics."
 
@@ -350,3 +350,76 @@ composition, gate the speed claim on a hosted WNAT_Onur run.
 fails `2 == 0` on the clean tree (verified via git stash) — the known T019
 boundary-tri routing residual (CLAUDE.md), on the DEFAULT pipeline this feature
 does not touch. Out of scope for #104.
+
+## Decision Log — SC-001 gate run, WNAT_Onur (2026-07-04, rotation session)
+
+Gate mesh provisioned from the Valence sibling clone
+(`/home/user/Valence/registry_data/meshes/WNAT_Onur.14`); chilmesh C++ backend
+built in-container (`chilmesh_cpp 0.6.0.dev0`, `backend_info()` selected=cpp).
+246,186 tris → pipeline snapshot 129,916 quads in 241.4 s. Bench:
+`scripts/bench_hierarchical_smooth.py --mesh WNAT_Onur.14 --skip-cheap`
+(single thread, same machine; `output/` is gitignored so the table is pinned here).
+
+| variant | wall_s | speedup | mean skew | median | sub-0.30 | interior_tris |
+|---|---|---|---|---|---|---|
+| baseline_global3 | 33.542 | 1.00 | 0.6365 | 0.7148 | 16601 | 0 |
+| standalone_skew | 42.181 | 0.80 | 0.5160 | 0.5789 | 18033 | 0 |
+| standalone_layer | 37.490 | 0.89 | 0.6365 | 0.7148 | 16600 | 0 |
+| standalone_valence | 4.410 | 7.61 | 0.5056 | 0.5693 | 18212 | 0 |
+| supplement_skew_g1 | 55.029 | 0.61 | 0.6365 | 0.7148 | 16601 | 0 |
+
+### Verdicts
+
+- **SC-001 FAILED** (measured, not deferred): supplement default = 0.61× —
+  SLOWER than the 3-pass baseline. The premise "one giant global solve dominates
+  patch overhead at WNAT scale" is falsified on this machine: 3 global Balendran
+  passes cost only 33.5 s at 130k quads, and the patch pre-pass ALONE
+  (standalone_skew, 42.2 s) already exceeds that. The per-patch Python loop
+  overhead scales with patch count and never amortizes.
+- **SC-002 holds for the supplement default** (mean/median/sub-0.30 identical to
+  baseline). Standalone variants violate it (quality regressions) — not defaults.
+- **SC-003 FAILED**: no variant strictly lifts mean skew anywhere.
+- **Faithfulness invariant holds** on every variant (0 interior tris);
+  bench exit 0.
+
+### Mechanism finding — the global Balendran pass ERASES any pre-pass
+
+`supplement_skew_g1` starts its global pass from the pre-passed state that
+standalone_skew measures at mean 0.5160, yet lands on 0.6365/0.7148/16601 —
+**bit-for-bit the 3-pass baseline metrics** (same phenomenon on TC1 + Block_O:
+supplement == baseline exactly). The global solve (K·u=0 interior, boundary
+pinned via kinf) behaves as a connectivity-anchored equilibrium: any interior
+pre-conditioning is mapped back to (numerically) the same fixed point.
+Consequences:
+
+1. **Supplement composition is architecturally incapable of a quality lift** —
+   whatever the pre-pass does, the trailing global pass undoes. It can only add
+   cost. The spec's supplement design (Clarifications Q3/Q5) is a dead end.
+2. **Baseline passes 2–3 are no-ops**: supplement's SINGLE trailing global pass
+   reproduces the 3-pass baseline metrics exactly → `fem_smoother(n_iter=3)`
+   wastes ~2/3 of its wall-clock (~22 s of 33.5 s here). The cheap, real win
+   #104 was hunting is `n_iter=1` (~3× smoothing cut, zero quality change on
+   every mesh measured) — needs its own gate run + default-path byte-identity
+   decision (follow-up, not this spec's opt-in surface). Note
+   `fem_smoother`'s docstring claims early-stop-on-no-improvement; no such
+   check exists in the code.
+3. **Smoothing is not the WNAT_Onur bottleneck with the C++ chilmesh backend**:
+   33.5 s smoothing vs 241.4 s sweep/cleanup (~12% of total). The 69.5% ENPAC
+   figure that motivated #104 does not transfer to this configuration; re-profile
+   before investing further in smoother wall-clock.
+
+### Not measured
+
+`local_then_cheap` / `cheap_then_local` orderings (--skip-cheap) — the only
+compositions that do NOT end in a global FEM pass, hence the only ones the
+erasure finding does not condemn a priori. `_cheap_global_guarded` is
+pure-Python O(n_verts) (Known limitations above) — vectorize before a WNAT-scale
+run is meaningful.
+
+### Recommendation (supersedes "pending WNAT confirmation" above)
+
+Do NOT promote `hierarchical=True` beyond opt-in; do not default it anywhere.
+Keep the machinery + this negative result for the record (PR #105). Redirect
+effort to (a) `n_iter=1` default gate run, (b) sweep/cleanup profiling (the
+actual 88%), (c) if boundary-layer quality (#90) is the target, ops that don't
+end in a global FEM pass.
