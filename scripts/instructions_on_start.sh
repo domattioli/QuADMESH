@@ -309,6 +309,75 @@ if [ "$IS_DOMI" = "true" ]; then
 else
   echo "Consumer repo detected ($REPO_NAME) — running generic checks..."
 
+  # Pin-drift gate (spec-019 T032) — check .domi-pin vs upstream DomI
+  echo "Checking DomI upstream pin..."
+  DOMI_DIR="${DOMI_DIR:-$(dirname "$REPO_ROOT")/DomI}"
+  CHECK_PIN="$DOMI_DIR/skills/sync-from-domi/scripts/check_pin.sh"
+  if [ ! -f "$CHECK_PIN" ]; then
+    echo "  ⚠ DomI pin-check script not found at $CHECK_PIN (optional; DomI not in sibling dir?)"
+  else
+    if bash "$CHECK_PIN" 2>&1 | grep -q "error\|HARD STOP"; then
+      # Extract rc from check_pin; map to decision
+      CHECK_RC=$?
+      if [ "$CHECK_RC" = "1" ] || [ "$CHECK_RC" = "3" ]; then
+        # Drift (1) or forked (3)
+        if [ "${DOMI_BLOCK_ON_DRIFT:-1}" != "0" ]; then
+          echo ""
+          echo "════════════════════════════════════════════════════════════════════"
+          echo "🛑 DOMI PIN DRIFT — HARD STOP"
+          echo "════════════════════════════════════════════════════════════════════"
+          echo ""
+          echo "  Pin stale vs domattioli/DomI@main"
+          echo "  Run: /sync from DomI"
+          echo "  Or override (read-only): DOMI_BLOCK_ON_DRIFT=0 bash $0"
+          echo "════════════════════════════════════════════════════════════════════"
+          echo ""
+          BLOCKERS+=("domi-pin-drift")
+          ISSUES=$((ISSUES + 1))
+        else
+          echo "  ⚠ DomI pin stale (override: DOMI_BLOCK_ON_DRIFT=0)"
+        fi
+      elif [ "$CHECK_RC" = "5" ]; then
+        echo "  ⚠ DomI pin malformed (regenerate via: DOMI_DIR=$DOMI_DIR bash $DOMI_DIR/skills/sync-from-domi/scripts/update_pin.sh)"
+        ISSUES=$((ISSUES + 1))
+      elif [ "$CHECK_RC" = "2" ] || [ "$CHECK_RC" = "4" ]; then
+        echo "  ⚠ DomI pin check inconclusive (unpinned or gh unavailable)"
+      else
+        echo "  ✓ DomI pin synced"
+      fi
+    else
+      # No error output; check rc directly
+      bash "$CHECK_PIN" >/dev/null 2>&1
+      CHECK_RC=$?
+      if [ "$CHECK_RC" = "0" ]; then
+        echo "  ✓ DomI pin synced"
+      elif [ "$CHECK_RC" = "1" ] || [ "$CHECK_RC" = "3" ]; then
+        if [ "${DOMI_BLOCK_ON_DRIFT:-1}" != "0" ]; then
+          echo ""
+          echo "════════════════════════════════════════════════════════════════════"
+          echo "🛑 DOMI PIN DRIFT — HARD STOP"
+          echo "════════════════════════════════════════════════════════════════════"
+          echo ""
+          echo "  Pin stale vs domattioli/DomI@main"
+          echo "  Run: /sync from DomI"
+          echo "  Or override (read-only): DOMI_BLOCK_ON_DRIFT=0 bash $0"
+          echo "════════════════════════════════════════════════════════════════════"
+          echo ""
+          BLOCKERS+=("domi-pin-drift")
+          ISSUES=$((ISSUES + 1))
+        else
+          echo "  ⚠ DomI pin stale (override: DOMI_BLOCK_ON_DRIFT=0)"
+        fi
+      elif [ "$CHECK_RC" = "5" ]; then
+        echo "  ⚠ DomI pin malformed (regenerate via: DOMI_DIR=$DOMI_DIR bash $DOMI_DIR/skills/sync-from-domi/scripts/update_pin.sh)"
+        ISSUES=$((ISSUES + 1))
+      elif [ "$CHECK_RC" = "2" ] || [ "$CHECK_RC" = "4" ]; then
+        echo "  ⚠ DomI pin check inconclusive (unpinned or gh unavailable)"
+      fi
+    fi
+  fi
+  echo ""
+
   HAS_TESTS=false
   for test_marker in "pytest.ini" "setup.cfg" "pyproject.toml" "package.json" "Makefile"; do
     [ -f "$REPO_ROOT/$test_marker" ] && HAS_TESTS=true && break
