@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read    # required for actions/checkout on a private repo
-      id-token: write   # required for PyPI trusted publishing (OIDC)
 
     steps:
       - uses: actions/checkout@v5
@@ -30,5 +29,18 @@ jobs:
       - name: Build distributions
         run: python -m build
 
+      # Switch from OIDC trusted publishing to token auth because PyPI's
+      # trusted-publisher record for this project doesn't match our OIDC claims
+      # (invalid-publisher). Use stored API token instead until PyPI dashboard
+      # trusted-publisher config is fixed separately.
+      - name: Install twine
+        run: pip install twine
+
+      - name: Verify distributions
+        run: twine check dist/*
+
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
