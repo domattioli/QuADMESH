@@ -40,24 +40,33 @@ for key, spec in BASELINES.items():
     ))
 
 
-@pytest.mark.slow
-@pytest.mark.parametrize("fixture_name,method,n_smooth_iter,spec", _PARAMS)
-def test_mean_quality_baseline(fixture_name, method, n_smooth_iter, spec):
-    """Mean quality after tri2quad + post_process must stay above baseline floor."""
-    path = FIXTURE_DIR / fixture_name
-    if not path.exists():
-        pytest.skip(f"fixture missing: {path}")
+# Define test — either parametrized (if baselines available) or skipped (if not).
+if _PARAMS:
+    @pytest.mark.slow
+    @pytest.mark.parametrize("fixture_name,method,n_smooth_iter,spec", _PARAMS)
+    def test_mean_quality_baseline(fixture_name, method, n_smooth_iter, spec):
+        """Mean quality after tri2quad + post_process must stay above baseline floor."""
+        path = FIXTURE_DIR / fixture_name
+        if not path.exists():
+            pytest.skip(f"fixture missing: {path}")
 
-    from chilmesh import CHILmesh
-    mesh = CHILmesh.read_from_fort14(path)
-    result = tri2quad(mesh, method=method)
-    pp = post_process(result, n_smooth_iter=n_smooth_iter)
-    stats = compute_quality_stats(pp)
+        from chilmesh import CHILmesh
+        mesh = CHILmesh.read_from_fort14(path)
+        result = tri2quad(mesh, method=method)
+        pp = post_process(result, n_smooth_iter=n_smooth_iter)
+        stats = compute_quality_stats(pp)
 
-    floor = spec["mean_quality_floor"]
-    tol = spec["tolerance"]
-    mean_q = stats["mean"]
-    assert abs(mean_q - floor) <= tol, (
-        f"{fixture_name}/{method}/n_smooth={n_smooth_iter}: "
-        f"mean_quality {mean_q:.3f} outside ±{tol} of baseline {floor:.3f}"
-    )
+        floor = spec["mean_quality_floor"]
+        tol = spec["tolerance"]
+        mean_q = stats["mean"]
+        assert abs(mean_q - floor) <= tol, (
+            f"{fixture_name}/{method}/n_smooth={n_smooth_iter}: "
+            f"mean_quality {mean_q:.3f} outside ±{tol} of baseline {floor:.3f}"
+        )
+else:
+    def test_mean_quality_baseline():
+        """Placeholder: quality baselines not available."""
+        pytest.skip(
+            "tests/fixtures/quality_baselines.json absent — quality-regression "
+            "baselines not committed; test not exercised (see issue #109)"
+        )

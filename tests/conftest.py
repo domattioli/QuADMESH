@@ -85,3 +85,37 @@ def pytest_configure(config):
             )
     if errors:
         print(f"[fixtures] provision errors (tests will skip): {errors}")
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Report on mesh-dependent tests skipped due to missing fixtures.
+
+    Makes silent fixture-missing skips visible to alert when the faithfulness
+    gate (test_no_interior_tris) is not exercised.
+    """
+    # Collect all skipped reports
+    skipped_reports = terminalreporter.stats.get("skipped", [])
+
+    # Filter for fixture-missing skips
+    fixture_missing_skips = [
+        r for r in skipped_reports
+        if "fixture missing:" in r.longrepr
+    ]
+
+    if not fixture_missing_skips:
+        return
+
+    # Check if the faithfulness gate is among the skipped
+    gate_not_exercised = any(
+        "test_no_interior_tris" in r.nodeid
+        for r in fixture_missing_skips
+    )
+
+    gate_status = "NOT EXERCISED" if gate_not_exercised else "not affected"
+    msg = (
+        f"{len(fixture_missing_skips)} mesh-dependent test(s) skipped "
+        f"(no Valence token / offline) — FAITHFULNESS GATE {gate_status}"
+    )
+
+    terminalreporter.write_sep("=", msg, red=True, bold=True)
+    terminalreporter.write_line(msg, red=True, bold=True)
