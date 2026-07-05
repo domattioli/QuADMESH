@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-07-05
+
+### Added
+- Opt-in `refuse_boundary_merge` flag (#98 option A): guards boundary-layer merges that produced geometric defects on offline boundary geo-tri baseline.
+- Offline boundary geo-tri baseline pinned as #98 CI regression gate.
+
+### Changed
+- Tests CI minimized: PR-to-main + single Python 3.11 lane (#265-style conformance).
+- Agent/dev-process files de-vendored (routine instructions read from DomI canon; retros moved to DomI central corpus).
+
 ## [0.1.1] — 2026-06-15
 
 ### Changed

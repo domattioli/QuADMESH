@@ -1,0 +1,31 @@
+# facts.yml — QuADMESH doc-vs-reality fact manifest (spec-019 T024, pilot cycle 1)
+# Schema: DomI scripts/lint_facts/README.md. All warn (clarify Q2).
+
+facts:
+  - id: claude-md-src-paths-exist
+    type: path-exists
+    doc: CLAUDE.md
+    extract: '`(src/[A-Za-z0-9_/.-]+)`'
+    severity: warn
+    note: 'C3 — src/ paths CLAUDE.md cites must exist (matlab/ vs src/matlab/ was finding Q2)'
+
+  - id: routine-path-current
+    type: line-match
+    doc: CLAUDE.md
+    expect: '\.claude/claude_routine_instructions\.md'
+    severity: warn
+    note: 'C3/D2 — routine path must reference DomI .claude/ canon (was stale pre spec-019 T013)'
+
+  - id: t019-not-wip
+    type: line-match
+    doc: CLAUDE.md
+    expect: 'T019.*(no-op|dead code)'
+    severity: warn
+    note: 'C2 — T019 proven dead (sessions 027/030); doc must not regress to WIP framing'
+
+  - id: mapping-module-current
+    type: line-match
+    doc: docs/MAPPING.md
+    expect: '_match_quadmesh_plus'
+    severity: warn
+    note: 'C2 — module renamed from _match_faithful (ac85f39); MAPPING must track it'
