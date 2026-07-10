@@ -271,9 +271,18 @@ def fem_smoother(
     Default method is 'fem' (fast: ~1.5s/pass on 46k elems).
     Use method='angle-based' for higher quality at ~1400s/pass (chilmesh is slow).
 
+    Note:
+        Runs exactly ``n_iter`` passes; there is NO convergence early-stop.
+        The 'fem' path (`_balendran_smooth`) is a connectivity-anchored global
+        equilibrium solve whose output is (numerically) independent of interior
+        starting positions, so passes after the first change nothing measurable
+        (QuADMESH #107). The only early exit is a revert-and-break if a pass
+        raises. See #107 before flipping the ``n_iter`` default 3->1.
+
     Args:
         mesh: CHILmesh to smooth.
-        n_iter: Max FEM passes (stops early once a pass stops improving).
+        n_iter: Number of FEM passes to run (each runs unconditionally; no
+            convergence check).
     """
     import numpy as np
 
