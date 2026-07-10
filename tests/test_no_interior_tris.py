@@ -318,8 +318,8 @@ def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
 # keeping interior == 0; when it does, update these numbers with evidence
 # from `scripts/bench_boundary_layer.py --mesh <name>`.
 _GEO_TRI_BASELINE = {
-    "Block_O.14": 273,
-    "structuredMesh1.14": 20,
+    "Block_O.14": 274,  # 273 -> 274 (#108): pairing-merge degeneracy guard leaves
+    "structuredMesh1.14": 20,  # one boundary sliver as boundary tris (allowed)
 }
 
 
@@ -357,9 +357,9 @@ def test_boundary_geo_tri_baseline(fixture_name):
 # per #90 (PAT-gated, not validatable here). These pins guard the invariant under
 # the flag and prevent re-characterization churn.
 _GEO_TRI_FLAG_ON = {
-    "Block_O.14": 273,
-    "structuredMesh1.14": 19,
-}
+    "Block_O.14": 274,  # 273 -> 274 (#108): the pairing-merge acceptance criterion
+    "structuredMesh1.14": 19,  # (named above as the real offline lever) now rejects
+}                              # near-flat merges -> one boundary sliver splits to tris
 
 
 @pytest.mark.parametrize("fixture_name", list(_GEO_TRI_FLAG_ON))
