@@ -272,17 +272,24 @@ def fem_smoother(
     Use method='angle-based' for higher quality at ~1400s/pass (chilmesh is slow).
 
     Note:
-        Runs exactly ``n_iter`` passes; there is NO convergence early-stop.
         The 'fem' path (`_balendran_smooth`) is a connectivity-anchored global
-        equilibrium solve whose output is (numerically) independent of interior
-        starting positions, so passes after the first change nothing measurable
-        (QuADMESH #107). The only early exit is a revert-and-break if a pass
-        raises. See #107 before flipping the ``n_iter`` default 3->1.
+        equilibrium solve: its stiffness matrix K is built purely from element
+        connectivity (constant per-element reference matrices — no node
+        positions), and the interior RHS is zero with boundary nodes pinned via
+        a kinf penalty. So a single pass already lands on the equilibrium;
+        further passes rebuild the same K and reproduce the result up to the
+        penalty-method boundary residual (~5e-12 max coordinate drift per pass,
+        ~11 orders below coordinate scale — quality metrics identical to display
+        precision). Passes after the first are therefore numerical no-ops, so
+        the 'fem' path short-circuits after one pass regardless of ``n_iter``
+        (QuADMESH #107). Non-'fem' methods (e.g. 'angle-based') are genuinely
+        iterative and run all ``n_iter`` passes. The other early exit is a
+        revert-and-break if a pass raises.
 
     Args:
         mesh: CHILmesh to smooth.
-        n_iter: Number of FEM passes to run (each runs unconditionally; no
-            convergence check).
+        n_iter: Number of passes for non-'fem' methods (the 'fem' path
+            short-circuits after one pass — see Note; QuADMESH #107).
     """
     import numpy as np
 
@@ -298,6 +305,11 @@ def fem_smoother(
                 mesh.smooth_mesh(method=method, acknowledge_change=True)
         except Exception:
             mesh.points[...] = before
+            break
+        if method == "fem":
+            # #107: _balendran_smooth is a fixed point (position-independent K,
+            # pinned boundary). Passes 2+ are numerical no-ops — skip them
+            # (~n-fold smoothing wall-clock cut, output unchanged to ~5e-12).
             break
 
     return mesh
