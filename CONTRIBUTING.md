@@ -29,9 +29,8 @@ docs/                 Project documentation
   ├── 003-root-reorg/
   └── ...
 
-src/matlab/           Frozen MATLAB reference (read-only, not installable)
 scripts/              Development and build tooling
-archive/              Legacy files pending removal
+archive/matlab/       Frozen MATLAB QuADMESH+ original (read-only, not installable)
 ```
 
 ## Set up a dev environment (canonical)
@@ -101,7 +100,7 @@ CI runs on every PR (currently: linting, tests on Python 3.10+).
   encounter API changes in CHILmesh, see [`docs/MAPPING.md`](docs/MAPPING.md)
   for the current state of integration and upstream issues.
 - **MATLAB reference:** The original MATLAB QuADMESH+ implementation is frozen
-  in `src/matlab/` for reference. Port fidelity is documented in
+  in `archive/matlab/` for reference. Port fidelity is documented in
   `docs/MAPPING.md`.
 
 ## When in doubt

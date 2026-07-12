@@ -27,8 +27,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
 - `.specify/specs/001-matlab-to-python-port/`, `.specify/specs/003-root-reorg/` — speckit spec/plan/tasks.
-- `src/matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
-- `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
+- `archive/matlab/` — frozen MATLAB QuADMESH+ original (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable, nothing imports it. Relocated here from `src/matlab/` in the 2026-07 prune, which also deleted the dead `@CHILmesh`/ADMESH dups (now independent repos) and the `.mat`/`.14` binaries (Valence provides meshes).
 - `videos/` — README demo assets.
 
 ## chilmesh

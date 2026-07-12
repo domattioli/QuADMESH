@@ -20,5 +20,8 @@ For the maintained, runnable implementation, use the Python port in
 
 ## Related
 
-- MATLAB CHILmesh class and ADMESH library are archived under [`../archive/`](../archive/)
-  — they duplicate the standalone repos `domattioli/CHILmesh` and `domattioli/ADMESH`.
+- The MATLAB CHILmesh class and ADMESH library that once sat beside this tree
+  were deleted in the 2026-07 prune — they were dead duplicates of the
+  independent [`domattioli/CHILmesh`](https://github.com/domattioli/CHILmesh)
+  and [`domattioli/ADMESH`](https://github.com/domattioli/ADMESH) repos, which
+  own their own MATLAB references now.
