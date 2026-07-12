@@ -778,6 +778,31 @@ def count_fold_bridge_quads(
     return len(fold_bridge_quads(quads, flagged_edges))
 
 
+def _quad_is_degenerate(points, quad, max_angle_deg: float = 177.0) -> bool:
+    """True if the 4-vertex ``quad`` has a near-flat corner (>= ``max_angle_deg``).
+
+    A quad with a ~180 deg corner is geometrically a triangle; accepting such a
+    merge violates the faithfulness invariant (zero interior residual tris, #108).
+    Guards both per-layer merge sites so a bad pair is skipped and its tris fall
+    through to a better partner or leftover routing instead of forming a sliver.
+    """
+    v = [int(x) for x in np.asarray(quad).ravel()[:4]]
+    if len(set(v)) != 4:
+        return False  # padded/collapsed rows are handled elsewhere
+    p = np.asarray(points)[v, :2]
+    for i in range(4):
+        e1 = p[(i - 1) % 4] - p[i]
+        e2 = p[(i + 1) % 4] - p[i]
+        n1 = float(np.hypot(*e1))
+        n2 = float(np.hypot(*e2))
+        if n1 < 1e-12 or n2 < 1e-12:
+            return True
+        ang = np.degrees(np.arccos(np.clip(np.dot(e1, e2) / (n1 * n2), -1.0, 1.0)))
+        if ang >= max_angle_deg:
+            return True
+    return False
+
+
 def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
@@ -850,6 +875,8 @@ def _quadmesh_plus_per_layer(
                 quad = merge_tri_pair(sel.sub_mesh, la, lb)
             except (ValueError, IndexError):
                 continue
+            if _quad_is_degenerate(sel.sub_mesh.points, quad):
+                continue  # #108: near-flat merge is a geometric tri — leave unmerged
             work.add_quad(quad)
             consumed.add(ga)
             consumed.add(gb)
@@ -906,6 +933,8 @@ def _quadmesh_plus_per_layer(
                 quad = merge_tri_pair(sel.sub_mesh, la, lb)
             except (ValueError, IndexError):
                 continue
+            if _quad_is_degenerate(sel.sub_mesh.points, quad):
+                continue  # #108: near-flat merge is a geometric tri — leave unmerged
             work.add_quad(quad)
             consumed.add(ga); consumed.add(gb)
             local_consumed.add(la); local_consumed.add(lb)

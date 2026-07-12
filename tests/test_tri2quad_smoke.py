@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from quadmesh import tri2quad
 
@@ -36,3 +37,35 @@ def test_tri2quad_no_zero_area(test_case_1):
     out = tri2quad(test_case_1, can_remove_edges=True)
     areas = out.signed_area()
     assert np.all(np.abs(areas) > 1e-12), f"{(np.abs(areas) <= 1e-12).sum()} zero-area elems"
+
+
+_REAL_FIXTURES = ["test_case_1", "test_case_2"]
+
+
+@pytest.mark.parametrize("fixture_name", _REAL_FIXTURES)
+def test_tri2quad_multi_fixture_valid(fixture_name, request):
+    """tri2quad on each real layered mesh: quad-dominant, in-range, non-degenerate."""
+    mesh = request.getfixturevalue(fixture_name)
+    out = tri2quad(mesh, can_remove_edges=True)
+    assert out is not None and out.n_elems > 0 and out.n_verts > 0
+    assert out.connectivity_list.shape[0] == out.n_elems
+    ratio = _count_quads(out) / max(out.n_elems, 1)
+    assert ratio >= 0.5, f"{fixture_name}: only {ratio:.1%} quads"
+    areas = out.signed_area()
+    assert np.all(np.abs(areas) > 1e-12), f"{fixture_name}: zero-area elems"
+    cl = out.connectivity_list
+    assert cl.min() >= 0 and cl.max() < out.n_verts, (
+        f"{fixture_name}: connectivity index out of [0, n_verts) range"
+    )
+
+
+@pytest.mark.slow
+def test_tri2quad_block_o_valid(_block_o):
+    """Larger Block_O mesh: same validity invariants (slow — large fixture)."""
+    out = tri2quad(_block_o, can_remove_edges=True)
+    assert out.n_elems > 0
+    ratio = _count_quads(out) / max(out.n_elems, 1)
+    assert ratio >= 0.5, f"block_o: only {ratio:.1%} quads"
+    assert np.all(np.abs(out.signed_area()) > 1e-12)
+    cl = out.connectivity_list
+    assert cl.min() >= 0 and cl.max() < out.n_verts

@@ -220,6 +220,48 @@ def test_quadmesh_plus_alias_no_warn():
     assert _tri_count(q) == 0, "quadmesh+ must produce quad-pure output"
 
 
+# --- Token-free faithfulness coverage (chilmesh.data bundled meshes) ----------
+# These ship inside the installed chilmesh package (no Valence token needed), so
+# the zero-interior-tri invariant is exercised in CI even when the Valence-only
+# fixtures above are unavailable. annulus = concentric, donut = hole topology —
+# together they protect the guarantee on non-trivial connectivity without a PAT.
+_CHILMESH_DATA_MESHES = ["annulus_200pts.fort.14", "donut_domain.fort.14"]
+
+
+def _load_chilmesh_data_mesh(name):
+    """Load a mesh bundled in the installed chilmesh package data dir, or None."""
+    try:
+        from importlib import resources
+        res = resources.files("chilmesh").joinpath("data", name)
+        if not res.is_file():
+            return None
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".14", delete=False) as fh:
+            fh.write(res.read_bytes())
+            tmp = fh.name
+    except (ModuleNotFoundError, FileNotFoundError, OSError, AttributeError):
+        return None
+    return CHILmesh.read_from_fort14(Path(tmp))
+
+
+@pytest.mark.parametrize("mesh_name", _CHILMESH_DATA_MESHES)
+def test_tri2quad_zero_interior_tris_offline(mesh_name):
+    """Faithfulness invariant on token-free chilmesh.data meshes.
+
+    Runs in CI without a Valence token, so the zero-interior-tri guarantee is
+    protected regardless of fixture provisioning (concentric + hole topology).
+    """
+    mesh = _load_chilmesh_data_mesh(mesh_name)
+    if mesh is None:
+        pytest.skip(f"chilmesh.data mesh unavailable: {mesh_name}")
+    quad_mesh = tri2quad(mesh, can_remove_edges=True, remove_boundary_tris=False)
+    n_interior = _interior_tri_count(quad_mesh)
+    assert n_interior == 0, (
+        f"{mesh_name}: {n_interior} interior residual triangles after matching "
+        f"(expected 0)"
+    )
+
+
 @pytest.mark.parametrize("fixture_name", FIXTURES)
 def test_no_interior_geometric_tris(fixture_name):
     """A quad with a ~180 deg corner is geometrically a triangle; the index-based
@@ -318,8 +360,8 @@ def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
 # keeping interior == 0; when it does, update these numbers with evidence
 # from `scripts/bench_boundary_layer.py --mesh <name>`.
 _GEO_TRI_BASELINE = {
-    "Block_O.14": 273,
-    "structuredMesh1.14": 20,
+    "Block_O.14": 274,  # 273 -> 274 (#108): pairing-merge degeneracy guard leaves
+    "structuredMesh1.14": 20,  # one boundary sliver as boundary tris (allowed)
 }
 
 
@@ -357,9 +399,9 @@ def test_boundary_geo_tri_baseline(fixture_name):
 # per #90 (PAT-gated, not validatable here). These pins guard the invariant under
 # the flag and prevent re-characterization churn.
 _GEO_TRI_FLAG_ON = {
-    "Block_O.14": 273,
-    "structuredMesh1.14": 19,
-}
+    "Block_O.14": 274,  # 273 -> 274 (#108): the pairing-merge acceptance criterion
+    "structuredMesh1.14": 19,  # (named above as the real offline lever) now rejects
+}                              # near-flat merges -> one boundary sliver splits to tris
 
 
 @pytest.mark.parametrize("fixture_name", list(_GEO_TRI_FLAG_ON))

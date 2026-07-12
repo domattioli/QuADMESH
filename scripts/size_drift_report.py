@@ -178,6 +178,31 @@ def run_fixture(path):
     return result
 
 
+def offline_fixtures():
+    """Provision token-free .14 meshes bundled in ``chilmesh.data`` to temp files.
+
+    annulus (concentric) + donut (hole) are uniform-h by construction, so they
+    are ideal #21 probes: any |edge|/h_local drift is pipeline-induced, not an
+    input size-transition artifact. Lets this report run in CI / offline when the
+    Valence-only fixtures under tests/fixtures/meshes/ are absent (no PAT).
+    """
+    from importlib import resources
+    import tempfile
+
+    out = []
+    for name in ("annulus_200pts.fort.14", "donut_domain.fort.14"):
+        try:
+            raw = resources.files("chilmesh").joinpath("data", name).read_text()
+        except (FileNotFoundError, ModuleNotFoundError, AttributeError):
+            continue
+        stem = name.split(".")[0]
+        fd = tempfile.NamedTemporaryFile("w", prefix=f"{stem}_", suffix=".14", delete=False)
+        fd.write(raw)
+        fd.close()
+        out.append(fd.name)
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -190,9 +215,21 @@ def main():
         ],
         help="Paths to .14 fixture files",
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Ignore fixture paths; use chilmesh.data bundled meshes (no PAT).",
+    )
     args = parser.parse_args()
 
-    for fixture_path in args.fixtures:
+    fixtures = args.fixtures
+    if args.offline or not any(Path(f).exists() for f in fixtures):
+        offline = offline_fixtures()
+        if offline:
+            print("_(offline mode — chilmesh.data bundled meshes; no Valence PAT)_")
+            fixtures = offline
+
+    for fixture_path in fixtures:
         p = Path(fixture_path)
         if not p.exists():
             print(f"⚠ {fixture_path} not found, skipping")
