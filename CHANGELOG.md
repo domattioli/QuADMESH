@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-07-13
+
+### Fixed
+- Faithfulness invariant RED→GREEN: reject near-flat pairing merges in the `quadmesh+` per-layer loop, so a merge whose result has a corner ≥ 177° is skipped rather than emitting a degenerate quad — interior geometric triangles now 0 across all fixtures (#108).
+- `fem_smoother` `method="fem"` now short-circuits after the first pass (the stiffness system lands on its fixed point in one pass; passes 2+ were re-solving an identical system), plus a docstring correction that no longer implies a convergence early-stop (#107).
+- Validator layer auto-trigger is CHILmesh 1.4.0-tolerant: prefer the public `peel_layers()` and fall back to `_skeletonize()` for chilmesh < 1.4.0. Under 1.4.0 (which removed `_skeletonize`) the `hasattr` guard had gone `False` and the FR-007 layer check silently stopped firing.
+
+### Added
+- Token-free offline test coverage: the zero-interior-triangle faithfulness gate and the #21 size-drift report now run in CI on the `chilmesh.data` bundled meshes (annulus + donut), without a Valence PAT (#109, #21).
+
+### Changed
+- Pruned dead MATLAB duplicates of the now-independent `domattioli/CHILmesh` and `domattioli/ADMESH` repos, plus MATLAB-opaque `.mat`/`.14` mesh binaries (Valence provides meshes) and old result outputs. Relocated the frozen MATLAB QuADMESH+ original out of the Python `src/` tree (`src/matlab/` → `archive/matlab/`). No effect on the distributed package — all of it was already excluded from the wheel/sdist.
+
 ## [0.2.0] — 2026-07-05
 
 ### Added
