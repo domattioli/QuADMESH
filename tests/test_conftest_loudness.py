@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from conftest import _is_fixture_missing_skip, _skip_reason
+from conftest import _gate_exercised, _is_fixture_missing_skip, _skip_reason
 
 
 def _skip_report(reason: str, nodeid: str = "tests/test_x.py::test_a"):
@@ -48,3 +48,35 @@ def test_fixture_missing_skip_detected_through_tuple():
 def test_non_fixture_skip_not_flagged():
     r = _skip_report("Pass --runslow to run slow tests")
     assert _is_fixture_missing_skip(r) is False
+
+
+class _Reporter:
+    """Minimal stand-in for pytest's terminalreporter (only .stats used)."""
+
+    def __init__(self, **stats):
+        self.stats = stats
+
+
+def _run_report(nodeid: str):
+    return SimpleNamespace(nodeid=nodeid)
+
+
+def test_gate_exercised_true_when_gate_test_ran():
+    rep = _Reporter(passed=[_run_report("tests/test_no_interior_tris.py::test_x")])
+    assert _gate_exercised(rep) is True
+
+
+def test_gate_exercised_counts_failures_too():
+    rep = _Reporter(failed=[_run_report("tests/test_no_interior_tris.py::test_x")])
+    assert _gate_exercised(rep) is True
+
+
+def test_gate_not_exercised_when_only_skipped():
+    # Gate present only among skips (any reason) → not exercised. This is the
+    # case the old fixture-missing-only check reported as "not affected".
+    rep = _Reporter(
+        passed=[_run_report("tests/test_other.py::test_y")],
+        skipped=[_skip_report("chilmesh.data mesh unavailable: annulus",
+                              nodeid="tests/test_no_interior_tris.py::test_z")],
+    )
+    assert _gate_exercised(rep) is False

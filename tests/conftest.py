@@ -107,6 +107,20 @@ def _is_fixture_missing_skip(report) -> bool:
     return "fixture missing:" in _skip_reason(report)
 
 
+def _gate_exercised(terminalreporter) -> bool:
+    """True if at least one faithfulness-gate test actually ran (passed or failed).
+
+    Reason-agnostic: the gate is "exercised" iff a ``test_no_interior_tris`` test
+    produced a real outcome, regardless of which fixtures other gate tests skipped
+    on. A skip alone never counts as exercising the gate.
+    """
+    for outcome in ("passed", "failed"):
+        for r in terminalreporter.stats.get(outcome, []):
+            if "test_no_interior_tris" in getattr(r, "nodeid", ""):
+                return True
+    return False
+
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report on mesh-dependent tests skipped due to missing fixtures.
 
@@ -125,13 +139,12 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     if not fixture_missing_skips:
         return
 
-    # Check if the faithfulness gate is among the skipped
-    gate_not_exercised = any(
-        "test_no_interior_tris" in r.nodeid
-        for r in fixture_missing_skips
-    )
-
-    gate_status = "NOT EXERCISED" if gate_not_exercised else "not affected"
+    # Whether the faithfulness gate actually ran is a stronger question than
+    # "was it among the fixture-missing skips" — the gate file also skips for
+    # "no offline fixture provisioned" / "chilmesh.data mesh unavailable", which
+    # the fixture-missing filter ignores. Derive the status from real execution
+    # so the banner can't claim "not affected" while the gate never ran.
+    gate_status = "not affected" if _gate_exercised(terminalreporter) else "NOT EXERCISED"
     msg = (
         f"{len(fixture_missing_skips)} mesh-dependent test(s) skipped "
         f"(no Valence token / offline) — FAITHFULNESS GATE {gate_status}"
