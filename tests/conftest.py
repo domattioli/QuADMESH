@@ -87,6 +87,26 @@ def pytest_configure(config):
         print(f"[fixtures] provision errors (tests will skip): {errors}")
 
 
+def _skip_reason(report) -> str:
+    """Normalize a skip report's ``longrepr`` to its reason string.
+
+    A skipped test's ``longrepr`` is a ``(path, lineno, "Skipped: <reason>")``
+    tuple, NOT a bare string — so a naive ``"fixture missing:" in report.longrepr``
+    tests tuple *membership* (element equality) and silently never matches, which
+    left the #109 loudness hook dead on arrival. Return the reason string so the
+    substring test works regardless of longrepr shape.
+    """
+    lr = getattr(report, "longrepr", None)
+    if isinstance(lr, tuple):
+        return str(lr[-1])
+    return "" if lr is None else str(lr)
+
+
+def _is_fixture_missing_skip(report) -> bool:
+    """True when ``report`` is a skip caused by a missing ``.14`` fixture."""
+    return "fixture missing:" in _skip_reason(report)
+
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report on mesh-dependent tests skipped due to missing fixtures.
 
@@ -99,7 +119,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     # Filter for fixture-missing skips
     fixture_missing_skips = [
         r for r in skipped_reports
-        if "fixture missing:" in r.longrepr
+        if _is_fixture_missing_skip(r)
     ]
 
     if not fixture_missing_skips:
