@@ -124,6 +124,8 @@ Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 
 | `post_process_routine` (collapse + cleanup + FEM smooth) | 537.6 | 69.5% |
 | **Total** | **773.3** | **100%** |
 
+> **Note (post-0.1.0):** this breakdown predates the `fem_smoother` short-circuit (#107). The `method="fem"` smoothing path is a connectivity-anchored equilibrium solve — a single pass reaches equilibrium and further passes are numerical no-ops — so it now returns after one pass instead of the former default of three, cutting the FEM-smoothing component of `post_process_routine` roughly *n*-fold. The 69.5% post-process share above therefore overstates the current cost; a separate benchmark on the 246k-triangle `WNAT_Onur` mesh puts smoothing at ~12% of wall-clock rather than the ~70% seen here. These figures will be re-measured on `ENPAC2003` at the next release benchmark.
+
 ### Element quality
 
 Skew quality on the unit interval (1 = an ideal square; the `chilmesh` `element_quality(metric="skew")` metric), reported before (input triangles) and after (output quadrilaterals).
