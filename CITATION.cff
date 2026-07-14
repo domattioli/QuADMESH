@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software (Zenodo) and the original thesis."
+title: "QuADMESH+: Quadrangular ADvanced Mesh generator"
+abstract: >-
+  Python port of the MATLAB QuADMESH+ library: a layer-ordered
+  triangle-to-quadrilateral mesh generator for hydrodynamic models,
+  built on top of chilmesh.
+type: software
+authors:
+  - family-names: Mattioli
+    given-names: Dominik D.
+license: PolyForm-Noncommercial-1.0.0
+repository-code: "https://github.com/domattioli/QuADMESH"
+url: "https://github.com/domattioli/QuADMESH"
+version: 0.2.1
+date-released: "2026-07-13"
+# Zenodo DOI for this record series. If a concept ("cite all versions") DOI
+# exists, prefer it here so citations track every version.
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.20351165
+    description: "Zenodo archive"
+preferred-citation:
+  type: thesis
+  title: "QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models"
+  authors:
+    - family-names: Mattioli
+      given-names: Dominik D.
+  year: 2017
+  institution:
+    name: "Ohio State University"
+  thesis-type: "Master's thesis"
+  url: "http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088"

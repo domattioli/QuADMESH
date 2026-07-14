@@ -13,7 +13,7 @@
   <sup>†</sup>Corresponding author | <sup>1</sup>Unaffiliated | <sup>2</sup>Ohio State University (<a href="https://ceg.osu.edu/computational-hydrodynamics-and-informatics-laboratory"><img src="https://img.shields.io/badge/The CHIL-a7b1b7?labelColor=ba0c2f&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjIwIiByeD0iNyIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjguNSIgeT0iNyIgd2lkdGg9IjciIGhlaWdodD0iMTAiIHJ4PSIzIiBmaWxsPSIjYmEwYzJmIi8+PC9zdmc+" alt="CHIL"></a>)
 </p>
 
-> **Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`src/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/src/matlab/quadmesh).
+> **Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`archive/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/archive/matlab/quadmesh).
 
 ---
 
@@ -83,11 +83,10 @@ tests/              pytest suite; tests/fixtures/meshes/ holds .14 test meshes
 docs/               MAPPING.md (MATLAB → Python), session notes
 specs/              speckit specs/plans/tasks
 videos/             demo assets (quadmesh_logo.gif, render scripts)
-src/matlab/         frozen legacy MATLAB reference (read-only, not installable)
-archive/            in-repo holding pen: upstream dups, .mat binaries, old results
+archive/matlab/     frozen MATLAB QuADMESH+ original (read-only, not installable)
 ```
 
-**Note on CHILmesh:** Functionality is **not vendored** — it is an external dependency (`chilmesh>=1.2.1`). The old MATLAB `@CHILmesh` class lives under `archive/` for historical reference only; see [CHILmesh](https://github.com/domattioli/CHILmesh).
+**Note on CHILmesh:** Functionality is **not vendored** — it is an external dependency (`chilmesh>=1.2.1`); see [CHILmesh](https://github.com/domattioli/CHILmesh). The old MATLAB `@CHILmesh` and ADMESH duplicates were removed in the 2026-07 prune (recoverable from git history).
 
 ---
 

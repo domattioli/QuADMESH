@@ -115,18 +115,19 @@ def validate_mesh_elements(
     layers = getattr(mesh, "layers", None)
     layer0_elems: set[int] = set()
     if layers is None or not layers.get("OE"):
-        # `_skeletonize` is CHILmesh's internal method for computing its
-        # concentric layer decomposition (not an image-style skeleton).
-        # See QuADMesh #55 / specs/055-skeletonization-rename/spec.md for the
-        # terminology distinction. Do not rename this call — it is CHILmesh's API.
-        if hasattr(mesh, "_skeletonize"):
+        # CHILmesh's concentric layer decomposition (not an image-style skeleton).
+        # CHILmesh 1.4.0 (#187 lexicon ratification) renamed the method:
+        # `_skeletonize`/`_layerize` -> public `peel_layers()`. Prefer the new name;
+        # fall back to `_skeletonize` for chilmesh < 1.4.0. See QuADMesh #55.
+        peel = getattr(mesh, "peel_layers", None) or getattr(mesh, "_skeletonize", None)
+        if peel is not None:
             try:
-                mesh._skeletonize()
+                peel()
                 notes.append(
                     InformationalNote(
                         "LAYERS_AUTO_TRIGGERED",
                         (),
-                        "validator triggered mesh._skeletonize() (CHILmesh layer decomposition) for FR-007",
+                        "validator triggered CHILmesh layer decomposition (peel_layers) for FR-007",
                     )
                 )
             except Exception as exc:  # pragma: no cover
@@ -134,7 +135,7 @@ def validate_mesh_elements(
                     InformationalNote(
                         "LAYERS_AUTO_TRIGGER_FAILED",
                         (),
-                        f"_skeletonize raised {type(exc).__name__}: {exc}",
+                        f"peel_layers raised {type(exc).__name__}: {exc}",
                     )
                 )
         layers = getattr(mesh, "layers", None)

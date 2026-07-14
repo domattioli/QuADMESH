@@ -1,0 +1,12 @@
+# Repo-local extension of DomI's canonical release-ignore baseline
+# (DomI skills/release-integrity/policy/release-ignore.toml). Additive only.
+# Regenerate channel files: python release_ignore.py generate (release-integrity skill).
+
+[extend]
+# AI dev-workflow docs excluded (operator ruling 2026-07-14); docs/MAPPING.md
+# and other computational docs ship.
+exclude = [
+    "docs/speckit-*",
+    "archive/",
+    "videos/",
+]
