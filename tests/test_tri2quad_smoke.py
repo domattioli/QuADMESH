@@ -69,3 +69,51 @@ def test_tri2quad_block_o_valid(_block_o):
     assert np.all(np.abs(out.signed_area()) > 1e-12)
     cl = out.connectivity_list
     assert cl.min() >= 0 and cl.max() < out.n_verts
+
+
+# --- Token-free offline coverage (issue #109) -------------------------------
+# The tests above use `.14` fixtures that need a Valence token, so they SKIP in
+# CI. These provision a small mesh from chilmesh.data instead, so tri2quad is
+# actually exercised offline. Mirrors tests/test_no_interior_tris.py's pattern.
+_OFFLINE_FIXTURES = ["structuredMesh1.14", "Block_O.14"]
+
+
+def _offline_mesh():
+    """Load a small tri mesh provisionable offline from chilmesh.data, or skip."""
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _here = _Path(__file__).resolve().parent
+    if str(_here) not in _sys.path:
+        _sys.path.insert(0, str(_here))
+    from _mesh_provision import provision, FIXTURE_DIR
+
+    provision(_OFFLINE_FIXTURES)
+    for name in _OFFLINE_FIXTURES:
+        p = FIXTURE_DIR / name
+        if p.exists():
+            from chilmesh import CHILmesh
+
+            return CHILmesh.read_from_fort14(p)
+    pytest.skip("no offline fixture provisioned (chilmesh.data unavailable)")
+
+
+def test_tri2quad_offline_valid():
+    """Token-free (#109): tri2quad on a chilmesh.data mesh runs in CI, not skipped."""
+    mesh = _offline_mesh()
+    out = tri2quad(mesh, can_remove_edges=True)
+    assert out is not None and out.n_elems > 0 and out.n_verts > 0
+    assert out.connectivity_list.shape[0] == out.n_elems
+    ratio = _count_quads(out) / max(out.n_elems, 1)
+    assert ratio >= 0.5, f"offline: only {ratio:.1%} quads"
+    assert np.all(np.abs(out.signed_area()) > 1e-12), "offline: zero-area elems"
+    cl = out.connectivity_list
+    assert cl.min() >= 0 and cl.max() < out.n_verts
+
+
+def test_tri2quad_offline_preserves_original_vertices():
+    """quadmesh+ only adds/rewires verts — it never drops originals (offline)."""
+    mesh = _offline_mesh()
+    n_in = mesh.n_verts
+    out = tri2quad(mesh, can_remove_edges=True)
+    assert out.n_verts >= n_in, "offline: tri2quad dropped original vertices"
