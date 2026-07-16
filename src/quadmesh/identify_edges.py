@@ -13,7 +13,7 @@ the merges and routes remaining tris through edge-insertion/bisection/removal.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
