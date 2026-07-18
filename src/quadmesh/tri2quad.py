@@ -575,7 +575,6 @@ def _point_insert_tri_pairs(
         for ti, e in enumerate(elems):
             if ti in consumed or len(set(e)) != 3:
                 continue
-            done = False
             for i in range(3):
                 edge = tuple(sorted((e[i], e[(i + 1) % 3])))
                 nbrs = [
@@ -649,7 +648,7 @@ def _point_insert_tri_pairs(
                 new_elems.append([pid if v == pt else v for v in q1l])
                 new_elems.append([pid if v == pt else v for v in q2l])
                 consumed |= {ti, q}
-                changed = done = True
+                changed = True
                 break
         if changed:
             if new_pts:
@@ -848,12 +847,6 @@ def _quadmesh_plus_per_layer(
         e2e = sel.sub_mesh.adjacencies["Edge2Elem"]
         glob = np.asarray(sel.elem_ids_global, dtype=int)
         local_consumed: Set[int] = set()
-
-        # Build flagged (fold-seam) pairs in global IDs.
-        flagged_global: Set[frozenset] = set()
-        for fp in sel.flagged_vert_pairs:
-            # fp is a (min, max) vertex-pair; find which global elems share it.
-            pass  # fold-seam flagging via flagged_vert_pairs will be wired in T018
 
         # Merge flagged edge pairs → quads (mergeTrianglesFun).
         # identify_edges_in_layer output is the primary authority; T017 heuristic
