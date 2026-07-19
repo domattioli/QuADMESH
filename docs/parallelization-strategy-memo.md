@@ -4,7 +4,9 @@ Tracks issue #38. Background brainstorm / decomposition memo. **No implementatio
 this deliverable** — options + a recommended first target with rough effort/payoff.
 
 Grounded in the current `src/quadmesh/` tree as of `daily-maintenance@166feb5`. File:line
-citations are to that revision.
+citations in §1–§7 are to that revision. **§8 (2026-07-19 addendum)** re-grounds against the
+current `development` head, where the sweep was renamed and restructured — see its own
+grounding note; it also answers the operator's 2026-06-09 disjoint-layers question.
 
 ---
 
@@ -160,6 +162,101 @@ produce noise that's indistinguishable from real diffs.
   (stdlib) costs nothing; `numba`/`cython` would add a build/runtime dependency and
   should be deferred until a profile proves a hot loop needs it.
 
+## 8. Intra-layer disjoint regions — addendum (operator Q, 2026-06-09)
+
+> **Re-grounded** against `development` head (2026-07-19). The sweep described in §1
+> (`_faithful_sweep.py::sweep_layers`) has since been **replaced** by
+> `tri2quad.py::_quadmesh_plus_per_layer` (renamed from `_faithful_per_layer` per #46);
+> the matcher `_match_faithful.py` is now `_match_quadmesh_plus.py`; leftover routing lives
+> in `_tri_removal.py::route_leftover_tri`. Two §1 claims no longer hold in this impl and
+> are corrected below.
+
+**Operator question:** *"Can you parallelize disjoint layers? A domain with holes will
+almost certainly have at least one layer with two separated regions of elements belonging
+to the same layer."*
+
+**Short answer: yes — spatially-disjoint regions of a single layer are provably
+independent, and this is a cleaner parallel target than the cross-layer wavefront of §1.
+The only coupling is append-only output buffers, resolvable with a fixed-order reduce
+(so determinism is preserved). The lever is real but narrow: it only exists on
+multiply-connected domains (holes/islands) and only pays on layers large enough to
+amortize worker spawn.**
+
+### Why the regions are independent
+
+`_quadmesh_plus_per_layer` loops **once per skeleton layer**, innermost-first
+(`tri2quad.py:839`), and processes *all* of a layer's elements together in one iteration —
+including the case the operator describes, where a hole splits a layer into two separated
+rings. Both rings arrive in the same `sel.sub_mesh` / `glob` element set
+(`identify_edges_in_layer`, `identify_edges.py:51`).
+
+Two spatially-disjoint connected components of one layer share **no edge and no vertex**
+(that is what "disjoint" means). Every per-layer operation is edge- or element-local:
+
+- **Edge-pair merge** (`tri2quad.py:855-877`) iterates `sel.removed_edge_ids` and merges
+  the two elements on each edge's `Edge2Elem` row — an edge in region A only ever names
+  region-A elements.
+- **Greedy interior-saturating match** (`_match_quadmesh_plus.match_layer_heuristic`,
+  called at `tri2quad.py:907`) pairs adjacent unmatched tris — adjacency never crosses a
+  disjoint gap.
+- **Leftover routing** (`route_leftover_tri`, `_tri_removal.py:308`) dispatches on a single
+  tri's own boundary-edge count and only ever touches that tri, its own edges/verts, and
+  the element opposite a shared edge (`_split_opposing_tri`, `edge_bisection`,
+  `edge_insertion`, `edge_removal`) — all within the same region.
+
+So a merge/route/retriangulation in region A **cannot** read or mutate any region-B
+element. This directly discharges the operator's earlier worry (2026-05-29 comment) that
+"operations that pass remaining triangles to the next layer … don't affect parallelized
+regions": leftover routing and edge-bisection are region-local, not layer-global.
+
+### Two §1 claims corrected for this impl
+
+1. **The skeleton is a static snapshot, not re-derived per pass.** `_quadmesh_plus_per_layer`
+   reads `layers = domain.layers` **once** before the loop (`tri2quad.py:830`) and never
+   re-derives it mid-sweep. The §1 "re-derives ALL layers every pass" characterization was
+   true of the old `_faithful_sweep.py:38` but is false here. (New points from
+   bisection/insertion are buffered in `work` and flushed in one batch at the very end,
+   `tri2quad.py:989` — the in-loop skeleton never changes.)
+2. **Layers are still processed serially**, but now because the loop shares the mutable
+   accumulators `consumed` / `work` / `refused` across iterations (`tri2quad.py:826-827`),
+   not because of an in-place re-triangulation dependency. The *intra*-layer regions are
+   what's independent.
+
+### The only coupling: shared append-only buffers
+
+Within a layer, all regions append to the same `consumed: Set[int]`, `work.quads`, the
+`work` point buffer, and `refused: set`. These are **append-only** and each region appends
+**disjoint** ids/quads/points, so the coupling is data-structure contention, not an
+algorithmic dependency. A parallel scheme gives each region its own local buffers and
+concatenates them **in a fixed region-id order** after the parallel section (an
+embarrassingly-parallel reduce) — no locks in the hot path, and merge order stays
+deterministic.
+
+### Getting the regions
+
+The split is a connected-components pass over each layer's submesh adjacency
+(`sel.sub_mesh.adjacencies["Edge2Elem"]` / `Vert2Elem`) — a trivial BFS/DFS; no chilmesh
+API gap. This is *lighter* than the §2 whole-domain component split, which would have to
+live upstream: here the components are derived per-layer from adjacency the submesh already
+computes. §2's "blocked on upstream chilmesh" verdict does **not** apply to intra-layer CC.
+
+### ROI caveat (why it's narrow)
+
+- Simply-connected domains have **one component per layer** → zero intra-layer parallelism
+  there. The payoff concentrates entirely on domains with holes/islands (exactly the
+  operator's case).
+- Even on multiply-connected domains, most components are small; worker-spawn overhead only
+  amortizes on layers with many hundreds of elements per region.
+- Combined with the serial cross-layer chain (§1) and the serial batch-axis win being
+  strictly easier (§5), intra-layer CC is a **third-tier** target: correct and clean, but
+  its wall-clock ceiling is bounded by "how much per-region work exists on the few layers
+  that actually split."
+
+**Verdict.** A valid, determinism-safe parallel target — the cleanest *within-mesh* one —
+but subordinate to the batch axis (§5). Worth doing only after §1's determinism fix lands
+and only if multiply-connected production meshes prove common (open question 2). Prefer a
+fixed-order reduce over locks so run-to-run reproducibility is unaffected.
+
 ---
 
 ## Recommended order of implementation
@@ -169,8 +266,9 @@ produce noise that's indistinguishable from real diffs.
 | 1 | **Determinism fix** (sorted sets in matcher/repair) | low | unblocks everything | repro needed first |
 | 2 | **Batch-level multiprocessing** at the driver (`run_pipeline` fan-out) | low | high (fixture sweeps, CI) | needs #1 for reproducibility |
 | 3 | **numpy-vectorize measurement** stages (`compute_quality`, validation predicates) | medium | medium (per-mesh speedup) | none |
-| 4 | Connected-component split | medium | unknown (input-dependent) | upstream chilmesh adjacency |
-| 5 | Wavefront/red-black layer sweep | high | medium | algorithm-core risk; faithful path still WIP |
+| 4 | **Intra-layer disjoint-region split** (§8, per-layer CC + fixed-order reduce) | medium | narrow (multiply-connected domains only) | needs #1; no chilmesh gap |
+| 5 | Whole-domain connected-component split | medium | unknown (input-dependent) | upstream chilmesh adjacency |
+| 6 | Wavefront/red-black layer sweep | high | medium | algorithm-core risk; faithful path still WIP |
 
 **First target: #2 (batch multiprocessing), gated on #1 (determinism).** Smallest blast
 radius, no algorithm change, immediate win for fixture sweeps and the cross-domain CI
@@ -186,7 +284,9 @@ first target only.
 1. Determinism: confirm a repro (same fixture × N runs → connectivity diff) so we can
    pin which `set()` (§6) is the culprit before parallel work begins.
 2. Multi-component inputs: how common are disconnected domains in practice? Decides
-   whether §2 (component split) is worth an upstream chilmesh request.
+   whether §5 (whole-domain component split) is worth an upstream chilmesh request — and
+   how often layers split into disjoint regions (holes/islands), which sets the ceiling on
+   §8's intra-layer parallelism (the answer to the 2026-06-09 disjoint-layers question).
 3. `numba`/`cython` appetite: acceptable to add a build dependency later if a hot loop
    justifies it, or stay pure-numpy?
 
