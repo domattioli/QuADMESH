@@ -42,7 +42,7 @@
 
 ## Status & Roadmap
 
-**Current status (June 2026): Work-in-Progress, but mostly functional.** The QuADMESH+ layer-ordered tri-to-quad conversion is implemented and is the default `method="quadmesh+"`. The interior-saturating per-layer sweep (thesis Ch 4.1 IE-before-OE, Ch 4.2 fold-seam forbiddance) leaves **zero interior residual triangles by construction** — the faithfulness invariant. Post-process mean element quality needs improvement (degen. elements on the boundary).
+**Current status (July 2026): Work-in-Progress, but mostly functional.** The QuADMESH+ layer-ordered tri-to-quad conversion is implemented and is the default `method="quadmesh+"`. The interior-saturating per-layer sweep (thesis Ch 4.1 IE-before-OE, Ch 4.2 fold-seam forbiddance) leaves **zero interior residual triangles by construction** — the faithfulness invariant, now guarded token-free in CI (the gate runs offline on the `chilmesh.data` bundled meshes, so a green run can no longer skip it silently). Post-process mean element quality needs improvement (degen. elements on the boundary).
 
 - **Now:** boundary-layer walkability and post-process quality tuning. (The isolated-triangle edge-swap fixup is confirmed a no-op on all offline-testable meshes — disposition pending deprecation review, not active work.)
 - **Next:** enhanced pre- and post-processing for quality improvement; performance optimization; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
