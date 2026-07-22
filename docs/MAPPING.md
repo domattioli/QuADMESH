@@ -74,9 +74,12 @@ Current Python (v0.2+): MATLAB-aligned.
 
 1. Case-2 iLayer-1 retriangulation -- design doc landed in v0.4
    (`specs/001-matlab-to-python-port/case-2-design.md`). Impl needs LayerState
-   + adjacency invalidation; pair with chilmesh#132 wiring.
-2. Aggressive leftover-tri routing wired into `tri2quad_routine` -- blocked
-   by chilmesh#132.
+   + adjacency invalidation; pairs with the `merge_elements` wiring (chilmesh#132
+   closed upstream + consumed -- a reserved v0.3 feature, not an open blocker).
+2. Aggressive leftover-tri routing wired into `tri2quad_routine` -- a reserved
+   v0.3 feature (`tri2quad(aggressive=)`). chilmesh#132 (`merge_elements`) is
+   closed upstream and consumed, so this is deferred by choice, not blocked by a
+   missing upstream API.
 3. ~~`two_part_smoother` sub-domain split~~ -- dropped (#44). The MCSmooth
    boundary-layer half of the MATLAB two-part smoother was never ported; the
    smoother is FEM-only (`fem_smoother`), so no `CHILmesh.submesh()` split is planned.
@@ -85,13 +88,15 @@ Current Python (v0.2+): MATLAB-aligned.
    Python regression baseline (Block_O `.mat` is MATLAB-opaque, can't extract
    without running MATLAB).
 
-## chilmesh gaps (low-priority issues filed)
+## chilmesh gaps (all closed upstream + consumed, 2026-05-22..24)
 
-- chilmesh#132: `MutableMesh.merge_elements` stub -- quadmesh aggressive path needs this.
-- chilmesh#133: Public `ccw_edges_around_vert` helper -- remove duplication in `_topology.py`.
-- chilmesh#134: `CHILmesh(compute_adjacencies=True)` independent of `compute_layers`.
-- chilmesh#138: `CHILmesh.submesh(elem_ids)` public API -- was wanted for the two-part smoother boundary/interior split, now dropped (#44, FEM-only `fem_smoother`); no longer a quadmesh smoother blocker.
-- chilmesh#139: `angle_based_smoother` performance -- ~42s/pass on 2417-elem mesh; currently disabled as default. Port uses FEM smoother only.
+All five filed chilmesh API issues are closed upstream and consumed here; none is an open blocker (see CLAUDE.md `## chilmesh`).
+
+- chilmesh#132: `MutableMesh.merge_elements` -- closed upstream. Wiring `tri2quad(aggressive=)` to it is a reserved v0.3 feature, not a blocker.
+- chilmesh#133: public `ccw_edges_around_vert` -- consumed; `_topology.py` uses the public helper, no private call remains.
+- chilmesh#134: `CHILmesh(compute_adjacencies=True)` independent of `compute_layers` -- consumed.
+- chilmesh#138: `CHILmesh.submesh(elem_ids)` -- closed upstream; adoption mooted by the `two_part_smoother` -> `fem_smoother` switch (#44). No longer a quadmesh smoother blocker.
+- chilmesh#139: `angle_based_smoother` performance -- consumed; port uses `fem_smoother` only (`two_part_smoother` deprecated).
 
 ## Recombination operators (new in M2)
 
@@ -104,11 +109,13 @@ Current Python (v0.2+): MATLAB-aligned.
 | Ch 4.2 — OE-before-IE, walkability pre-pass | `_match_quadmesh_plus.walkability_prepass` | done |
 | T007 — LayerState | `_tri_removal.LayerState` | done |
 
-## chilmesh gaps (open issues)
+## chilmesh gaps (all closed upstream + consumed)
 
-| Gap | Issue | Impact |
+None open. Retained as a resolution ledger; live detail is in the section above.
+
+| API | Issue | Status |
 |---|---|---|
-| `merge_elements` stub | chilmesh#132 | aggressive routing wiring blocked |
-| `ccw_edges_around_vert` public | chilmesh#133 | workaround in `_topology` |
-| `submesh()` API | chilmesh#138 | sub-domain smoother blocked |
-| `angle_based_smoother` perf | chilmesh#139 | ~40s/pass; opt-in only |
+| `merge_elements` | chilmesh#132 | closed upstream; `tri2quad(aggressive=)` wiring reserved for v0.3 (not blocked) |
+| `ccw_edges_around_vert` public | chilmesh#133 | consumed; `_topology` uses the public helper |
+| `submesh()` API | chilmesh#138 | closed; adoption mooted by `fem_smoother` switch (#44) |
+| `angle_based_smoother` perf | chilmesh#139 | consumed; port uses `fem_smoother` only |
