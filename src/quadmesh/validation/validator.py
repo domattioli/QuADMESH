@@ -28,6 +28,28 @@ from quadmesh.validation.types import (
 
 _NAIVE_PAIR_THRESHOLD = 5000
 
+# CHILmesh's concentric layer decomposition (not an image-style skeleton).
+# CHILmesh 1.4.0 (#187 lexicon ratification) renamed the method:
+# `_skeletonize`/`_layerize` -> private `_peel` + public `peel_layers()`.
+# Resolve in preference order so the auto-trigger works across chilmesh
+# versions: public `peel_layers` (>=1.4.0) -> private `_peel` (>=1.4.0)
+# -> `_skeletonize` (removed; <=1.3.x fallback). See QuADMesh #55, #117.
+_LAYER_TRIGGER_NAMES = ("peel_layers", "_peel", "_skeletonize")
+
+
+def _resolve_layer_trigger(mesh: Any):
+    """Return the CHILmesh layer-decomposition callable, or None.
+
+    Tries the version-tolerant name chain in `_LAYER_TRIGGER_NAMES`; both
+    `peel_layers()` and `_peel()` populate `mesh.layers` in place, so either
+    satisfies the FR-007 auto-trigger. Returns None when no name resolves.
+    """
+    for name in _LAYER_TRIGGER_NAMES:
+        trigger = getattr(mesh, name, None)
+        if trigger is not None:
+            return trigger
+    return None
+
 
 def validate_mesh_elements(
     mesh: Any,
@@ -115,11 +137,9 @@ def validate_mesh_elements(
     layers = getattr(mesh, "layers", None)
     layer0_elems: set[int] = set()
     if layers is None or not layers.get("OE"):
-        # CHILmesh's concentric layer decomposition (not an image-style skeleton).
-        # CHILmesh 1.4.0 (#187 lexicon ratification) renamed the method:
-        # `_skeletonize`/`_layerize` -> public `peel_layers()`. Prefer the new name;
-        # fall back to `_skeletonize` for chilmesh < 1.4.0. See QuADMesh #55.
-        peel = getattr(mesh, "peel_layers", None) or getattr(mesh, "_skeletonize", None)
+        # Version-tolerant layer auto-trigger (peel_layers -> _peel -> _skeletonize);
+        # see _resolve_layer_trigger + QuADMesh #55, #117.
+        peel = _resolve_layer_trigger(mesh)
         if peel is not None:
             try:
                 peel()

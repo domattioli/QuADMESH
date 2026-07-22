@@ -9,7 +9,41 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from quadmesh.validation.validator import validate_mesh_elements
+from quadmesh.validation.validator import (
+    _resolve_layer_trigger,
+    validate_mesh_elements,
+)
+
+
+class _FakeMesh:
+    """Duck-typed stand-in exposing only the given layer-trigger method names."""
+
+    def __init__(self, *names: str):
+        for name in names:
+            setattr(self, name, lambda: None)
+
+
+def test_resolve_prefers_peel_layers():
+    """peel_layers wins when all three names are present (CHILmesh >=1.4.0)."""
+    mesh = _FakeMesh("peel_layers", "_peel", "_skeletonize")
+    assert _resolve_layer_trigger(mesh) is mesh.peel_layers
+
+
+def test_resolve_falls_back_to_private_peel():
+    """_peel is used when peel_layers is absent but the private name exists."""
+    mesh = _FakeMesh("_peel", "_skeletonize")
+    assert _resolve_layer_trigger(mesh) is mesh._peel
+
+
+def test_resolve_falls_back_to_skeletonize():
+    """_skeletonize is the last resort for chilmesh <=1.3.x."""
+    mesh = _FakeMesh("_skeletonize")
+    assert _resolve_layer_trigger(mesh) is mesh._skeletonize
+
+
+def test_resolve_returns_none_when_no_trigger():
+    """None when the mesh exposes no recognized layer-trigger method."""
+    assert _resolve_layer_trigger(_FakeMesh()) is None
 
 
 @pytest.fixture
