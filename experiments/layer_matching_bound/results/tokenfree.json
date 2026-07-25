@@ -1,0 +1,255 @@
+[
+  {
+    "mesh": "structuredMesh1.14",
+    "n_elems": 660,
+    "n_layers": 5,
+    "per_layer": [
+      {
+        "layer": 4,
+        "n_tris": 100,
+        "h_pairs": 48,
+        "o_pairs": 50,
+        "h_leftover": 4,
+        "o_leftover": 0,
+        "headroom_pairs": 2
+      },
+      {
+        "layer": 3,
+        "n_tris": 116,
+        "h_pairs": 56,
+        "o_pairs": 58,
+        "h_leftover": 4,
+        "o_leftover": 0,
+        "headroom_pairs": 2
+      },
+      {
+        "layer": 2,
+        "n_tris": 132,
+        "h_pairs": 64,
+        "o_pairs": 66,
+        "h_leftover": 4,
+        "o_leftover": 0,
+        "headroom_pairs": 2
+      },
+      {
+        "layer": 1,
+        "n_tris": 148,
+        "h_pairs": 72,
+        "o_pairs": 74,
+        "h_leftover": 4,
+        "o_leftover": 0,
+        "headroom_pairs": 2
+      },
+      {
+        "layer": 0,
+        "n_tris": 164,
+        "h_pairs": 80,
+        "o_pairs": 82,
+        "h_leftover": 4,
+        "o_leftover": 0,
+        "headroom_pairs": 2
+      }
+    ],
+    "totals": {
+      "n_tris": 660,
+      "h_pairs": 320,
+      "o_pairs": 330,
+      "h_leftover": 20,
+      "o_leftover": 0,
+      "headroom_pairs": 10,
+      "leftover_reduction": 20
+    }
+  },
+  {
+    "mesh": "Block_O.14",
+    "n_elems": 5214,
+    "n_layers": 9,
+    "per_layer": [
+      {
+        "layer": 8,
+        "n_tris": 44,
+        "h_pairs": 16,
+        "o_pairs": 20,
+        "h_leftover": 12,
+        "o_leftover": 4,
+        "headroom_pairs": 4
+      },
+      {
+        "layer": 7,
+        "n_tris": 327,
+        "h_pairs": 149,
+        "o_pairs": 161,
+        "h_leftover": 29,
+        "o_leftover": 5,
+        "headroom_pairs": 12
+      },
+      {
+        "layer": 6,
+        "n_tris": 549,
+        "h_pairs": 259,
+        "o_pairs": 273,
+        "h_leftover": 31,
+        "o_leftover": 3,
+        "headroom_pairs": 14
+      },
+      {
+        "layer": 5,
+        "n_tris": 583,
+        "h_pairs": 279,
+        "o_pairs": 291,
+        "h_leftover": 25,
+        "o_leftover": 1,
+        "headroom_pairs": 12
+      },
+      {
+        "layer": 4,
+        "n_tris": 606,
+        "h_pairs": 282,
+        "o_pairs": 301,
+        "h_leftover": 42,
+        "o_leftover": 4,
+        "headroom_pairs": 19
+      },
+      {
+        "layer": 3,
+        "n_tris": 711,
+        "h_pairs": 332,
+        "o_pairs": 354,
+        "h_leftover": 47,
+        "o_leftover": 3,
+        "headroom_pairs": 22
+      },
+      {
+        "layer": 2,
+        "n_tris": 786,
+        "h_pairs": 385,
+        "o_pairs": 393,
+        "h_leftover": 16,
+        "o_leftover": 0,
+        "headroom_pairs": 8
+      },
+      {
+        "layer": 1,
+        "n_tris": 800,
+        "h_pairs": 382,
+        "o_pairs": 400,
+        "h_leftover": 36,
+        "o_leftover": 0,
+        "headroom_pairs": 18
+      },
+      {
+        "layer": 0,
+        "n_tris": 808,
+        "h_pairs": 387,
+        "o_pairs": 404,
+        "h_leftover": 34,
+        "o_leftover": 0,
+        "headroom_pairs": 17
+      }
+    ],
+    "totals": {
+      "n_tris": 5214,
+      "h_pairs": 2471,
+      "o_pairs": 2597,
+      "h_leftover": 272,
+      "o_leftover": 20,
+      "headroom_pairs": 126,
+      "leftover_reduction": 252
+    }
+  },
+  {
+    "mesh": "annulus_200pts.fort.14",
+    "n_elems": 580,
+    "n_layers": 4,
+    "per_layer": [
+      {
+        "layer": 3,
+        "n_tris": 4,
+        "h_pairs": 1,
+        "o_pairs": 1,
+        "h_leftover": 2,
+        "o_leftover": 2,
+        "headroom_pairs": 0
+      },
+      {
+        "layer": 2,
+        "n_tris": 105,
+        "h_pairs": 41,
+        "o_pairs": 50,
+        "h_leftover": 23,
+        "o_leftover": 5,
+        "headroom_pairs": 9
+      },
+      {
+        "layer": 1,
+        "n_tris": 183,
+        "h_pairs": 77,
+        "o_pairs": 88,
+        "h_leftover": 29,
+        "o_leftover": 7,
+        "headroom_pairs": 11
+      },
+      {
+        "layer": 0,
+        "n_tris": 288,
+        "h_pairs": 132,
+        "o_pairs": 143,
+        "h_leftover": 24,
+        "o_leftover": 2,
+        "headroom_pairs": 11
+      }
+    ],
+    "totals": {
+      "n_tris": 580,
+      "h_pairs": 251,
+      "o_pairs": 282,
+      "h_leftover": 78,
+      "o_leftover": 16,
+      "headroom_pairs": 31,
+      "leftover_reduction": 62
+    }
+  },
+  {
+    "mesh": "donut_domain.fort.14",
+    "n_elems": 276,
+    "n_layers": 3,
+    "per_layer": [
+      {
+        "layer": 2,
+        "n_tris": 35,
+        "h_pairs": 13,
+        "o_pairs": 17,
+        "h_leftover": 9,
+        "o_leftover": 1,
+        "headroom_pairs": 4
+      },
+      {
+        "layer": 1,
+        "n_tris": 88,
+        "h_pairs": 42,
+        "o_pairs": 43,
+        "h_leftover": 4,
+        "o_leftover": 2,
+        "headroom_pairs": 1
+      },
+      {
+        "layer": 0,
+        "n_tris": 153,
+        "h_pairs": 53,
+        "o_pairs": 76,
+        "h_leftover": 47,
+        "o_leftover": 1,
+        "headroom_pairs": 23
+      }
+    ],
+    "totals": {
+      "n_tris": 276,
+      "h_pairs": 108,
+      "o_pairs": 136,
+      "h_leftover": 60,
+      "o_leftover": 4,
+      "headroom_pairs": 28,
+      "leftover_reduction": 56
+    }
+  }
+]

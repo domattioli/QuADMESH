@@ -1,0 +1,288 @@
+[
+  {
+    "mesh": "WNAT_Hagen.14",
+    "n_elems": 98365,
+    "n_layers": 30,
+    "per_layer": [
+      {
+        "layer": 29,
+        "n_tris": 6,
+        "h_pairs": 2,
+        "o_pairs": 2,
+        "h_leftover": 2,
+        "o_leftover": 2,
+        "headroom_pairs": 0
+      },
+      {
+        "layer": 28,
+        "n_tris": 43,
+        "h_pairs": 18,
+        "o_pairs": 21,
+        "h_leftover": 7,
+        "o_leftover": 1,
+        "headroom_pairs": 3
+      },
+      {
+        "layer": 27,
+        "n_tris": 67,
+        "h_pairs": 32,
+        "o_pairs": 33,
+        "h_leftover": 3,
+        "o_leftover": 1,
+        "headroom_pairs": 1
+      },
+      {
+        "layer": 26,
+        "n_tris": 102,
+        "h_pairs": 47,
+        "o_pairs": 50,
+        "h_leftover": 8,
+        "o_leftover": 2,
+        "headroom_pairs": 3
+      },
+      {
+        "layer": 25,
+        "n_tris": 202,
+        "h_pairs": 95,
+        "o_pairs": 99,
+        "h_leftover": 12,
+        "o_leftover": 4,
+        "headroom_pairs": 4
+      },
+      {
+        "layer": 24,
+        "n_tris": 291,
+        "h_pairs": 133,
+        "o_pairs": 143,
+        "h_leftover": 25,
+        "o_leftover": 5,
+        "headroom_pairs": 10
+      },
+      {
+        "layer": 23,
+        "n_tris": 370,
+        "h_pairs": 172,
+        "o_pairs": 184,
+        "h_leftover": 26,
+        "o_leftover": 2,
+        "headroom_pairs": 12
+      },
+      {
+        "layer": 22,
+        "n_tris": 486,
+        "h_pairs": 227,
+        "o_pairs": 241,
+        "h_leftover": 32,
+        "o_leftover": 4,
+        "headroom_pairs": 14
+      },
+      {
+        "layer": 21,
+        "n_tris": 635,
+        "h_pairs": 296,
+        "o_pairs": 316,
+        "h_leftover": 43,
+        "o_leftover": 3,
+        "headroom_pairs": 20
+      },
+      {
+        "layer": 20,
+        "n_tris": 748,
+        "h_pairs": 353,
+        "o_pairs": 371,
+        "h_leftover": 42,
+        "o_leftover": 6,
+        "headroom_pairs": 18
+      },
+      {
+        "layer": 19,
+        "n_tris": 908,
+        "h_pairs": 421,
+        "o_pairs": 449,
+        "h_leftover": 66,
+        "o_leftover": 10,
+        "headroom_pairs": 28
+      },
+      {
+        "layer": 18,
+        "n_tris": 1191,
+        "h_pairs": 558,
+        "o_pairs": 592,
+        "h_leftover": 75,
+        "o_leftover": 7,
+        "headroom_pairs": 34
+      },
+      {
+        "layer": 17,
+        "n_tris": 1399,
+        "h_pairs": 654,
+        "o_pairs": 694,
+        "h_leftover": 91,
+        "o_leftover": 11,
+        "headroom_pairs": 40
+      },
+      {
+        "layer": 16,
+        "n_tris": 1643,
+        "h_pairs": 768,
+        "o_pairs": 818,
+        "h_leftover": 107,
+        "o_leftover": 7,
+        "headroom_pairs": 50
+      },
+      {
+        "layer": 15,
+        "n_tris": 1941,
+        "h_pairs": 907,
+        "o_pairs": 963,
+        "h_leftover": 127,
+        "o_leftover": 15,
+        "headroom_pairs": 56
+      },
+      {
+        "layer": 14,
+        "n_tris": 2316,
+        "h_pairs": 1090,
+        "o_pairs": 1151,
+        "h_leftover": 136,
+        "o_leftover": 14,
+        "headroom_pairs": 61
+      },
+      {
+        "layer": 13,
+        "n_tris": 2596,
+        "h_pairs": 1228,
+        "o_pairs": 1291,
+        "h_leftover": 140,
+        "o_leftover": 14,
+        "headroom_pairs": 63
+      },
+      {
+        "layer": 12,
+        "n_tris": 2859,
+        "h_pairs": 1361,
+        "o_pairs": 1423,
+        "h_leftover": 137,
+        "o_leftover": 13,
+        "headroom_pairs": 62
+      },
+      {
+        "layer": 11,
+        "n_tris": 3084,
+        "h_pairs": 1468,
+        "o_pairs": 1534,
+        "h_leftover": 148,
+        "o_leftover": 16,
+        "headroom_pairs": 66
+      },
+      {
+        "layer": 10,
+        "n_tris": 3290,
+        "h_pairs": 1560,
+        "o_pairs": 1636,
+        "h_leftover": 170,
+        "o_leftover": 18,
+        "headroom_pairs": 76
+      },
+      {
+        "layer": 9,
+        "n_tris": 3543,
+        "h_pairs": 1684,
+        "o_pairs": 1761,
+        "h_leftover": 175,
+        "o_leftover": 21,
+        "headroom_pairs": 77
+      },
+      {
+        "layer": 8,
+        "n_tris": 3869,
+        "h_pairs": 1834,
+        "o_pairs": 1920,
+        "h_leftover": 201,
+        "o_leftover": 29,
+        "headroom_pairs": 86
+      },
+      {
+        "layer": 7,
+        "n_tris": 4343,
+        "h_pairs": 2050,
+        "o_pairs": 2157,
+        "h_leftover": 243,
+        "o_leftover": 29,
+        "headroom_pairs": 107
+      },
+      {
+        "layer": 6,
+        "n_tris": 4990,
+        "h_pairs": 2356,
+        "o_pairs": 2481,
+        "h_leftover": 278,
+        "o_leftover": 28,
+        "headroom_pairs": 125
+      },
+      {
+        "layer": 5,
+        "n_tris": 5816,
+        "h_pairs": 2746,
+        "o_pairs": 2884,
+        "h_leftover": 324,
+        "o_leftover": 48,
+        "headroom_pairs": 138
+      },
+      {
+        "layer": 4,
+        "n_tris": 7043,
+        "h_pairs": 3341,
+        "o_pairs": 3498,
+        "h_leftover": 361,
+        "o_leftover": 47,
+        "headroom_pairs": 157
+      },
+      {
+        "layer": 3,
+        "n_tris": 8399,
+        "h_pairs": 3982,
+        "o_pairs": 4164,
+        "h_leftover": 435,
+        "o_leftover": 71,
+        "headroom_pairs": 182
+      },
+      {
+        "layer": 2,
+        "n_tris": 9991,
+        "h_pairs": 4730,
+        "o_pairs": 4953,
+        "h_leftover": 531,
+        "o_leftover": 85,
+        "headroom_pairs": 223
+      },
+      {
+        "layer": 1,
+        "n_tris": 12023,
+        "h_pairs": 5671,
+        "o_pairs": 5946,
+        "h_leftover": 681,
+        "o_leftover": 131,
+        "headroom_pairs": 275
+      },
+      {
+        "layer": 0,
+        "n_tris": 14171,
+        "h_pairs": 6644,
+        "o_pairs": 7030,
+        "h_leftover": 883,
+        "o_leftover": 111,
+        "headroom_pairs": 386
+      }
+    ],
+    "totals": {
+      "n_tris": 98365,
+      "h_pairs": 46428,
+      "o_pairs": 48805,
+      "h_leftover": 5509,
+      "o_leftover": 755,
+      "headroom_pairs": 2377,
+      "leftover_reduction": 4754
+    }
+  }
+]
