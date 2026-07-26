@@ -19,6 +19,32 @@ from quadmesh.identify_edges import identify_edges_in_layer
 from quadmesh._match_quadmesh_plus import match_layer_heuristic
 
 
+def greedy_maximal_matching(g):
+    """Minimum-degree-first greedy maximal matching on graph g.
+
+    Within-faithful-adjacent pairing: no augmenting paths (unlike Blossom
+    max-cardinality), just one greedy pass matching the most-constrained
+    (lowest-degree) triangle first. Deterministic (degree then node-id
+    tie-break). Measures the pairing ceiling reachable by a simple greedy
+    reordering of the T017/T018 pass -- the within-faithful lever named in
+    the #97 bound doc.
+    """
+    deg = dict(g.degree())
+    matched = set()
+    pairs = []
+    for n in sorted(g.nodes(), key=lambda x: (deg[x], x)):
+        if n in matched:
+            continue
+        free_nbrs = [w for w in g.neighbors(n) if w not in matched]
+        if not free_nbrs:
+            continue
+        w = min(free_nbrs, key=lambda x: (deg[x], x))
+        matched.add(n)
+        matched.add(w)
+        pairs.append((n, w))
+    return pairs
+
+
 def analyze_mesh(path):
     """Analyze a mesh: compare heuristic vs optimal pairing per layer.
 
@@ -35,6 +61,7 @@ def analyze_mesh(path):
     # Global consumed sets (one per track)
     consumed_h = set()  # heuristic track
     consumed_o = set()  # optimal track
+    consumed_g = set()  # greedy-maximal track
 
     per_layer = []
 
@@ -153,21 +180,48 @@ def analyze_mesh(path):
             consumed_o.add(int(glob[b]))
         o_leftover = n_tris - 2 * o_pairs
 
+        # === GREEDY-MAXIMAL TRACK (within-faithful lever ceiling) ===
+        avail_g = [i for i in range(sel.sub_mesh.n_elems)
+                   if int(glob[i]) not in consumed_g]
+        avail_g_set = set(avail_g)
+        Gg = nx.Graph()
+        Gg.add_nodes_from(avail_g)
+        for eidx in range(sel.sub_mesh.n_edges):
+            if eidx in flagged_edge_set:
+                continue
+            r = np.asarray(e2e_sub2[eidx]).ravel()
+            if r.size < 2 or int(r[0]) < 0 or int(r[1]) < 0:
+                continue
+            la, lb = int(r[0]), int(r[1])
+            if la in avail_g_set and lb in avail_g_set and la != lb:
+                Gg.add_edge(la, lb)
+        greedy_matching = greedy_maximal_matching(Gg)
+        g_pairs = len(greedy_matching)
+        for a, b in greedy_matching:
+            consumed_g.add(int(glob[a]))
+            consumed_g.add(int(glob[b]))
+        g_leftover = n_tris - 2 * g_pairs
+
         per_layer.append({
             'layer': li,
             'n_tris': n_tris,
             'h_pairs': h_pairs,
+            'g_pairs': g_pairs,
             'o_pairs': o_pairs,
             'h_leftover': h_leftover,
+            'g_leftover': g_leftover,
             'o_leftover': o_leftover,
-            'headroom_pairs': o_pairs - h_pairs
+            'headroom_pairs': o_pairs - h_pairs,
+            'greedy_leftover': g_leftover
         })
 
     # Totals
     sum_n_tris = sum(d['n_tris'] for d in per_layer)
     sum_h_pairs = sum(d['h_pairs'] for d in per_layer)
+    sum_g_pairs = sum(d['g_pairs'] for d in per_layer)
     sum_o_pairs = sum(d['o_pairs'] for d in per_layer)
     sum_h_leftover = sum(d['h_leftover'] for d in per_layer)
+    sum_g_leftover = sum(d['g_leftover'] for d in per_layer)
     sum_o_leftover = sum(d['o_leftover'] for d in per_layer)
     total_headroom = sum_o_pairs - sum_h_pairs
     headroom_reduction = sum_h_leftover - sum_o_leftover
@@ -180,8 +234,10 @@ def analyze_mesh(path):
         'totals': {
             'n_tris': sum_n_tris,
             'h_pairs': sum_h_pairs,
+            'g_pairs': sum_g_pairs,
             'o_pairs': sum_o_pairs,
             'h_leftover': sum_h_leftover,
+            'g_leftover': sum_g_leftover,
             'o_leftover': sum_o_leftover,
             'headroom_pairs': total_headroom,
             'leftover_reduction': headroom_reduction

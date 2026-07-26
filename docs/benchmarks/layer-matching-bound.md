@@ -103,6 +103,61 @@ topological suboptimality, and is *not* an unavoidable property of the meshes.
   strategy removes; they require point insertion or boundary geometry, matching
   the #98 negative result that boundary *connectivity* levers are no-ops.
 
+## Is the within-faithful lever real? A single-pass greedy does not reach it (2026-07-26)
+
+The Interpretation above named two levers that could move the leftover count: a
+**within-faithful smarter greedy** (thesis-legal reordering of the T017/T018
+pass) or the forbidden Blossom matching. The first lever is the one the open
+`#17` / `#18` brainstorms propose as *Option 1 / P1 — quality-aware merge
+selection*. This follow-up tests whether **any single-pass greedy** can reach the
+matching ceiling, by adding a third pairing track to `bound.py`: a deterministic
+**minimum-degree-first greedy maximal matching** (`greedy_maximal_matching`) on
+the *same* legal tri-adjacency graph the optimal track uses (fold-seams excluded).
+It differs from the optimal track only in the algorithm — greedy maximal (no
+augmenting paths) vs. `max_weight_matching` (augmenting paths / Blossom).
+
+| Mesh | n_elems | heuristic stranded | **greedy stranded** | optimal stranded | greedy vs heuristic |
+|---|---:|---:|---:|---:|---:|
+| structuredMesh1 | 660 | 20 | 0 | 0 | −100.0 % |
+| donut_domain | 276 | 60 | 64 | 4 | +6.7 % |
+| Block_O | 5,214 | 272 | 636 | 20 | +133.8 % |
+| Deleware_Bay | 26,698 | 1,696 | 3,496 | 186 | +106.1 % |
+| LakeErie_5k_500 | 24,910 | 1,676 | 3,420 | 204 | +104.1 % |
+| WNAT_Hagen | 98,365 | **5,509** | **9,567** | 755 | +73.7 % |
+| annulus_200pts | 580 | 78 | 78 | 16 | +0.0 % |
+| Test_Case_1 | 2,417 | 93 | 311 | 33 | +234.4 % |
+
+**Finding: the greedy maximal matching does not approach the optimal ceiling, and
+on 6 of 8 meshes it strands *more* triangles than the production heuristic** —
+roughly double on every real ADCIRC mesh (WNAT_Hagen 9,567 vs 5,509; Deleware
+3,496 vs 1,696; LakeErie 3,420 vs 1,676). It reaches optimal only on the trivial
+structured mesh and ties on the annulus.
+
+**Interpretation — the headroom is matching-specific, not greedy-reachable.**
+
+- The 64–86 % leftover reduction the optimal track showed is a property of
+  **augmenting-path** matching (Blossom-Quad, `method="matching"`, removed in
+  #46), *not* of "a smarter greedy." Replacing the every-other + T017/T018 walk
+  with a generic greedy **regresses**: the production heuristic is already a
+  well-tuned pairing that a naive greedy underperforms, so there is no easy
+  greedy pass leaving pairs on the table for a reorder to grab.
+- The result holds **a fortiori** for the specific `#17`/`#18` Option-1 proposal
+  (a *quality-/size-aware* greedy ordering): that ordering optimizes for element
+  quality, not pairing cardinality, so it can only strand as many or more
+  triangles than this cardinality-agnostic min-degree greedy — it cannot capture
+  the cardinality headroom either.
+- **Disposition for `#17` / `#18`:** quality-aware greedy merge selection is not a
+  leftover-reduction lever. Reaching the matching ceiling requires the forbidden
+  augmenting-path method; a within-faithful pairing change cannot. The realistic
+  within-faithful headroom above the every-other rule is therefore near zero (or
+  negative), not the 86 % *optimal* ceiling. The #90 boundary-quality tail is
+  better addressed by the **geometric** lever (session-034: tangential boundary
+  slide / geometric acceptance on the pairing merge) than by any pairing-rule
+  change.
+
+Raw per-layer JSON (heuristic / greedy / optimal per layer, all 8 meshes):
+[`experiments/layer_matching_bound/results/greedy_track.json`](../../experiments/layer_matching_bound/results/greedy_track.json).
+
 ## Reproduce
 
 ```bash
