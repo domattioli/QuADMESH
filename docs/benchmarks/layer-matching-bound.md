@@ -158,6 +158,28 @@ structured mesh and ties on the annulus.
 Raw per-layer JSON (heuristic / greedy / optimal per layer, all 8 meshes):
 [`experiments/layer_matching_bound/results/greedy_track.json`](../../experiments/layer_matching_bound/results/greedy_track.json).
 
+### Generality — the pattern holds on independent non-WNAT domains (#97 replication item)
+
+The 8-mesh set above is dominated by the WNAT / Test_Case / `chilmesh.data`
+families. To test the #97 "replicate on a non-WNAT mesh to test generality" item,
+the three-track experiment was re-run on four independent domains — a terrain
+mesh (Baranja Hill), a synthetic concentric mesh (Onion), a Mediterranean coastal
+mesh (Italy), and a Great-Lakes mesh (Lake Michigan):
+
+| Mesh | n_elems | heuristic | **greedy** | optimal | greedy vs heuristic |
+|---|---:|---:|---:|---:|---:|
+| Baranja_Hill | 1,193 | 99 | 157 | 15 | +58.6 % |
+| Onion | 9,373 | 915 | 1,221 | 213 | +33.4 % |
+| Italy | 24,417 | 1,267 | 2,605 | 189 | +105.6 % |
+| Lake_Michigan_mesh | 41,887 | 2,065 | 4,429 | 335 | +114.5 % |
+
+Both effects reproduce on every independent domain: the greedy maximal matching
+**regresses** vs the production heuristic (+33 % to +115 % more stranded), while
+max-cardinality matching reaches the ceiling (77–85 % leftover reduction). The
+conclusion — the pairing headroom is augmenting-path-specific and no single-pass
+greedy captures it — is not a WNAT-family artifact. Raw JSON:
+[`results/greedy_track_nonwnat.json`](../../experiments/layer_matching_bound/results/greedy_track_nonwnat.json).
+
 ## Reproduce
 
 ```bash
