@@ -197,3 +197,72 @@ WNAT_Hagen (98k elems, 30 layers) runs in a few minutes; the largest layer's
 `max_weight_matching` dominates. Meshes above ~250k elems (ENPAC2003, WNAT_Onur)
 are not recommended for the optimal track — blossom matching on their largest
 layers is O(V³) and impractical (cf. PR #94: 46 s for one 18k-node layer).
+
+## #97 investigation status — converged (2026-07-27)
+
+Issue #97 asked *which triangles get routed to the leftover handler by the
+QuADMESH+ per-layer sweep, and can that count be reduced within a faithful port?*
+Across five rotation sessions the question has been answered on both the
+descriptive axis (what determines a leftover) and the prescriptive axis (what, if
+anything, can reduce it within faithfulness). The findings, and the disposition of
+each "Proposed next steps" checkbox on the issue, are consolidated here so the
+thread has a single durable close-out artifact rather than evidence scattered
+across the issue body, draft PR #96, and this document.
+
+**The full checklist, with disposition:**
+
+| #97 next-step item | status | evidence |
+|---|---|---|
+| Add + correlate valence-irregularity / flow metrics | ✅ done | PR #96 Finding 3 — both register as *secondary* predictors (\|ρ\| < 0.12) |
+| Bound achievable gain: max-matching per strip vs every-other | ✅ done | this doc, §Results — 64.5–100 % fewer stranded, 86.3 % on WNAT_Hagen |
+| Test a valence-/size-aware pairing bias (quality-aware greedy) | ✅ done (negative) | this doc, §"Is the within-faithful lever real?" — a single-pass greedy *regresses* on 6/8 meshes; a fortiori for the quality-aware variant |
+| Replicate on a non-WNAT mesh | ✅ done | this doc, §Generality — 4 independent domains, both effects reproduce |
+| 1,000-run pass to split p = 1 from p ≈ 0.99 leftovers | ⬜ not done — **refinement, not a lever** | see below |
+
+**Descriptive verdict (PR #96 Monte-Carlo study, 200 random walk-starts on
+WNAT_Hagen):** the walk-start vertex is **not a lever** — the per-run leftover
+total holds at 5,532 ± 11 triangles (1.0 % spread) and the deterministic corner
+start (5,509) already sits below the random mean. Roughly half the leftovers are
+structural (always-routed regardless of start) and half are start-dependent
+("swing") triangles; the always-routed set is spatially anti-clustered (dispersed
+point defects, not contiguous bands), predominantly outer-edge and
+boundary-adjacent. No single mesh feature explains routing — the strongest
+correlate (local size ratio, ρ = −0.115) accounts for ~1 % of the variance, so
+routing is multifactorial (parity rule + local topology + ADmesh size transition).
+
+**Prescriptive verdict (this document):** the ~86 % headroom above the every-other
+rule is real but is **augmenting-path-specific** — it is reachable only by the
+Blossom matching method (`method="matching"`) the operator removed in #46 because
+QuADMESH+ is a faithful port of the thesis every-other-edge algorithm, not a
+matching mesher. Every *within-faithful* pairing change tested either fails to
+approach the ceiling or regresses: a min-degree greedy strands ~2× the production
+count on real ADCIRC meshes, and a quality-aware greedy can only do the same or
+worse (it optimizes for element quality, not pairing cardinality). The realistic
+within-faithful headroom above the every-other rule is therefore **near zero**,
+not the 86 % *optimal* ceiling.
+
+**Why the remaining 1,000-run item does not change the disposition.** That pass
+would only sharpen the boundary between truly-structural (p = 1) and
+near-structural (p ≈ 0.99) leftovers in the *descriptive* MC study — a resolution
+refinement on the 200-run tail. It cannot create a within-faithful pairing lever
+that the matching-bound and greedy experiments have already shown does not exist,
+and it needs substantial compute (1,000 full sweeps of a 98k-element mesh) for a
+result that does not move any decision. It is best spun out as a separate,
+narrowly-scoped issue if the p = 1 / p ≈ 0.99 split is ever independently needed,
+rather than holding this broad research issue open.
+
+**Consequence for the whole pairing-quality family (#17 / #18 / #26 / #77).** The
+within-faithful pairing-selection avenue these brainstorms propose (Option 1 /
+P1 — quality-aware merge selection) is closed by the measured negative results
+above. The single live lever for the #90 boundary-quality tail is **geometric**
+(a tangential boundary slide with a per-step validity guard, or geometric
+acceptance on the pairing merge — session-034), operating on *point positions*,
+not on the *connectivity* the pairing rule controls. This is consistent with the
+#98 negative result that boundary-*connectivity* levers are no-ops. Pairing-rule
+changes should no longer be pursued as a leftover-reduction strategy.
+
+**Disposition:** the #97 research question is comprehensively answered; the
+investigation is converged. The descriptive characterization is complete and the
+prescriptive answer is a measured "no within-faithful pairing lever exists." The
+one unchecked box is a non-lever refinement that should become its own issue if
+needed.
