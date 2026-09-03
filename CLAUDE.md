@@ -79,7 +79,7 @@ Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
 
 ## Edit hygiene
 
-The number of tokens used to exit files is best minimized, all else being equal. Therefore, when it will not affect the end result, opt first for surgical edits rather than rewriting entire existing files.
+The number of tokens used to edit files is best minimized, all else being equal. Therefore, when it will not affect the end result, opt first for surgical edits rather than rewriting entire existing files.
 
 ## Coding dispatch — Haiku subagent default
 
