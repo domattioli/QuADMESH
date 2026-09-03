@@ -3,7 +3,8 @@
 Thanks for your interest in QuADMESH — a Python port of the MATLAB QuADMESH+
 algorithm for triangular-to-quadrilateral mesh conversion. This is the
 **canonical** contributor guide (day-to-day mechanics). Authoritative project
-rules live in [`CLAUDE.md`](CLAUDE.md); project governance is in
+rules live in [`AGENTS.md`](AGENTS.md); Claude-Code-specific guidance in
+[`CLAUDE.md`](CLAUDE.md); project governance in
 [`.specify/memory/constitution.md`](.specify/memory/constitution.md) (if present).
 
 ## Repo shape
@@ -95,7 +96,7 @@ CI runs on every PR (currently: linting, tests on Python 3.10+).
 - **Faithfulness invariant:** The `method="quadmesh+"` algorithm must produce
   zero interior residual triangles (triangles with no boundary edge). This is
   pinned by `tests/test_no_interior_tris.py` and is non-negotiable. See
-  [`CLAUDE.md`](CLAUDE.md) for context.
+  [`AGENTS.md`](AGENTS.md) for context.
 - **CHILmesh dependency:** The library depends on CHILmesh (≥1.2.1). If you
   encounter API changes in CHILmesh, see [`docs/MAPPING.md`](docs/MAPPING.md)
   for the current state of integration and upstream issues.
