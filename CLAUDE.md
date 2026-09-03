@@ -78,6 +78,10 @@ Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
 - `investigation` → migrate to `request: research`
 - `literature-review` → migrate to `request: research`
 
+## Edit hygiene
+
+The number of tokens used to exit files is best minimized, all else being equal. Therefore, when it will not affect the end result, opt first for surgical edits rather than rewriting entire existing files.
+
 ## Coding dispatch — Haiku subagent default
 
 **Binding:** all code writing/editing MUST be dispatched to a Haiku subagent (`model: haiku`); the main session plans/reviews/integrates and verifies subagent output before commit. Non-code work (planning, research, docs, git/PR, review, editing memory) stays on main. Exception only on explicit operator instruction — never assumed.
