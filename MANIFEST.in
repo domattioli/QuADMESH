@@ -13,7 +13,6 @@ prune .github
 # Claude-derived development docs — never ship in distributions (operator directive 2026-06-12)
 prune .claude
 prune .planning
-exclude CLAUDE.md
 exclude AGENTS.md
 exclude .domi-pin
 
@@ -28,7 +27,6 @@ prune .planning
 global-exclude .domi-pin
 global-exclude .zenodoignore
 global-exclude .release-ignore.toml
-global-exclude CLAUDE.md
 global-exclude AGENTS.md
 global-exclude claude_routine_instructions.md
 global-exclude instructions_on_start.sh

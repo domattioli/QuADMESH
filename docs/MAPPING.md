@@ -90,7 +90,7 @@ Current Python (v0.2+): MATLAB-aligned.
 
 ## chilmesh gaps (all closed upstream + consumed, 2026-05-22..24)
 
-All five filed chilmesh API issues are closed upstream and consumed here; none is an open blocker (see CLAUDE.md `## chilmesh`).
+All five filed chilmesh API issues are closed upstream and consumed here; none is an open blocker (see `AGENTS.md`).
 
 - chilmesh#132: `MutableMesh.merge_elements` -- closed upstream. Wiring `tri2quad(aggressive=)` to it is a reserved v0.3 feature, not a blocker.
 - chilmesh#133: public `ccw_edges_around_vert` -- consumed; `_topology.py` uses the public helper, no private call remains.

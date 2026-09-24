@@ -1,70 +1,64 @@
 # QuADMESH
 
-Python port of QuADMESH+ (layer-ordered quad mesh generation from triangles, MATLAB → Python faithful implementation). See `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/` for spec/plan. Canonical branch is `development`; released to PyPI via `main`.
+QuADMESH is a Python port of QuADMESH+, a layer-ordered algorithm that converts triangular meshes into quadrilateral meshes for 2D shallow-water models. The maintained package is Python. The original MATLAB implementation is frozen for reference.
 
 ## Hard rules
 
-**Faithfulness invariant (non-negotiable):** Interior residual triangle (tri with NO domain-boundary edge) after tri2quad = **NOT a faithful QuADMESH+ implementation**. Zero interior tris is mandatory — a properly-implemented QuADMESH+ never leaves one. Only **boundary** tris may remain (thesis minimizes even those; ≤1 typical). Pinned by `tests/test_no_interior_tris.py`.
+The QuADMESH+ faithfulness invariant is non-negotiable: `tri2quad` must leave zero interior residual triangles. An interior residual triangle has no domain-boundary edge. Boundary triangles may remain in intermediate or explicitly configured output. `tests/test_no_interior_tris.py` enforces this invariant.
 
-Status: `method="quadmesh+"` (the published layer-ordered per-layer loop; `"layered"` mechanism alias) is the **sole and default** method — zero interior tris confirmed. `"matching"` and the deprecated `"faithful"` alias were **removed entirely** per operator directive on #46 (2026-06-12); both now raise `ValueError`. **T017/T018 landed 2026-06-13** (greedy interior-saturating pairing of post-sweep layer leftovers, thesis Ch 4.1 IE-before-OE + Ch 4.2 fold-seam forbiddance, wired into `_quadmesh_plus_per_layer`): post-process mean quality Test_Case_1 0.573→0.696, Block_O 0.251→0.680. Naming note: the per-layer loop is `_quadmesh_plus_per_layer` (renamed from `_faithful_per_layer` per #46 — code must not name the *method* "faithful"; the word still describes port *fidelity* only). **T019 isolated-tri edge-swap: confirmed no-op/dead code per session-027/030 findings** (`_tri_removal.py` `handle_isolated_tris` never called) — disposition pending spec-019 deprecation policy, not WIP.
+`method="quadmesh+"` is the canonical and default method. `method="layered"` is its supported alias. The removed `"matching"` and `"faithful"` values must raise `ValueError`.
 
-> **Naming note (#46):** canonical `method=` value for the layer-ordered sweep is **`"quadmesh+"`** — the published algorithm name (QuADMESH+, alternative to blossom-quad / paving), per operator 2026-06-09. `"layered"` (the mechanism name) is accepted as an alias; `"faithful"` was a deprecated alias (now removed — raises `ValueError`). History: `"faithful"` named a *philosophy* (faithful MATLAB port), a category error next to `"matching"` (which names its mechanism) → renamed `"layered"` → now `"quadmesh+"`. The word "faithful" still describes port *fidelity* throughout the code; only the `method=` input value changed. Update 2026-06-12: operator directed removal of `"faithful"` and `"matching"` entirely (#46 comment 2026-06-11); `"quadmesh+"`/`"layered"` are the only accepted values.
+The per-layer implementation is named `_quadmesh_plus_per_layer`. Do not use "faithful" as a method name. It may describe port fidelity.
 
 ## Repository layout
 
-Conventional src-layout Python package (reorganized 2026-05-24, was numeric-prefix MATLAB-project layout):
+- `src/quadmesh/`: maintained Python package and CLI.
+- `tests/`: pytest suite and fixture provisioning support.
+- `docs/MAPPING.md`: MATLAB-to-Python function map and CHILmesh integration notes.
+- `archive/matlab/`: frozen MATLAB reference. It is not installable.
+- `scripts/`: setup, fixture, benchmark, diagnostic, and repository health tools.
 
-- `src/quadmesh/` — Python port of QuADMESH+ (the package; `pip install -e .` from root).
-- `tests/` — pytest suite. `.14` test meshes are NOT vendored (removed `4dc5eea`); provisioned on demand into gitignored `tests/fixtures/meshes/` from the `domattioli/Valence` registry. See `tests/fixtures/README.md`.
-- `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
-- `docs/sessions/session-NNN.md` — per-session handoff notes.
-- `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/`, `DomI/specs/consumers/quadmesh/specs/003-root-reorg/` — speckit spec/plan/tasks.
-- `src/matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
-- `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
-- `videos/` — README demo assets.
-
-## Commands
+## Setup, test, and run
 
 ```bash
-bash scripts/dev_setup.sh         # venv + editable chilmesh + quadmesh[dev]
+bash scripts/dev_setup.sh
 . .venv/bin/activate
-GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py   # provision .14 meshes from Valence (optional)
-pytest tests/                     # 169 collected; offline = 101 run / 68 skipped (mesh-dependent skip w/o fixtures)
-python -m quadmesh.cli <input.14> -o <out.14>
+pytest tests/
+python -m quadmesh.cli input.14 -o output.14
+# Optional: provision private Valence fixtures.
+GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py
 ```
 
-## Conventions
+`scripts/dev_setup.sh` creates `.venv`, installs the sibling `../CHILmesh` checkout in editable mode, and installs `quadmesh[dev]`. CHILmesh is not available from PyPI.
 
-**chilmesh dependency notes:** External Python dep. The five API issues QuADMESH filed against it (#132 `merge_elements`, #133 `ccw_edges_around_vert`, #134 adjacencies flag, #138 `submesh`, #139 `angle_based_smoother` perf) are **all closed upstream (2026-05-22…24) and consumed here**: `identify_edges.py` + `_topology.py` use the public `ccw_edges_around_vert` / `CHILmesh(compute_adjacencies=...)` APIs (no private calls remain); `two_part_smoother` is deprecated in favor of `fem_smoother` (moots #138 adoption); `tri2quad(aggressive=)` stays reserved — wiring it to upstream `merge_elements` is the v0.3 feature ticket. Do not re-file these.
+## Testing and data
 
-## Testing
+The `.14` fixtures are not vendored. They are fetched from the private `domattioli/Valence` registry into the gitignored `tests/fixtures/meshes/` directory and checked against pinned git blob hashes. Access requires `GITHUB_TOKEN` or `GH_TOKEN` with cross-repository read permission.
 
-**Test meshes provisioning:** A fresh container has no numpy/scipy/chilmesh/pytest, and `chilmesh` is not on PyPI — it must be editable-installed from the sibling `../CHILmesh` checkout. `scripts/dev_setup.sh` provisions the `pytest tests/` gate idempotently.
+Without that token, Valence-dependent tests skip. The faithfulness gate also uses meshes bundled with `chilmesh.data` when those files are available. See `tests/fixtures/README.md` for the fixture protocol.
 
-**Mesh fixtures:** `.14` test meshes are NOT vendored (removed `4dc5eea`, now on `domattioli/Valence`). `conftest.py` auto-provisions them when a token with cross-repo Valence read is present (`GITHUB_TOKEN`/`GH_TOKEN`); without one, mesh-dependent tests — incl. the faithfulness gate `test_no_interior_tris.py` — **skip silently**. CI needs a cross-repo read PAT secret to run them (default CI `GITHUB_TOKEN` can't read another private repo). See `tests/fixtures/README.md`.
+## Project conventions
 
-## Branch & commit policy
+CHILmesh is an external dependency. Use its public APIs, including `ccw_edges_around_vert` and `CHILmesh(compute_adjacencies=...)`. The previously filed CHILmesh API issues are closed; do not re-file them. `two_part_smoother` is deprecated in favor of `fem_smoother`. The `tri2quad(aggressive=)` option is reserved for future integration with `merge_elements`.
 
-All ongoing work goes on `development` (the long-lived staging branch per DomI `branching.md`; supersedes the deprecated `daily-maintenance`, itself renamed from `daily-issue-fixing`). Do not push to `master`/`main` directly — promotion to `main` is via PR `development → main` only. Do not push to historical branches (`daily-maintenance`, `python-porting-project`, `claude/affectionate-heisenberg-prShD`, `claude/awesome-goodall-cqPYK`, `claude/awesome-goodall-Tbur3`).
+Use `docs/MAPPING.md` to check MATLAB parity and current port coverage before changing algorithm behavior.
 
-New session branches discouraged — work directly on `development`, PR → `main`. `branch_guard.sh` (DomI plugin) blocks non-allowlisted names.
+## Branch policy
 
-## Edit hygiene
+The default working branch is `development`. Releases go through a pull request from `development` to `main`. Never push directly to `main` and never force push.
 
-The number of tokens used to edit files is best minimized, all else being equal. Therefore, when it will not affect the end result, opt first for surgical edits rather than rewriting entire existing files.
+## Repo-local labels
 
-## Reference docs
+| Label | Meaning |
+|---|---|
+| `downstream-api` | Tracks CHILmesh API changes required by QuADMESH. |
 
-**Repo-local labels (issue #20 triage 2026-06-03):** These labels have no DomI canonical equivalent — kept repo-local by operator decision.
+## Related repositories
 
-| Label | Meaning | Decision |
-|---|---|---|
-| `downstream-api` | Tracks needed CHILmesh API changes that QuADMESH requires | repo-local keep |
+`domattioli/CHILmesh` provides mesh data structures, smoothing, and quality analysis. `domattioli/ADMESH` provides adaptive mesh generation. `domattioli/Valence` is the authoritative test-mesh registry.
 
-Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
-- `brainstorm` → migrate to `status: brainstorming`
-- `domi-sync` → delete (not promoted to DomI canon)
-- `investigation` → migrate to `request: research`
-- `literature-review` → migrate to `request: research`
-
-**See also:** `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/` for the active feature spec and plan; `docs/MAPPING.md` for MATLAB → Python function map and chilmesh integration notes.
+## Governance
+This repo is a downstream consumer of `domattioli/DomI`.
+Universal git, coding dispatch, secrets, session lifecycle, and communication rules live in DomI `.claude/policies/`.
+`scripts/instructions_on_start.sh` checks `.domi-pin` drift at session start.
+Spec-kit artifacts for this repo live in DomI `specs/consumers/quadmesh/`, never in a local `.specify/` directory.

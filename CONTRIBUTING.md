@@ -1,10 +1,9 @@
 # Contributing to QuADMESH
 
-Thanks for your interest in QuADMESH — a Python port of the MATLAB QuADMESH+
+Thanks for your interest in QuADMESH, a Python port of the MATLAB QuADMESH+
 algorithm for triangular-to-quadrilateral mesh conversion. This is the
 **canonical** contributor guide (day-to-day mechanics). Authoritative project
-rules live in [`AGENTS.md`](AGENTS.md); Claude-Code-specific guidance in
-[`CLAUDE.md`](CLAUDE.md); project governance in
+rules live in [`AGENTS.md`](AGENTS.md); project governance lives in
 [`DomI/specs/consumers/quadmesh/memory/constitution.md`](https://github.com/domattioli/DomI/tree/development/specs/consumers/quadmesh/memory/constitution.md) (if present).
 
 ## Repo shape
@@ -106,6 +105,7 @@ CI runs on every PR (currently: linting, tests on Python 3.10+).
 
 ## When in doubt
 
-[`CLAUDE.md`](CLAUDE.md) contains operational guidance and session history.
+[`AGENTS.md`](AGENTS.md) contains operational guidance. Historical session notes
+are under [`docs/sessions/`](docs/sessions/).
 [`docs/MAPPING.md`](docs/MAPPING.md) maps MATLAB functions to their Python
 equivalents. Open issues track every live backlog item.
