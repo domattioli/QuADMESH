@@ -1,6 +1,6 @@
 # QuADMESH
 
-Python port of QuADMESH+ (layer-ordered quad mesh generation from triangles, MATLAB → Python faithful implementation). See `.specify/specs/001-matlab-to-python-port/` for spec/plan. Canonical branch is `development`; released to PyPI via `main`.
+Python port of QuADMESH+ (layer-ordered quad mesh generation from triangles, MATLAB → Python faithful implementation). See `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/` for spec/plan. Canonical branch is `development`; released to PyPI via `main`.
 
 ## Hard rules
 
@@ -18,7 +18,7 @@ Conventional src-layout Python package (reorganized 2026-05-24, was numeric-pref
 - `tests/` — pytest suite. `.14` test meshes are NOT vendored (removed `4dc5eea`); provisioned on demand into gitignored `tests/fixtures/meshes/` from the `domattioli/Valence` registry. See `tests/fixtures/README.md`.
 - `docs/MAPPING.md` — MATLAB → Python function map + chilmesh gaps.
 - `docs/sessions/session-NNN.md` — per-session handoff notes.
-- `.specify/specs/001-matlab-to-python-port/`, `.specify/specs/003-root-reorg/` — speckit spec/plan/tasks.
+- `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/`, `DomI/specs/consumers/quadmesh/specs/003-root-reorg/` — speckit spec/plan/tasks.
 - `src/matlab/` — frozen legacy MATLAB reference (was `02_QuADMESH_Library/`, `04_CHIL_Supporting_Functions/`). Not installable.
 - `archive/` — in-repo holding pen for future removal: MATLAB `@CHILmesh`/ADMESH dups of upstream repos, `.mat` binaries, old results.
 - `videos/` — README demo assets.
@@ -67,4 +67,4 @@ Deleted (no open issues, label definitions pending `gh`-equipped cleanup):
 - `investigation` → migrate to `request: research`
 - `literature-review` → migrate to `request: research`
 
-**See also:** `.specify/specs/001-matlab-to-python-port/` for the active feature spec and plan; `docs/MAPPING.md` for MATLAB → Python function map and chilmesh integration notes.
+**See also:** `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/` for the active feature spec and plan; `docs/MAPPING.md` for MATLAB → Python function map and chilmesh integration notes.

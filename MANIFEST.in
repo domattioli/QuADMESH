@@ -8,7 +8,6 @@ prune specs
 prune docs
 prune tests
 prune scripts
-prune .specify
 prune .github
 
 # Claude-derived development docs — never ship in distributions (operator directive 2026-06-12)
@@ -25,7 +24,6 @@ prune .claude
 prune .claude-plugin
 prune .introspect
 prune .githooks
-prune .specify
 prune .planning
 global-exclude .domi-pin
 global-exclude .zenodoignore

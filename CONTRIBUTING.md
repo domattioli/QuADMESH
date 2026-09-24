@@ -5,7 +5,7 @@ algorithm for triangular-to-quadrilateral mesh conversion. This is the
 **canonical** contributor guide (day-to-day mechanics). Authoritative project
 rules live in [`AGENTS.md`](AGENTS.md); Claude-Code-specific guidance in
 [`CLAUDE.md`](CLAUDE.md); project governance in
-[`.specify/memory/constitution.md`](.specify/memory/constitution.md) (if present).
+[`DomI/specs/consumers/quadmesh/memory/constitution.md`](https://github.com/domattioli/DomI/tree/development/specs/consumers/quadmesh/memory/constitution.md) (if present).
 
 ## Repo shape
 
@@ -25,7 +25,7 @@ docs/                 Project documentation
   ├── MAPPING.md      MATLAB → Python function map
   └── sessions/       Per-session development notes
 
-.specify/specs/       Feature specifications (speckit)
+DomI/specs/consumers/quadmesh/specs/       Feature specifications (speckit)
   ├── 001-matlab-to-python-port/
   ├── 003-root-reorg/
   └── ...

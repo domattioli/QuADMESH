@@ -225,9 +225,9 @@ if [ "$IS_DOMI" = "true" ]; then
 
   if [ -x "$REPO_ROOT/scripts/specify_bootstrap.sh" ]; then
     if bootstrap_out="$(bash "$REPO_ROOT/scripts/specify_bootstrap.sh" --check 2>&1)"; then
-      echo "  ✓ .specify/ infra present ($(echo "$bootstrap_out" | sed -E 's/.*digest=([0-9a-f]+).*/digest=\1/'))"
+      echo "  ✓ DomI/specs/consumers/quadmesh/ infra present ($(echo "$bootstrap_out" | sed -E 's/.*digest=([0-9a-f]+).*/digest=\1/'))"
     else
-      echo "  ⚠ .specify/ infra incomplete — run scripts/specify_bootstrap.sh"
+      echo "  ⚠ DomI/specs/consumers/quadmesh/ infra incomplete — run scripts/specify_bootstrap.sh"
       echo "$bootstrap_out" | sed 's/^/    /'
       ISSUES=$((ISSUES + 1))
     fi

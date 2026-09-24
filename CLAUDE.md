@@ -11,7 +11,7 @@ Claude-Code-specific guidance only; project rules live in AGENTS.md.
 **Routine:** lives in DomI at `.claude/claude_routine_instructions.md` (root `claude_routine_instructions.md` is a redirect stub). Textbox payload format + per-repo profile knobs in §6–7 there. Do not duplicate routine prose here.
 
 **Session lifecycle skills** (from DomI upstream; do the equivalent manually if a skill is not yet available):
-- **Start:** `session-resume` — read latest `docs/sessions/session-NNN.md`, restore context (branch, PR, in-progress tasks, blockers). Manual fallback: latest handoff + `.specify/specs/001-matlab-to-python-port/tasks.md`.
+- **Start:** `session-resume` — read latest `docs/sessions/session-NNN.md`, restore context (branch, PR, in-progress tasks, blockers). Manual fallback: latest handoff + `DomI/specs/consumers/quadmesh/specs/001-matlab-to-python-port/tasks.md`.
 - **End:** `handoff` — write `docs/sessions/session-NNN.md` (next N) with: what changed, key decisions, files touched, what comes next, branch/PR state, open chilmesh issues.
 
 DomI skill names tracked; replace manual prose with skill invocation once landed.
