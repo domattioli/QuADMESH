@@ -407,7 +407,6 @@ else
     echo "  ⚠ speckit skills not found in ~/.claude/skills/"
     echo "    Routines referencing /speckit.* will fail. To install:"
     echo "      claude plugin install sync-from-domi@DomI && /sync from DomI"
-    echo "    Or fall back to gsd-* equivalents. See DomI issue #54."
   fi
   echo ""
 fi
