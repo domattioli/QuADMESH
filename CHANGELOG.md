@@ -6,7 +6,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.3.0] - Unreleased
 
-Documentation and metadata release. The conversion algorithm is unchanged.
+Documentation and metadata release, with one algorithm fix: the boundary layer is now routed as the thesis specifies.
 
 ### Added
 - `docs/algorithm.md`: one long-form document for the thesis algorithm, the port as implemented, a thesis-versus-port difference table, the experimental global-matching fallback, its relation to Blossom-Quad (Remacle et al. 2012), and MATLAB parity status.
@@ -20,6 +20,7 @@ Documentation and metadata release. The conversion algorithm is unchanged.
 - `scripts/dev_setup.sh` installs chilmesh from PyPI by default. Set `QUADMESH_CHILMESH_SRC=<path>` to editable-install a local CHILmesh checkout instead.
 
 ### Fixed
+- The per-layer sweep flagged the innermost layer (`n_layers - 1`) as the boundary layer. It now flags layer 0, which is the boundary layer in `chilmesh` and in `removeTrianglesFun.m`. Output keeps zero interior residual triangles, is quad-pure by default, and keeps every original boundary vertex. Mean skew on the bundled `structuredMesh1` changes from 0.696 to 0.647, and the expected values in the quality tests were updated (spec 059).
 - `AGENTS.md` and `scripts/dev_setup.sh` stated that chilmesh is not on PyPI. It is (`chilmesh>=1.2.1`).
 
 ### Removed

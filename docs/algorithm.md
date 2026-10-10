@@ -87,7 +87,9 @@ A layerless mesh is, for example, a mesh too coarse for skeletonization.
 2. Merge pairs. `merge_tri_pair` (`src/quadmesh/_topology.py:14`) merges each selected pair into a quadrilateral. A merge with a corner of 177 degrees or more is skipped (`_quad_is_degenerate`, `tri2quad.py:780`). Then `match_layer_heuristic` (`src/quadmesh/_match_quadmesh_plus.py:220`) pairs the remaining layer triangles with the thesis T1 and T2 rules (`_t1_select`, `_match_quadmesh_plus.py:55`; `_t2_ladder`, `:104`). The flagged pairs go to it as forbidden pairs (`tri2quad.py:888-917`).
 3. Route leftovers. `route_leftover_tri` (`src/quadmesh/_tri_removal.py:308`) ports `removeTrianglesFun.m`. It clears each unpaired triangle by edge bisection (`:143`), edge insertion (`:260`), or edge removal (`:121`), selected by boundary-edge count and by `can_remove_edges`.
 
-Limitation: steps 2 and 3 mark layer `nl - 1` as the boundary layer (`tri2quad.py:915`, `:937`). `chilmesh` numbers the boundary layer 0, so the boundary-layer rules (OE before IE, routing for triangles on the mesh boundary) apply to the innermost layer. Section 4 lists this as an open defect.
+Steps 2 and 3 treat layer 0 as the boundary layer. `chilmesh` numbers layers from the domain boundary inward, so layer 0 holds the triangles on the domain boundary. One predicate, `_is_boundary_layer` (`tri2quad.py:668`), sets the matcher flag (`:926`) and the routing flag (`:949`). It matches `removeTrianglesFun.m:12` (`iLayer == 1`, 1-based).
+
+In layer 0, a leftover triangle with one boundary edge is bisected on that edge (`_tri_removal.py:378-385`). An edge collapse (`edgeRemoval`) would move two original boundary vertices, so the sweep passes `preserve_boundary_verts=True` to `route_leftover_tri`. If no routing case applies, `route_leftover_tri` returns `None`. The sweep then leaves the triangle unconsumed (`tri2quad.py:969`), and it goes to the closing pass in section 3.3.
 
 After the loop, triangles that belong to no layer go to the global matcher `_match_tris_to_quads` without layer priority (`tri2quad.py:960-971`). This is the second trigger of the experimental fallback.
 
@@ -104,7 +106,7 @@ After the loop, triangles that belong to no layer go to the global matcher `_mat
 
 Point insertion runs only on the `"layered"` path and only on triangles that are still unpaired (`tri2quad.py:1118`). Set `point_insert=False` to keep those triangles as boundary triangles. Set `can_remove_edges=False` to stop boundary-edge collapse during routing.
 
-## 4. The port differs from the thesis in seven places
+## 4. The port differs from the thesis in eight places
 
 | Topic | Thesis | Port | Code | Status |
 |---|---|---|---|---|
@@ -116,7 +118,8 @@ Point insertion runs only on the `"layered"` path and only on triangles that are
 | Near-flat merges | not described | merge skipped when a corner is 177 degrees or more | `tri2quad.py:780` | port-only |
 | Elements outside every layer | not described | global matcher fallback | `tri2quad.py:960-971` | port-only |
 | Layerless mesh | not described | global matcher fallback | `tri2quad.py:1083-1093` | port-only |
-| Boundary-layer index | the boundary layer is matched last, OE before IE | `chilmesh` numbers the boundary layer 0, but the per-layer sweep passes `li == nl - 1` (the innermost layer) as the boundary layer to the matcher and to leftover routing | `tri2quad.py:915`, `:937` | differs (open defect; `_layer_priority` uses layer 0, `tri2quad.py:683`) |
+| Boundary-layer index | the boundary layer is matched last, OE before IE; `removeTrianglesFun.m:12` tests `iLayer == 1` | layer 0 is the boundary layer for the matcher, leftover routing and `_layer_priority` | `tri2quad.py:668`, `:926`, `:949` | same |
+| Boundary-edge collapse in the boundary layer | `edgeRemoval` when `canRemoveEdges` is true | edge bisection, so that every original boundary vertex is kept | `_tri_removal.py:378-385` | differs |
 | Lone boundary triangles | add a boundary point (IE) or collapse an edge (OE) | interior point insertion, on by default | `tri2quad.py:529`, `:1118` | differs |
 
 ## 5. Experimental fallback: layer-priority global matching

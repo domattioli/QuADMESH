@@ -359,9 +359,11 @@ def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
 # successful boundary-layer conditioning pass should LOWER `total` while
 # keeping interior == 0; when it does, update these numbers with evidence
 # from `scripts/bench_boundary_layer.py --mesh <name>`.
+# 059: boundary-correct routing (layer 0 is the boundary layer) is the new
+# reference. Block_O 274 -> 264, structuredMesh1 20 -> 22.
 _GEO_TRI_BASELINE = {
-    "Block_O.14": 274,  # 273 -> 274 (#108): pairing-merge degeneracy guard leaves
-    "structuredMesh1.14": 20,  # one boundary sliver as boundary tris (allowed)
+    "Block_O.14": 264,  # 273 -> 274 (#108): pairing-merge degeneracy guard leaves
+    "structuredMesh1.14": 22,  # one boundary sliver as boundary tris (allowed)
 }
 
 
@@ -398,9 +400,11 @@ def test_boundary_geo_tri_baseline(fixture_name):
 # pairing-merge acceptance criterion. The flag remains the WNAT/ENPAC-scale lever
 # per #90 (PAT-gated, not validatable here). These pins guard the invariant under
 # the flag and prevent re-characterization churn.
+# 059: boundary-correct routing is the new reference. Block_O 274 -> 261,
+# structuredMesh1 19 -> 22.
 _GEO_TRI_FLAG_ON = {
-    "Block_O.14": 274,  # 273 -> 274 (#108): the pairing-merge acceptance criterion
-    "structuredMesh1.14": 19,  # (named above as the real offline lever) now rejects
+    "Block_O.14": 261,  # 273 -> 274 (#108): the pairing-merge acceptance criterion
+    "structuredMesh1.14": 22,  # (named above as the real offline lever) now rejects
 }                              # near-flat merges -> one boundary sliver splits to tris
 
 

@@ -3,7 +3,8 @@
 CHILmesh numbers layers from the domain boundary inward: layer 0 holds the
 triangles that touch the domain boundary. ``_quadmesh_plus_per_layer`` once
 flagged ``li == n_layers - 1`` (the innermost layer) as the boundary layer, so
-the OE-before-IE pre-pass and boundary routing ran on the wrong layer.
+the OE-before-IE pre-pass and boundary routing ran on the wrong layer. Fixed in
+059 (``_is_boundary_layer``).
 """
 from __future__ import annotations
 
@@ -41,12 +42,6 @@ def _boundary_layers(mesh: CHILmesh) -> set:
     return out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="known defect: per-layer sweep flags li == n_layers - 1 as boundary "
-    "(tri2quad.py:915, :937). Naive fix to li == 0 breaks the interior-residual "
-    "invariant on Block_O.14; needs routing rework before it can land.",
-)
 @pytest.mark.parametrize("name", MESHES)
 def test_boundary_flag_matches_boundary_layer(name, monkeypatch):
     path = os.path.join(_DATA, name)

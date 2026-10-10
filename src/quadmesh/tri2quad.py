@@ -665,6 +665,17 @@ def _point_insert_tri_pairs(
     return quads_out, tris_out, pts
 
 
+def _is_boundary_layer(li: int) -> bool:
+    """True for the CHILmesh boundary layer.
+
+    CHILmesh numbers skeleton layers from the domain boundary inward, so layer 0
+    holds the triangles that touch the domain boundary. MATLAB
+    ``removeTrianglesFun.m:12`` tests ``iLayer == 1`` (1-based), which is
+    ``li == 0`` here.
+    """
+    return li == 0
+
+
 def _layer_priority(domain: CHILmesh, n: int) -> np.ndarray:
     """Per-triangle match priority from the skeleton layers (Ch 4 ordering).
 
@@ -680,7 +691,7 @@ def _layer_priority(domain: CHILmesh, n: int) -> np.ndarray:
     prio = np.full(n, 2 * nl + 1, dtype=int)
     for li in range(nl):
         rank = nl - 1 - li  # innermost layer (largest li) -> rank 0
-        ie_off, oe_off = (1, 0) if li == 0 else (0, 1)  # boundary layer: OE first
+        ie_off, oe_off = (1, 0) if _is_boundary_layer(li) else (0, 1)  # boundary layer: OE first
         for e in np.asarray(layers["IE"][li], dtype=int):
             prio[int(e)] = 2 * rank + ie_off
         for e in np.asarray(layers["OE"][li], dtype=int):
@@ -819,7 +830,13 @@ def _quadmesh_plus_per_layer(
     per-layer sweep, and ``points`` is the (possibly augmented) vertex table.
     """
     from ._tri_removal import WorkingMesh, route_leftover_tri
-    from ._topology import merge_tri_pair
+    from chilmesh import quad_from_tri_pair
+
+    def merge_tri_pair(mesh, la: int, lb: int) -> np.ndarray:
+        conn = mesh.connectivity_list
+        return quad_from_tri_pair(
+            mesh.points, conn[la, :3].astype(int), conn[lb, :3].astype(int)
+        )
     from .identify_edges import identify_edges_in_layer
 
     work = WorkingMesh(points=domain.points.copy(), quads=[])
@@ -912,7 +929,7 @@ def _quadmesh_plus_per_layer(
                 pts=domain.points,
                 flagged_pairs=flagged_global_pairs,
                 already_consumed=already,
-                is_boundary_layer=(li == nl - 1),
+                is_boundary_layer=_is_boundary_layer(li),
             )
         except Exception:
             greedy_pairs = []
@@ -933,8 +950,9 @@ def _quadmesh_plus_per_layer(
             local_consumed.add(la); local_consumed.add(lb)
 
         # Route leftover (unmatched) tris (removeTrianglesFun).
-        # Outermost layer = mesh boundary layer (MATLAB: iLayer == nLayers).
-        on_mesh_boundary = (li == nl - 1)
+        # Boundary layer = CHILmesh layer 0 (MATLAB removeTrianglesFun.m:12,
+        # ``iLayer == 1``).
+        on_mesh_boundary = _is_boundary_layer(li)
         b_edge_set = set(int(e) for e in sel.boundary_edge_ids)
         b_vert_set = set(int(v) for v in sel.boundary_vert_ids_global)
 
@@ -950,9 +968,12 @@ def _quadmesh_plus_per_layer(
                     sub_b_edge_set=b_edge_set,
                     sub_b_vert_set=b_vert_set,
                     refuse_boundary_merge=refuse_boundary_merge,
+                    preserve_boundary_verts=True,
                 )
             except Exception:
                 handled = True  # degenerate — preserve prior consume behavior
+            if handled is None:
+                continue  # unchanged: leave for leftover_idx and the closing pass
             if handled is False:
                 refused.add(gid_i)
             consumed.add(gid_i)

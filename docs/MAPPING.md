@@ -15,7 +15,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `02_Tri2Quad_Routine/plotQuadProgress.m` | - | skip (plot) |
 | `03_Layer_Paths/PathsOnOV.m` | `chilmesh.layer_paths.paths_on_outer_vertices` | done via chilmesh |
 | `03_Layer_Paths/pathRewind.m` | inline in `identify_edges` | done |
-| `04_Remove_Triangles/removeTrianglesFun.m` | `_tri_removal.route_leftover_tri` | done — all cases; recombination ops wired (`_recombine.py`) |
+| `04_Remove_Triangles/removeTrianglesFun.m` | `_tri_removal.route_leftover_tri` | done: all cases; recombination ops wired (`_recombine.py`). The `onMeshBoundary` test (`removeTrianglesFun.m:12`, `iLayer == 1`) maps to `li == 0` (`tri2quad._is_boundary_layer`). The `CM.nLayers == Domain.nLayers` guard is not ported, because the Python sweep always covers the full domain. Python additions: a triangle that no case changes is passed to the post-sweep closing pass (`_remove_boundary_tris`, edge swap, point insertion), and in layer 0 a one-boundary-edge triangle is bisected in place of `edgeRemoval`, so every original boundary vertex is kept (spec 059). |
 | `04_Remove_Triangles/edgeInsertion.m` | `_tri_removal.edge_insertion` | partial (cases 1/2 without iLayer-1 retri; v0.4 unit-tested, ravel bug fixed) |
 | `04_Remove_Triangles/edgeBisection.m` | `_tri_removal.edge_bisection` | done (infinite-loop fix for reversed CCW orientation) |
 | `04_Remove_Triangles/edgeRemoval.m` | `_tri_removal.edge_removal` | done |
