@@ -32,7 +32,8 @@
 
 - T017/T018 were safe to do autonomously: thesis is **in-repo**
   (`docs/Mattioli_Thesis.pdf`) + a vetted faithful transcription exists
-  (`docs/algorithm_writeup.md`). The prior "needs thesis, defer" deferral
+  (`docs/algorithm_writeup.md`; historical: that file was folded into
+  `docs/algorithm.md` section 5 and deleted in 0.3.0). The prior "needs thesis, defer" deferral
   over-fired. Validated empirically (zero-interior gate + measured quality).
 - Reused the existing matcher rather than writing new pairing logic — lower
   faithfulness risk, smaller diff (54 insertions, one function).

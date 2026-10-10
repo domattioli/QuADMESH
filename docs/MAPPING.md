@@ -7,7 +7,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `00_Main/Main.m` | `cli.py` + `pipeline.run_pipeline` | done |
 | `01_Create_Quad_Domain/createQuadDomain.m` | `create_quad_domain` | done (polygon mode) |
 | `01_Create_Quad_Domain/drawSubdomain.m` | - | skip (GUI) |
-| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done — layer-ordered per-layer sweep (`method="quadmesh+"`, MATLAB-faithful; `"matching"` and `"faithful"` aliases removed per #46, raise ValueError) |
+| `02_Tri2Quad_Routine/Tri2QuadRoutine.m` | `tri2quad.tri2quad_routine` | done: layer-ordered per-layer sweep (`method="quadmesh+"`); MATLAB parity is the port intent; no test verifies it (see [`algorithm.md`](algorithm.md) section 7); the removed `"matching"` and `"faithful"` values raise ValueError (#46) |
 | `02_Tri2Quad_Routine/identifyEdgesFun.m` | - | skip (superseded by v2) |
 | `02_Tri2Quad_Routine/identifyEdgesFun_v2.m` | `identify_edges.identify_edges_in_layer` | done |
 | `02_Tri2Quad_Routine/mergeTrianglesFun.m` | `_topology.merge_tri_pairs` | done |
@@ -84,9 +84,9 @@ Current Python (v0.2+): MATLAB-aligned.
    boundary-layer half of the MATLAB two-part smoother was never ported; the
    smoother is FEM-only (`fem_smoother`), so no `CHILmesh.submesh()` split is planned.
 4. ADMESH library (`01_ADMESH_Library/`).
-5. MATLAB ground-truth elem counts for parity tests -- current scaffold uses
-   Python regression baseline (Block_O `.mat` is MATLAB-opaque, can't extract
-   without running MATLAB).
+5. MATLAB ground-truth element counts for the parity tests. `tests/test_parity.py`
+   pins a Python regression baseline, because the Block_O `.mat` file cannot be
+   read without MATLAB. Parity status: [`algorithm.md`](algorithm.md) section 7.
 
 ## chilmesh gaps (all closed upstream + consumed, 2026-05-22..24)
 

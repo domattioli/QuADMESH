@@ -29,7 +29,7 @@ python -m quadmesh.cli input.14 -o output.14
 GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py
 ```
 
-`scripts/dev_setup.sh` creates `.venv`, installs the sibling `../CHILmesh` checkout in editable mode, and installs `quadmesh[dev]`. CHILmesh is not available from PyPI.
+`scripts/dev_setup.sh` creates `.venv` and installs `quadmesh[dev]`, which pulls chilmesh from PyPI (`chilmesh>=1.2.1`). To develop against a local CHILmesh checkout, set `QUADMESH_CHILMESH_SRC=<path>` (for example `../CHILmesh`); the script then editable-installs that checkout. This override is optional.
 
 ## Testing and data
 

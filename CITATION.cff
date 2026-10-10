@@ -9,17 +9,21 @@ type: software
 authors:
   - family-names: Mattioli
     given-names: Dominik D.
+  - family-names: Kubatko
+    given-names: Ethan J.
+    affiliation: "Ohio State University"
 license: PolyForm-Noncommercial-1.0.0
 repository-code: "https://github.com/domattioli/QuADMESH"
 url: "https://github.com/domattioli/QuADMESH"
-version: 0.2.1
+version: 0.3.0
+# The release skill sets date-released at tag time.
 date-released: "2026-07-13"
-# Zenodo DOI for this record series. If a concept ("cite all versions") DOI
-# exists, prefer it here so citations track every version.
+# Zenodo concept DOI: resolves to every version of this software.
+doi: 10.5281/zenodo.20350483
 identifiers:
   - type: doi
-    value: 10.5281/zenodo.20351165
-    description: "Zenodo archive"
+    value: 10.5281/zenodo.20350483
+    description: "Zenodo concept DOI (all versions)"
 preferred-citation:
   type: thesis
   title: "QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models"

@@ -4,7 +4,30 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - Unreleased
+
+Documentation and metadata release. The conversion algorithm is unchanged.
+
+### Added
+- `docs/algorithm.md`: one long-form document for the thesis algorithm, the port as implemented, a thesis-versus-port difference table, the experimental global-matching fallback, its relation to Blossom-Quad (Remacle et al. 2012), and MATLAB parity status.
+- `tests/test_release_metadata.py`: guard test that fails when `CITATION.cff` or `README.md` names a DOI other than the Zenodo concept DOI `10.5281/zenodo.20350483`.
+- Ethan J. Kubatko (Ohio State University) as second author in `CITATION.cff`.
+
+### Changed
+- README opening states what the conversion keeps and adds, and links to `docs/algorithm.md`. The status banner no longer carries a month stamp.
+- `CITATION.cff` and `README.md` cite the Zenodo concept DOI `10.5281/zenodo.20350483` in place of the version DOI `10.5281/zenodo.20351165`.
+- Version is 0.3.0 in `pyproject.toml`, `src/quadmesh/__init__.py`, and `CITATION.cff`.
+- `scripts/dev_setup.sh` installs chilmesh from PyPI by default. Set `QUADMESH_CHILMESH_SRC=<path>` to editable-install a local CHILmesh checkout instead.
+
+### Fixed
+- `AGENTS.md` and `scripts/dev_setup.sh` stated that chilmesh is not on PyPI. It is (`chilmesh>=1.2.1`).
+
+### Removed
+- `docs/algorithm_writeup.md`. Its content is section 5 of `docs/algorithm.md`, relabelled as the experimental fallback path.
+
 ## [0.2.1] — 2026-07-13
+
+Never tagged or published. Its changes ship in 0.3.0.
 
 ### Fixed
 - Faithfulness invariant RED→GREEN: reject near-flat pairing merges in the `quadmesh+` per-layer loop, so a merge whose result has a corner ≥ 177° is skipped rather than emitting a degenerate quad — interior geometric triangles now 0 across all fixtures (#108).

@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="videos/quadmesh_logo.gif" alt="QuADMESH logo — triangles in, quads out" width="680">
+  <img src="videos/quadmesh_logo.gif" alt="QuADMESH logo: triangles in, quads out" width="680">
 </h1>
 
 <p align="center">
@@ -13,6 +13,12 @@
   <sup>†</sup>Corresponding author | <sup>1</sup>Unaffiliated | <sup>2</sup>Ohio State University (<a href="https://ceg.osu.edu/computational-hydrodynamics-and-informatics-laboratory"><img src="https://img.shields.io/badge/The CHIL-a7b1b7?labelColor=ba0c2f&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjIwIiByeD0iNyIgZmlsbD0iI2ZmZmZmZiIvPjxyZWN0IHg9IjguNSIgeT0iNyIgd2lkdGg9IjciIGhlaWdodD0iMTAiIHJ4PSIzIiBmaWxsPSIjYmEwYzJmIi8+PC9zdmc+" alt="CHIL"></a>)
 </p>
 
+- Converts an existing, validated shallow-water triangulation into quadrilaterals by merging adjacent triangle pairs.
+- Reuses the input vertices; triangle pairing adds no points. `can_remove_edges=False` stops boundary-edge collapse.
+- Leaves zero interior residual triangles (triangles with no domain-boundary edge), checked by `tests/test_no_interior_tris.py`.
+- Adds points only to clear leftover boundary triangles; this step is on by default and `point_insert=False` turns it off.
+- Returns a quad-pure mesh by default; `remove_boundary_tris=False` keeps leftover boundary triangles instead.
+
 > **Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`archive/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/archive/matlab/quadmesh).
 
 ---
@@ -22,7 +28,7 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
   <a href="https://github.com/domattioli/QuADMESH/actions/workflows/tests.yml"><img src="https://github.com/domattioli/QuADMESH/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://github.com/domattioli/QuADMESH/issues"><img src="https://img.shields.io/github/issues/domattioli/QuADMESH.svg" alt="Open issues"></a>
-  <a href="https://doi.org/10.5281/zenodo.20351165"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20351165.svg" alt="DOI"></a>
+  <a href="https://doi.org/10.5281/zenodo.20350483"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20350483.svg" alt="DOI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20NC%20%2B%20No--AI-red.svg" alt="License"></a>
 </p>
 
@@ -42,9 +48,9 @@
 
 ## Status & Roadmap
 
-**Current status (July 2026): Work-in-Progress, but mostly functional.** The QuADMESH+ layer-ordered tri-to-quad conversion is implemented and is the default `method="quadmesh+"`. The interior-saturating per-layer sweep (thesis Ch 4.1 IE-before-OE, Ch 4.2 fold-seam forbiddance) leaves **zero interior residual triangles by construction** — the faithfulness invariant, now guarded token-free in CI (the gate runs offline on the `chilmesh.data` bundled meshes, so a green run can no longer skip it silently). Post-process mean element quality needs improvement (degen. elements on the boundary).
+**Status (0.3.0): work in progress, mostly functional.** The default `method="quadmesh+"` runs the thesis per-layer sweep: innermost layer first, inner elements before outer elements, with flagged (fold-seam) edges excluded. It leaves **zero interior residual triangles**; CI checks this faithfulness invariant offline on the meshes bundled with `chilmesh.data`. Mean element quality after post-processing is lowest in the boundary layer (see [Element quality](#element-quality)). The algorithm, the experimental fallback for layerless meshes, and MATLAB parity status are in [`docs/algorithm.md`](docs/algorithm.md).
 
-- **Now:** boundary-layer walkability and post-process quality tuning. (The isolated-triangle edge-swap fixup is confirmed a no-op on all offline-testable meshes — disposition pending deprecation review, not active work.)
+- **Now:** boundary-layer walkability and post-process quality tuning. (The isolated-triangle edge-swap fixup is confirmed a no-op on all offline-testable meshes; its deprecation is under review.)
 - **Next:** enhanced pre- and post-processing for quality improvement; performance optimization; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
 - **Future:** formal integration within a unified ecosystem including <a href="https://github.com/domattioli/ADMESH"><img src="https://img.shields.io/pypi/v/admesh2D?label=ADMESH&color=9ae6b4&labelColor=2f855a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMiAyMSBMMTIgMiBMMjIgMjEgWiBNMTIgMiBMNyAyMSBNMTIgMiBMMTcgMjEgTTcgMjEgTDEyIDEyIEwxNyAyMSBNMTIgMTIgTDEyIDIiLz48L3N2Zz4=" alt="ADMESH PyPI version"></a> and <a href="https://github.com/domattioli/CHILmesh"><img src="https://img.shields.io/pypi/v/chilmesh?label=CHILmesh&color=caf0f8&labelColor=0077b6&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMSA4IHEzIC00IDYgMCB0NiAwIHQ2IDAgdDYgMCBNMSAxMyBxMyAtNCA2IDAgdDYgMCB0NiAwIHQ2IDAgTTEgMTggcTMgLTQgNiAwIHQ2IDAgdDYgMCB0NiAwIi8%2BPC9zdmc%2B" alt="CHILmesh PyPI version"></a>
 
@@ -86,7 +92,7 @@ videos/             demo assets (quadmesh_logo.gif, render scripts)
 archive/matlab/     frozen MATLAB QuADMESH+ original (read-only, not installable)
 ```
 
-**Note on CHILmesh:** Functionality is **not vendored** — it is an external dependency (`chilmesh>=1.2.1`); see [CHILmesh](https://github.com/domattioli/CHILmesh). The old MATLAB `@CHILmesh` and ADMESH duplicates were removed in the 2026-07 prune (recoverable from git history).
+**Note on CHILmesh:** Functionality is **not vendored**; it is an external dependency (`chilmesh>=1.2.1`); see [CHILmesh](https://github.com/domattioli/CHILmesh).
 
 ---
 
@@ -106,7 +112,7 @@ See [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function corresponde
 
 ## Performance
 
-On the largest mesh in the [Valence](https://github.com/domattioli/Valence) registry — `ENPAC2003`, the Eastern North Pacific tidal grid of **531,680 triangles across 272,913 nodes** — QuADMESH+ returns a fully quadrilateral mesh of **274,321 quadrilaterals with zero interior residual triangles** (the faithfulness invariant) in **773 s (12.9 min)**, single-threaded, on the `chilmesh` 1.0.0 backend.
+On the largest mesh in the [Valence](https://github.com/domattioli/Valence) registry, `ENPAC2003` (the Eastern North Pacific tidal grid of **531,680 triangles across 272,913 nodes**), QuADMESH+ returns a fully quadrilateral mesh of **274,321 quadrilaterals with zero interior residual triangles** (the faithfulness invariant) in **773 s (12.9 min)**, single-threaded, on the `chilmesh` 1.0.0 backend.
 
 <p align="center">
   <img src="docs/assets/enpac_global.png" alt="QuADMESH+ quadrilateral output over the full ENPAC2003 Eastern North Pacific domain" width="680">
@@ -114,7 +120,7 @@ On the largest mesh in the [Valence](https://github.com/domattioli/Valence) regi
 
 ### Phase timing
 
-Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 backend. The post-process stage — doublet collapse, boundary cleanup, and the FEM smoother — dominates the wall-clock budget; the layer-ordered tri-to-quad sweep is the second cost.
+Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 backend. The post-process stage (doublet collapse, boundary cleanup, and the FEM smoother) dominates the wall-clock budget; the layer-ordered tri-to-quad sweep is the second cost.
 
 | Phase | Time (s) | Share |
 |---|---|---|
@@ -124,7 +130,7 @@ Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 
 | `post_process_routine` (collapse + cleanup + FEM smooth) | 537.6 | 69.5% |
 | **Total** | **773.3** | **100%** |
 
-> **Note (post-0.1.0):** this breakdown predates the `fem_smoother` short-circuit (#107). The `method="fem"` smoothing path is a connectivity-anchored equilibrium solve — a single pass reaches equilibrium and further passes are numerical no-ops — so it now returns after one pass instead of the former default of three, cutting the FEM-smoothing component of `post_process_routine` roughly *n*-fold. The 69.5% post-process share above therefore overstates the current cost; a separate benchmark on the 246k-triangle `WNAT_Onur` mesh puts smoothing at ~12% of wall-clock rather than the ~70% seen here. These figures will be re-measured on `ENPAC2003` at the next release benchmark.
+> **Note (post-0.1.0):** this breakdown was measured before the `fem_smoother` short-circuit (#107). The `method="fem"` smoothing path is a connectivity-anchored equilibrium solve: a single pass reaches equilibrium and further passes are numerical no-ops, so it now returns after one pass instead of the former default of three, cutting the FEM-smoothing component of `post_process_routine` roughly *n*-fold. The 69.5% post-process share above therefore overstates the current cost; a separate benchmark on the 246k-triangle `WNAT_Onur` mesh puts smoothing at ~12% of wall-clock rather than the ~70% seen here. These figures will be re-measured on `ENPAC2003` at the next release benchmark.
 
 ### Element quality
 
@@ -169,31 +175,29 @@ python scripts/diagnose_bad_quads.py --mesh path/to/mesh.14 --tag mymesh
 
 **This software** (cite the Zenodo release):
 
-> Mattioli, DO, Kubatko, EJ (2026). QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D hydrodynamic domains. Zenodo. https://doi.org/10.5281/zenodo.20351165
+> Mattioli, DO, Kubatko, EJ (2026). QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D hydrodynamic domains. Zenodo. https://doi.org/10.5281/zenodo.20350483
 
-The DOI `10.5281/zenodo.20351165` resolves to the latest release; version-specific DOIs are listed on the [Zenodo record](https://doi.org/10.5281/zenodo.20351165).
-
-<!-- TODO: Add CITATION.cff at repo root once port reaches v1.0.0; will enable GitHub's "Cite this repository" button and Zotero integration -->
+The DOI `10.5281/zenodo.20350483` resolves to the latest release; version-specific DOIs are listed on the [Zenodo record](https://doi.org/10.5281/zenodo.20350483).
 
 ---
 
 ## Related Projects
 
-- **[ADMESH](https://github.com/domattioli/ADMESH)** — Python port of the ADMESH adaptive mesh generator with pythonic API.
-- **[CHILmesh](https://github.com/domattioli/CHILmesh)** — Mesh data structure, smoother, and quality analysis for triangular and quadrilateral meshes.
+- **[ADMESH](https://github.com/domattioli/ADMESH)**: Python port of the ADMESH adaptive mesh generator with a Python API.
+- **[CHILmesh](https://github.com/domattioli/CHILmesh)**: Mesh data structure, smoother, and quality analysis for triangular and quadrilateral meshes.
 
 ---
 
 ## Contact
 
-**Dominik Mattioli** (repo owner) — [GitHub](https://github.com/domattioli)  
-**Ethan J. Kubatko** — [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
+**Dominik Mattioli** (repo owner): [GitHub](https://github.com/domattioli)  
+**Ethan J. Kubatko**: [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
 
 ---
 
 ## License
 
-**Noncommercial / research use only.** Licensed under the PolyForm Noncommercial License 1.0.0 **with an additional No-AI/ML-training restriction** — see [LICENSE](LICENSE) and [AI-USAGE.md](AI-USAGE.md).
+**Noncommercial / research use only.** Licensed under the PolyForm Noncommercial License 1.0.0 **with an additional No-AI/ML-training restriction**; see [LICENSE](LICENSE) and [AI-USAGE.md](AI-USAGE.md).
 
 No commercial use and no use as AI/ML training data without a separate written license. Commercial or AI-training licenses: contact domattioli via mango-kooky-okay@duck.com
 
