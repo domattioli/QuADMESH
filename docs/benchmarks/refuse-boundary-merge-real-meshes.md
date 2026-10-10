@@ -2,10 +2,10 @@
 
 At-scale validation of the two connectivity-only boundary levers proposed for
 issue [#98](https://github.com/domattioli/QuADMESH/issues/98) / the #90 boundary
-degeneracy. Both were previously characterized **offline only** (chilmesh.data
+degeneracy. Both were previously characterized offline only (chilmesh.data
 fixtures); sessions 031/032 deferred real-ADCIRC validation on a "needs Valence
-read PAT" gate. That gate is void — the real `.14` meshes are present in the
-sibling Valence checkout (`/home/user/Valence/registry_data/meshes/`), so the
+read PAT" gate. That gate is void: the real `.14` meshes are present in the
+sibling Valence checkout (`../Valence/registry_data/meshes/`), so the
 deferred at-scale measurement was run under the current `quadmesh+` pipeline.
 
 Harness: `scripts/exp_refuse_boundary_merge.py` (baseline vs

@@ -153,7 +153,8 @@ def main():
 
     registry_dir = Path(
         os.environ.get(
-            "QUADMESH_REGISTRY_DIR", "/home/user/Valence/registry_data/meshes"
+            "QUADMESH_REGISTRY_DIR",
+            str(Path(__file__).resolve().parents[2] / "Valence" / "registry_data" / "meshes"),
         )
     )
 

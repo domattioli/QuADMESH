@@ -119,3 +119,28 @@ None open. Retained as a resolution ledger; live detail is in the section above.
 | `ccw_edges_around_vert` public | chilmesh#133 | consumed; `_topology` uses the public helper |
 | `submesh()` API | chilmesh#138 | closed; adoption mooted by `fem_smoother` switch (#44) |
 | `angle_based_smoother` perf | chilmesh#139 | consumed; port uses `fem_smoother` only |
+
+## Sibling delegation (057)
+
+QuADMESH calls CHILmesh where CHILmesh offers an equivalent public API. The table lists every item that was checked. "Partial" means a sibling covers only part of the behavior. Each partial row carries the label `downstream-api`. The local code stays until the sibling API exists.
+
+| # | QuADMESH item | Sibling | Disposition |
+|---|---|---|---|
+| 1 | `.14` read and write in `cli.py` | `CHILmesh.read_from_fort14`, `write_to_fort14` | Already delegated. |
+| 2 | `remove_unused_vertices` (`remove_unused.py`) | `CHILmesh.submesh` | Delegated. The module is a short shim that keeps the early return and the `grid_name`. |
+| 3 | FEM solve in `fem_smoother` (`post_process.py`) | `CHILmesh.direct_smoother` | Delegated. On Block_O and structuredMesh1, for triangle and quad meshes, the largest point difference from the former local solver was 0.0. The local `_balendran_smooth` is removed. |
+| 4 | `fem_smoother` wrapper | same as row 3 | Kept. It compacts first, stops after one pass (#107), and restores the points on an exception. |
+| 5 | `two_part_smoother` | none | Kept as a deprecated alias. The warning names removal in 0.4.0. |
+| 6 | `truss_smoother` | `chilmesh.optimize_with_admesh_truss` | Partial, `downstream-api`. The upstream path handles triangles only. Needed: a quad or mixed-element entry point. |
+| 7 | `_topology.py` shims | `CHILmesh.ccw_edges_around_vert`, `chilmesh.quad_from_tri_pair` | Partly done. `identify_edges.py` calls `mesh.ccw_edges_around_vert` directly. `merge_tri_pair` stays in `_topology.py` for now because `tri2quad.py` is owned by another change. |
+| 8 | `_build_tri_adjacency` | `adjacencies["Edge2Elem"]` | Partial, `downstream-api`. It works on a raw `(N, 3)` array, and CHILmesh needs a mesh object. Needed: an adjacency builder for raw connectivity. |
+| 9 | `create_quad_domain` polygon mask | `CHILmesh.submesh`, `admesh in_polygon` | Partial, `downstream-api`. `submesh` renumbers vertices, and `tri2quad(parent=...)` needs the original numbering. Kept. `matplotlib` is a declared dependency. |
+| 10 | `compute_quality_stats` | `chilmesh.element_quality` | Already delegated. The wrapper keeps the report format and the 0.3 threshold. |
+| 11 | `identify_edges_in_layer` | `layers`, `paths_on_outer_vertices` | Unique. Layer peeling comes from CHILmesh. |
+| 12 | `tri2quad` core | `MutableMesh.merge_elements` | Unique. Wiring `merge_elements` is reserved for `tri2quad(aggressive=)`. |
+| 13 | Post-process topology operations | `MutableMesh.collapse_edge`, `remove_vertex` | Unique. Upstream has no quad-aware equivalent. |
+| 14 | `_merge_tri_pairs_to_quads` (`repair.py`) | `chilmesh.quads_from_tri_pairs` | Partial, `downstream-api`. The local function chooses the pairs greedily and rejects bowtie quads. The upstream function merges pairs that the caller already chose. Needed: a pairing and validity entry point. |
+| 15 | `quadmesh.validation` | none (tracked as issue #142) | Partial, `downstream-api`. Needed: `chilmesh.validate`. |
+| 16 | `scripts/render_quadmesh.py` | `chilmesh.chilplotting` | Partial, `downstream-api`. Mesh drawing can delegate. The diagnostic overlays stay. It is a script outside the package API. |
+| 17 | `tests/_mesh_provision.py`, `scripts/fetch_fixtures.py` | none | Partial, `downstream-api`. The token-based fetch and the SHA-1 check stay. A shared fetch API would remove the local copy. |
+| 18 | ADMESH | `admesh.quad_prep` | No duplicate. QuADMESH does not depend on ADMESH. |

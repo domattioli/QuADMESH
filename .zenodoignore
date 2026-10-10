@@ -3,11 +3,27 @@
 .claude-plugin/
 .introspect/
 .githooks/
+.specify/
 .planning/
 .domi-pin
 .zenodoignore
 .release-ignore.toml
+CLAUDE.md
 AGENTS.md
+CONTEXT.md
+AGENT.md
+CLAUDE.local.md
+GEMINI.md
+.agents/
+.codex/
+.gemini/
+.cursor/
+.cursorrules
+.windsurfrules
+.aider*
+.mcp.json
+.projectmem/
+.github/copilot-instructions.md
 claude_routine_instructions.md
 instructions_on_start.sh
 scripts/hooks/
@@ -19,4 +35,8 @@ specs/
 docs/speckit-*
 archive/
 videos/
+experiments/
+facts.yml
+scripts/onstart_local.sh
 # <<< release-ignore:end
+

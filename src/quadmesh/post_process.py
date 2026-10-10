@@ -41,52 +41,6 @@ def _quad_rows(conn) -> "np.ndarray":
     return np.asarray(rows, dtype=int)
 
 
-def _balendran_smooth(mesh: "CHILmesh") -> "np.ndarray":
-    """Balendran direct FEM smoother matching MATLAB FEMSmooth.m exactly.
-
-    chilmesh direct_smoother is bugged: it applies angle-based cotangent forces
-    (Zhou & Shimada) as RHS, which is inconsistent with the Balendran rotation
-    stiffness matrix K. On large meshes this causes K*x=F to have no geometric
-    meaning, flinging interior nodes hundreds of element-widths.
-
-    MATLAB FEMSmooth.m uses F=0 for interior nodes — K drives equilibrium purely
-    via structural coupling to pinned boundary nodes. This function replicates that.
-
-    See chilmesh issue #173 for details.
-    """
-    import numpy as np
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.linalg import spsolve
-
-    kinf = 1e12
-    p = mesh.points[:, :2].copy()
-    n = mesh.n_verts
-
-    tri_indices, quad_indices = mesh._detect_element_types()
-    if len(quad_indices) == 0:
-        rows, cols, data = mesh._tri_stiffness_assembly(tri_indices, p, n)
-    elif len(tri_indices) == 0:
-        rows, cols, data = mesh._quad_stiffness_assembly(quad_indices, p, n)
-    else:
-        rows, cols, data = mesh._mixed_stiffness_assembly(tri_indices, quad_indices, p, n)
-
-    K = csr_matrix((data, (rows, cols)), shape=(2 * n, 2 * n))
-    F = np.zeros(2 * n)  # zero interior RHS — matches MATLAB FEMSmooth.m
-
-    edge_verts = mesh.edge2vert(mesh.boundary_edges())
-    boundary_nodes = np.unique(edge_verts.flatten())
-    for v in boundary_nodes:
-        v = int(v)
-        F[2 * v : 2 * v + 2] = kinf * p[v]
-        K[2 * v, 2 * v] = kinf
-        K[2 * v + 1, 2 * v + 1] = kinf
-
-    c = spsolve(K, F)
-    new_pts = mesh.points.copy()
-    new_pts[:, :2] = c.reshape(-1, 2)
-    return new_pts
-
-
 def truss_smoother(
     mesh: CHILmesh,
     fh=None,
@@ -272,7 +226,7 @@ def fem_smoother(
     Use method='angle-based' for higher quality at ~1400s/pass (chilmesh is slow).
 
     Note:
-        The 'fem' path (`_balendran_smooth`) is a connectivity-anchored global
+        The 'fem' path (`CHILmesh.direct_smoother`) is a connectivity-anchored global
         equilibrium solve: its stiffness matrix K is built purely from element
         connectivity (constant per-element reference matrices — no node
         positions), and the interior RHS is zero with boundary nodes pinned via
@@ -299,15 +253,15 @@ def fem_smoother(
         before = np.asarray(mesh.points).copy()
         try:
             if method == "fem":
-                new_pts = _balendran_smooth(mesh)
-                mesh.points[:, :2] = new_pts[:, :2]
+                new_pts = mesh.direct_smoother()
+                mesh.points[:, :2] = np.asarray(new_pts)[:, :2]
             else:
                 mesh.smooth_mesh(method=method, acknowledge_change=True)
         except Exception:
             mesh.points[...] = before
             break
         if method == "fem":
-            # #107: _balendran_smooth is a fixed point (position-independent K,
+            # #107: direct_smoother is a fixed point (position-independent K,
             # pinned boundary). Passes 2+ are numerical no-ops — skip them
             # (~n-fold smoothing wall-clock cut, output unchanged to ~5e-12).
             break
@@ -324,7 +278,7 @@ def two_part_smoother(mesh: CHILmesh, n_iter: int = 3, method: str = "fem") -> C
     import warnings
 
     warnings.warn(
-        "two_part_smoother is deprecated; use fem_smoother",
+        "two_part_smoother is deprecated and will be removed in 0.4.0; use fem_smoother",
         DeprecationWarning,
         stacklevel=2,
     )

@@ -20,8 +20,6 @@ import numpy as np
 from chilmesh import CHILmesh
 from chilmesh.layer_paths import paths_on_outer_vertices
 
-from ._topology import ccw_edges_around_vert
-
 
 @dataclass
 class LayerEdgeSelection:
@@ -178,7 +176,7 @@ def identify_edges_in_layer(domain: CHILmesh, layer_idx: int) -> LayerEdgeSelect
             cur_v = int(path_wrap[k])
             nxt_v = int(path_wrap[k + 1])
 
-            ccw = ccw_edges_around_vert(sub_mesh, [cur_v])[0]
+            ccw = np.asarray(sub_mesh.ccw_edges_around_vert(cur_v), dtype=int)
             if ccw.size == 0:
                 continue
 

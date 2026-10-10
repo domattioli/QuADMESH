@@ -9,4 +9,7 @@ exclude = [
     "docs/speckit-*",
     "archive/",
     "videos/",
+    "experiments/",
+    "facts.yml",
+    "scripts/onstart_local.sh",
 ]

@@ -15,7 +15,8 @@ authors = [
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
-    "chilmesh>=1.2.1",
+    "chilmesh>=1.5.0",
+    "matplotlib>=3.6",
 ]
 
 [project.optional-dependencies]
