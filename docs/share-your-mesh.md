@@ -1,6 +1,6 @@
 # Share your mesh
 
-We are building an open collection of ADCIRC fort.14 meshes for testing mesh tools. If you have a mesh you can share, we would be glad to receive it.
+We are building an open collection of ADCIRC fort.14 meshes for testing mesh tools. If you have a mesh you can share, send it.
 
 ## What we accept
 

@@ -1,6 +1,6 @@
 # quadmesh
 
-Tri-to-quad mesh generator. Port of MATLAB QuADMESH+. Build on `chilmesh`.
+Tri-to-quad mesh generator. Port of MATLAB QuADMESH+. Built on `chilmesh`.
 
 ## Pipeline
 
@@ -8,9 +8,9 @@ Tri-to-quad mesh generator. Port of MATLAB QuADMESH+. Build on `chilmesh`.
 tri -> create_quad_domain -> tri2quad -> post_process -> quad
 ```
 
-1. `create_quad_domain` — pick tris (whole mesh or polygon mask).
-2. `tri2quad` — sweep layers outward, merge tri pairs into quads.
-3. `post_process` — doublet collapse, quad-vert merge, boundary cleanup, smooth.
+1. `create_quad_domain`: pick tris (whole mesh or polygon mask).
+2. `tri2quad`: sweep layers outward, merge tri pairs into quads.
+3. `post_process`: doublet collapse, quad-vert merge, boundary cleanup, smooth.
 
 ## Install
 
@@ -40,7 +40,7 @@ quadmesh mesh.14 -o out.14 --no-post-process
 
 ## v0.2 new
 
-- `CleanupBoundaryQuads` shift mode (`can_remove_edges=False`). Move corner inward. Before: no-op. Now: work.
+- `CleanupBoundaryQuads` shift mode (`can_remove_edges=False`). It moves a corner inward.
 - `fem_smoother`. FEM direct-solve smoother, n_iter passes. Port of the FEM half of MATLAB `twoPartSmoother.m` (MCSmooth half not ported).
 - 25+ tests.
 

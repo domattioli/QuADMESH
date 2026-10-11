@@ -51,9 +51,9 @@
 
 The default `method="quadmesh+"` runs the thesis per-layer sweep and leaves zero interior residual triangles; CI checks this on the meshes bundled with `chilmesh.data`. Algorithm and MATLAB parity status: [`docs/algorithm.md`](docs/algorithm.md).
 
-- **Now:** boundary-layer walkability and post-process quality tuning.
-- **Next:** pre- and post-processing quality work; performance; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
-- **Future:** formal integration within a unified ecosystem including <a href="https://github.com/domattioli/ADMESH"><img src="https://img.shields.io/pypi/v/admesh2D?label=ADMESH&color=9ae6b4&labelColor=2f855a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMiAyMSBMMTIgMiBMMjIgMjEgWiBNMTIgMiBMNyAyMSBNMTIgMiBMMTcgMjEgTTcgMjEgTDEyIDEyIEwxNyAyMSBNMTIgMTIgTDEyIDIiLz48L3N2Zz4=" alt="ADMESH PyPI version"></a> and <a href="https://github.com/domattioli/CHILmesh"><img src="https://img.shields.io/pypi/v/chilmesh?label=CHILmesh&color=caf0f8&labelColor=0077b6&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMSA4IHEzIC00IDYgMCB0NiAwIHQ2IDAgdDYgMCBNMSAxMyBxMyAtNCA2IDAgdDYgMCB0NiAwIHQ2IDAgTTEgMTggcTMgLTQgNiAwIHQ2IDAgdDYgMCB0NiAwIi8%2BPC9zdmc%2B" alt="CHILmesh PyPI version"></a>
+- Now: boundary-layer walkability and post-process quality tuning.
+- Next: pre- and post-processing quality work; performance; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
+- Future: formal integration within a unified ecosystem including <a href="https://github.com/domattioli/ADMESH"><img src="https://img.shields.io/pypi/v/admesh2D?label=ADMESH&color=9ae6b4&labelColor=2f855a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMiAyMSBMMTIgMiBMMjIgMjEgWiBNMTIgMiBMNyAyMSBNMTIgMiBMMTcgMjEgTTcgMjEgTDEyIDEyIEwxNyAyMSBNMTIgMTIgTDEyIDIiLz48L3N2Zz4=" alt="ADMESH PyPI version"></a> and <a href="https://github.com/domattioli/CHILmesh"><img src="https://img.shields.io/pypi/v/chilmesh?label=CHILmesh&color=caf0f8&labelColor=0077b6&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMSA4IHEzIC00IDYgMCB0NiAwIHQ2IDAgdDYgMCBNMSAxMyBxMyAtNCA2IDAgdDYgMCB0NiAwIHQ2IDAgTTEgMTggcTMgLTQgNiAwIHQ2IDAgdDYgMCB0NiAwIi8%2BPC9zdmc%2B" alt="CHILmesh PyPI version"></a>
 
 Headline result: on ENPAC2003 (531,680 triangles), QuADMESH 0.1.0 with chilmesh 1.0.0 produced 274,321 quads with zero interior residual triangles in 773 s, single-threaded. Details: [docs/benchmarks](docs/benchmarks/README.md).
 
@@ -67,7 +67,7 @@ pip install -e ".[dev]"             # from a clone, plus pytest
 pip install -e ".[plot]"            # plus matplotlib for quality plots
 ```
 
-`chilmesh` is an external dependency, not vendored. Mesh-dependent tests need a Valence token; see [tests/fixtures/README.md](tests/fixtures/README.md).
+`chilmesh` is an external dependency and is not vendored. Mesh-dependent tests need a Valence token; see [tests/fixtures/README.md](tests/fixtures/README.md).
 
 [Back to top](#table-of-contents)
 
@@ -128,8 +128,8 @@ The DOI resolves to the latest release; version DOIs are on the [Zenodo record](
 
 ## 8. Related Projects
 
-- **[ADMESH](https://github.com/domattioli/ADMESH)**: Python port of the ADMESH adaptive mesh generator.
-- **[CHILmesh](https://github.com/domattioli/CHILmesh)**: mesh data structure, smoother, and quality analysis.
+- [ADMESH](https://github.com/domattioli/ADMESH): Python port of the ADMESH adaptive mesh generator.
+- [CHILmesh](https://github.com/domattioli/CHILmesh): mesh data structure, smoother, and quality analysis.
 
 [Back to top](#table-of-contents)
 
@@ -137,13 +137,13 @@ The DOI resolves to the latest release; version DOIs are on the [Zenodo record](
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). To share a mesh, open an issue in this repository (https://github.com/domattioli/quadmesh/issues/new).
 
-**Dominik Mattioli** (repo owner): [GitHub](https://github.com/domattioli) | **Ethan J. Kubatko**: [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
+Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J. Kubatko: [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
 
 [Back to top](#table-of-contents)
 
 ## 10. License
 
-**Noncommercial / research use only.** PolyForm Noncommercial License 1.0.0 **with an additional No-AI/ML-training restriction**; see [LICENSE](LICENSE) and [AI-USAGE.md](https://github.com/domattioli/quadmesh/blob/development/docs/AI-USAGE.md).
+Noncommercial and research use only. PolyForm Noncommercial License 1.0.0 with an additional No-AI/ML-training restriction; see [LICENSE](LICENSE) and [AI-USAGE.md](https://github.com/domattioli/quadmesh/blob/development/docs/AI-USAGE.md).
 
 Commercial or AI-training licenses: contact domattioli via mango-kooky-okay@duck.com
 
