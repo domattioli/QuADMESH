@@ -21,8 +21,7 @@ tests/                pytest suite (~169 tests)
   └── README.md
 
 docs/                 Project documentation
-  ├── MAPPING.md      MATLAB → Python function map
-  └── sessions/       Per-session development notes
+  └── MAPPING.md      MATLAB → Python function map
 
 DomI/specs/consumers/quadmesh/specs/       Feature specifications (speckit)
   ├── 001-matlab-to-python-port/
@@ -105,8 +104,7 @@ CI runs on every PR (currently: linting, tests on Python 3.10+).
 
 ## When in doubt
 
-[`AGENTS.md`](AGENTS.md) contains operational guidance. Historical session notes
-are under [`docs/sessions/`](docs/sessions/).
+[`AGENTS.md`](AGENTS.md) contains operational guidance.
 [`docs/MAPPING.md`](docs/MAPPING.md) maps MATLAB functions to their Python
 equivalents. Open issues track every live backlog item.
 
