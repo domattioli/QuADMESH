@@ -115,18 +115,19 @@ See [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function corresponde
 
 The Valence registry serves test meshes over HTTPS. Access needs a token.
 
-1. Open `<API URL>/auth/github` and sign in with GitHub.
+1. Open `https://valence-api.iqh766c2.workers.dev/auth/github` and sign in with GitHub.
 2. The operator approves each request by hand.
 3. After approval, sign in again. The page shows the token once. Copy it then.
 
 A token expires after one year. The limit is 120 requests per minute for each token.
 
-Set two environment variables:
+Set the token:
 
 ```bash
 export VALENCE_TOKEN=<token>
-export VALENCE_API_URL=<API URL>
 ```
+
+The client uses `https://valence-api.iqh766c2.workers.dev` by default. Set `VALENCE_API_URL` only to point at a different deployment. The default needs a chilmesh release that includes it; with an older chilmesh, also set `VALENCE_API_URL`.
 
 Convert a registry mesh from the command line:
 

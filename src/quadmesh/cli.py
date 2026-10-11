@@ -33,8 +33,8 @@ def main(argv=None) -> int:
                          help="Input fort.14 path.")
     parser.add_argument("--from-registry", metavar="NAME", default=None,
                          help="Fetch mesh NAME from the Valence registry "
-                              "instead of reading a file (needs VALENCE_TOKEN "
-                              "and VALENCE_API_URL).")
+                              "instead of reading a file (needs VALENCE_TOKEN; "
+                              "VALENCE_API_URL optionally overrides the API).")
     parser.add_argument("-o", "--output", type=Path, required=True,
                          help="Output fort.14 path.")
     parser.add_argument("--polygon", type=Path, default=None,
