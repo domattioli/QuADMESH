@@ -9,4 +9,4 @@ videos/             demo assets (quadmesh_logo.gif, render scripts)
 archive/matlab/     frozen MATLAB QuADMESH+ original (read-only, not installable)
 ```
 
-`chilmesh` is an external dependency (`chilmesh>=1.2.1`), not vendored. Regenerate the logo GIF with `python videos/scripts/render_logo_gif.py`.
+`chilmesh` is an external dependency, not vendored. Regenerate the logo GIF with `python videos/scripts/render_logo_gif.py`.

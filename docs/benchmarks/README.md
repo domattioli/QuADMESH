@@ -18,7 +18,7 @@ Single run, single thread, measured at QuADMESH 0.1.0 with the `chilmesh` 1.0.0 
 | `post_process_routine` (collapse + cleanup + FEM smooth) | 537.6 | 69.5% |
 | **Total** | **773.3** | **100%** |
 
-> **Note (post-0.1.0):** this breakdown was measured before the `fem_smoother` short-circuit (#107). The `method="fem"` smoothing path is a connectivity-anchored equilibrium solve: a single pass reaches equilibrium and further passes are numerical no-ops, so it now returns after one pass instead of the former default of three, cutting the FEM-smoothing component of `post_process_routine` roughly *n*-fold. The 69.5% post-process share above therefore overstates the current cost; a separate benchmark on the 246k-triangle `WNAT_Onur` mesh puts smoothing at ~12% of wall-clock rather than the ~70% seen here. These figures will be re-measured on `ENPAC2003` at the next release benchmark.
+> Note: this breakdown predates the `fem_smoother` short-circuit (#107). The `method="fem"` smoothing path is a connectivity-anchored equilibrium solve. One pass reaches equilibrium, so the smoother returns after one pass. The 69.5% post-process share above overstates the current cost. A separate benchmark on the 246k-triangle `WNAT_Onur` mesh puts smoothing at about 12% of wall-clock. The next release benchmark re-measures `ENPAC2003`.
 
 ### Element quality
 
@@ -36,7 +36,7 @@ Skew quality on the unit interval (1 = an ideal square; the `chilmesh` `element_
 | Std. dev. | 0.081 | 0.241 |
 | Fraction below 0.30 | 0.0% | 7.6% |
 
-Recombining two triangles into one quadrilateral trades a measurable amount of per-element quality (mean skew 0.875 → 0.722) for the element-count halving and the all-quad topology. The sub-0.30 tail is **7.6%** of elements and is **near-exclusively a boundary-layer artifact**: skeletonization layer 0 — the boundary band — carries 20,888 of the 20,918 low-quality quads at a 20.5% bad-rate and a mean skew of 0.552, while every interior layer (1 and inward) holds at mean skew ≥ 0.80, rising monotonically to 0.967 at the innermost layer. Of the low-quality quads, 93.0% touch the domain boundary along **two or more edges** — the near-degenerate boundary-following quads that the FEM smoother cannot relax because their nodes are pinned to the boundary. The Gulf of California subset below shows the regular interior quads against this thin boundary band:
+Recombining two triangles into one quadrilateral trades a measurable amount of per-element quality (mean skew 0.875 → 0.722) for the element-count halving and the all-quad topology. The sub-0.30 tail is **7.6%** of elements and is almost entirely a boundary-layer artifact: skeletonization layer 0 (the boundary band) carries 20,888 of the 20,918 low-quality quads at a 20.5% bad-rate and a mean skew of 0.552, while every interior layer (1 and inward) holds at mean skew ≥ 0.80, rising monotonically to 0.967 at the innermost layer. Of the low-quality quads, 93.0% touch the domain boundary along **two or more edges**. These are the near-degenerate boundary-following quads that the FEM smoother cannot relax because their nodes are pinned to the boundary. The Gulf of California subset below shows the regular interior quads against this thin boundary band:
 
 <p align="center">
   <img src="../assets/enpac_gulf_california.png" alt="QuADMESH+ output over the Gulf of California subset of ENPAC2003" width="640"><br>
