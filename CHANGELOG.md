@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - Unreleased
+## [0.2.5] - Unreleased
 
 Documentation and metadata release, with one algorithm fix: the boundary layer is now routed as the thesis specifies.
 
@@ -22,10 +22,10 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 
 ### Changed
 - Test fixtures now come from the Valence API through `chilmesh.registry` (`VALENCE_TOKEN`), pinned by SHA-256. The GitHub contents fetcher, the `GITHUB_TOKEN` path and the git-blob pins are removed. `Mixed_Test.14` left the registry (Valence#347), so its tests skip.
-- Dependency pin raised to `chilmesh>=1.6.0`. chilmesh 1.6.0 must be on PyPI before this quadmesh release; until then local installs need the editable CHILmesh checkout (`QUADMESH_CHILMESH_SRC`).
+- Dependency pin raised to `chilmesh>=1.5.5`. chilmesh 1.5.5 must be on PyPI before this quadmesh release; until then local installs need the editable CHILmesh checkout (`QUADMESH_CHILMESH_SRC`).
 - README opening states what the conversion keeps and adds, and links to `docs/algorithm.md`. The status banner no longer carries a month stamp.
 - `CITATION.cff` and `README.md` cite the Zenodo concept DOI `10.5281/zenodo.20350483` in place of the version DOI `10.5281/zenodo.20351165`.
-- Version is 0.3.0 in `pyproject.toml`, `src/quadmesh/__init__.py`, and `CITATION.cff`.
+- Version is 0.2.5 in `pyproject.toml`, `src/quadmesh/__init__.py`, and `CITATION.cff`.
 - `scripts/dev_setup.sh` installs chilmesh from PyPI by default. Set `QUADMESH_CHILMESH_SRC=<path>` to editable-install a local CHILmesh checkout instead.
 
 ### Fixed
@@ -38,7 +38,7 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 
 ## [0.2.1] — 2026-07-13
 
-Never tagged or published. Its changes ship in 0.3.0.
+Never tagged or published. Its changes ship in 0.2.5.
 
 ### Fixed
 - Faithfulness invariant RED→GREEN: reject near-flat pairing merges in the `quadmesh+` per-layer loop, so a merge whose result has a corner ≥ 177° is skipped rather than emitting a degenerate quad — interior geometric triangles now 0 across all fixtures (#108).

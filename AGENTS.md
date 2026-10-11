@@ -29,7 +29,7 @@ python -m quadmesh.cli input.14 -o output.14
 VALENCE_TOKEN=<token> python scripts/fetch_fixtures.py
 ```
 
-`scripts/dev_setup.sh` creates `.venv` and installs `quadmesh[dev]`, which pulls `chilmesh>=1.6.0` from PyPI. To develop against a local CHILmesh checkout, set `QUADMESH_CHILMESH_SRC=<path>` (for example `../CHILmesh`); the script then editable-installs that checkout. This override is optional.
+`scripts/dev_setup.sh` creates `.venv` and installs `quadmesh[dev]`, which pulls `chilmesh>=1.5.5` from PyPI. To develop against a local CHILmesh checkout, set `QUADMESH_CHILMESH_SRC=<path>` (for example `../CHILmesh`); the script then editable-installs that checkout. This override is optional.
 
 ## Testing and data
 

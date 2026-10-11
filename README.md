@@ -49,7 +49,7 @@
 
 ## Status & Roadmap
 
-**Status (0.3.0): work in progress, mostly functional.** The default `method="quadmesh+"` runs the thesis per-layer sweep: innermost layer first, inner elements before outer elements, with flagged (fold-seam) edges excluded. It leaves **zero interior residual triangles**; CI checks this faithfulness invariant offline on the meshes bundled with `chilmesh.data`. Mean element quality after post-processing is lowest in the boundary layer (see [Element quality](#element-quality)). The algorithm, the experimental fallback for layerless meshes, and MATLAB parity status are in [`docs/algorithm.md`](docs/algorithm.md).
+**Status (0.2.5): work in progress, mostly functional.** The default `method="quadmesh+"` runs the thesis per-layer sweep: innermost layer first, inner elements before outer elements, with flagged (fold-seam) edges excluded. It leaves **zero interior residual triangles**; CI checks this faithfulness invariant offline on the meshes bundled with `chilmesh.data`. Mean element quality after post-processing is lowest in the boundary layer (see [Element quality](#element-quality)). The algorithm, the experimental fallback for layerless meshes, and MATLAB parity status are in [`docs/algorithm.md`](docs/algorithm.md).
 
 - **Now:** boundary-layer walkability and post-process quality tuning. (The isolated-triangle edge-swap fixup is confirmed a no-op on all offline-testable meshes; its deprecation is under review.)
 - **Next:** enhanced pre- and post-processing for quality improvement; performance optimization; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
