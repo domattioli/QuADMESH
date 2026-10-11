@@ -88,6 +88,7 @@ def test_run_pipeline_signature():
         "truss_smooth",
         "truss_fh",
         "refuse_boundary_merge",
+        "preserve_boundary",
     ]
     assert param_list == expected_params, (
         f"run_pipeline params in wrong order. Expected {expected_params}, got {param_list}"

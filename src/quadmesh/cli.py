@@ -48,6 +48,10 @@ def main(argv=None) -> int:
                         help="#98 option A: emit 2-3-boundary-edge leftover tris "
                              "as boundary triangles instead of degenerate quads "
                              "(mixed tri/quad output).")
+    parser.add_argument("--preserve-boundary", action="store_true",
+                        help="Keep every input boundary vertex: skip cleanup "
+                             "collapses and shifts that would delete or move one "
+                             "(default: MATLAB-faithful, may drop them).")
     args = parser.parse_args(argv)
 
     if not args.input.exists():
@@ -67,6 +71,7 @@ def main(argv=None) -> int:
         max_outer_iter=args.max_outer_iter,
         max_inner_iter=args.max_inner_iter,
         refuse_boundary_merge=args.refuse_boundary_merge,
+        preserve_boundary=args.preserve_boundary,
     )
 
     stats = compute_quality_stats(out)

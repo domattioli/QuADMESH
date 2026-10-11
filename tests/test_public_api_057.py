@@ -12,7 +12,7 @@ import quadmesh
 
 SNAPSHOT = {
     'tri2quad': "(domain: 'CHILmesh', can_remove_edges: 'bool' = True, parent: 'Optional[CHILmesh]' = None, aggressive: 'bool' = False, remove_boundary_tris: 'bool' = True, method: 'str' = 'quadmesh+', minimize_boundary_change: 'Optional[bool]' = None, point_insert: 'bool' = True, refuse_boundary_merge: 'bool' = False) -> 'CHILmesh'",
-    'post_process': "(mesh: 'CHILmesh', can_remove_edges: 'bool' = True, n_smooth_iter: 'int' = 3, max_outer_iter: 'int' = 5, max_inner_iter: 'int' = 5, repair: 'bool' = False, truss_smooth: 'bool' = False, truss_fh=None) -> 'CHILmesh'",
+    'post_process': "(mesh: 'CHILmesh', can_remove_edges: 'bool' = True, n_smooth_iter: 'int' = 3, max_outer_iter: 'int' = 5, max_inner_iter: 'int' = 5, repair: 'bool' = False, truss_smooth: 'bool' = False, truss_fh=None, preserve_boundary: 'bool' = False, protected_points=None) -> 'CHILmesh'",
     'fem_smoother': "(mesh: 'CHILmesh', n_iter: 'int' = 3, method: 'str' = 'fem') -> 'CHILmesh'",
     'compute_quality_stats': "(mesh: 'CHILmesh') -> 'dict'",
     'format_quality_report': "(stats: 'dict') -> 'str'",
@@ -20,7 +20,7 @@ SNAPSHOT = {
     'repair_chilmesh': '(mesh: "\'CHILmesh\'") -> "\'CHILmesh\'"',
     '__version__': None,
     'create_quad_domain': "(mesh: 'CHILmesh', polygon: 'Optional[PolygonInput]' = None) -> 'CHILmesh'",
-    'run_pipeline': "(mesh: 'CHILmesh', polygon: 'Optional[np.ndarray]' = None, can_remove_edges: 'bool' = True, n_smooth_iter: 'int' = 3, do_post_process: 'bool' = True, max_outer_iter: 'int' = 5, max_inner_iter: 'int' = 5, method: 'str' = 'quadmesh+', truss_smooth: 'bool' = False, truss_fh=None, refuse_boundary_merge: 'bool' = False) -> 'CHILmesh'",
+    'run_pipeline': "(mesh: 'CHILmesh', polygon: 'Optional[np.ndarray]' = None, can_remove_edges: 'bool' = True, n_smooth_iter: 'int' = 3, do_post_process: 'bool' = True, max_outer_iter: 'int' = 5, max_inner_iter: 'int' = 5, method: 'str' = 'quadmesh+', truss_smooth: 'bool' = False, truss_fh=None, refuse_boundary_merge: 'bool' = False, preserve_boundary: 'bool' = False) -> 'CHILmesh'",
 }
 
 

@@ -18,6 +18,7 @@
 - Leaves zero interior residual triangles (triangles with no domain-boundary edge), checked by `tests/test_no_interior_tris.py`.
 - Adds points only to clear leftover boundary triangles; this step is on by default and `point_insert=False` turns it off.
 - Returns a quad-pure mesh by default; `remove_boundary_tris=False` keeps leftover boundary triangles instead.
+- Keeps every input boundary vertex through tri-to-quad conversion. The default post-process may drop some by collapsing boundary quads, as the MATLAB code does. `preserve_boundary=True` (CLI: `--preserve-boundary`) keeps all of them.
 
 > **Attention MATLAB users:** This Python library is the actively-developed successor to the original MATLAB codebase. The original code (no longer maintained) is frozen under [`archive/matlab/quadmesh`](https://github.com/domattioli/QuADMESH/tree/main/archive/matlab/quadmesh).
 
@@ -104,7 +105,7 @@ Convert a triangular `fort.14` mesh to quad-dominant with the default QuADMESH+ 
 python -m quadmesh.cli input.14 -o output.14
 ```
 
-Useful flags: `--polygon domain.poly` (supply the domain boundary), `--no-post-process` (skip the quality smoother), `--n-smooth-iter N` (smoother iterations). Run `python -m quadmesh.cli --help` for the full list.
+Useful flags: `--polygon domain.poly` (supply the domain boundary), `--no-post-process` (skip the quality smoother), `--n-smooth-iter N` (smoother iterations), `--preserve-boundary` (keep every input boundary vertex). Run `python -m quadmesh.cli --help` for the full list.
 
 See [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function correspondence and current port status.
 

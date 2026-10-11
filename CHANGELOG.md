@@ -13,6 +13,8 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 - `tests/test_release_metadata.py`: guard test that fails when `CITATION.cff` or `README.md` names a DOI other than the Zenodo concept DOI `10.5281/zenodo.20350483`.
 - Ethan J. Kubatko (Ohio State University) as second author in `CITATION.cff`.
 
+- `preserve_boundary` option (default `False`) on `run_pipeline` and `post_process_routine`, plus `protected_points` on `post_process_routine` and `cleanup_boundary_quads`, and the CLI flag `--preserve-boundary`. With it on, boundary-quad cleanup skips any collapse that would delete an original boundary vertex and any shift that would move one. On the four bundled meshes this changes vertices lost from 12, 18, 4 and 2 to 0, at a cost of 1 to 9 extra elements and 0.001 to 0.011 mean skew. The default stays MATLAB-faithful.
+
 ### Changed
 - README opening states what the conversion keeps and adds, and links to `docs/algorithm.md`. The status banner no longer carries a month stamp.
 - `CITATION.cff` and `README.md` cite the Zenodo concept DOI `10.5281/zenodo.20350483` in place of the version DOI `10.5281/zenodo.20351165`.
@@ -21,7 +23,7 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 
 ### Fixed
 - The per-layer sweep flagged the innermost layer (`n_layers - 1`) as the boundary layer. It now flags layer 0, which is the boundary layer in `chilmesh` and in `removeTrianglesFun.m`. Output keeps zero interior residual triangles, is quad-pure by default, and keeps every original boundary vertex. Mean skew on the bundled `structuredMesh1` changes from 0.696 to 0.647, and the expected values in the quality tests were updated (spec 059).
-- `fem_smoother` now restores the exact coordinates of every boundary vertex after each pass. `CHILmesh.direct_smoother` pins the boundary with a penalty and left up to 2e-10 of drift (no fixed-vertices argument exists). `tests/test_boundary_pinned_smoothing.py` covers all bundled triangular meshes. Known open item: `run_pipeline` still drops original boundary vertices on the bundled meshes because `cleanup_boundary_quads` collapses boundary quads, not because of smoothing.
+- `fem_smoother` now restores the exact coordinates of every boundary vertex after each pass. `CHILmesh.direct_smoother` pins the boundary with a penalty and left up to 2e-10 of drift (no fixed-vertices argument exists). `tests/test_boundary_pinned_smoothing.py` covers all bundled triangular meshes. By default `run_pipeline` can still drop original boundary vertices, because `cleanup_boundary_quads` collapses boundary quads as the MATLAB code does; smoothing does not cause it. Pass `preserve_boundary=True` (CLI: `--preserve-boundary`) to keep all of them.
 - `AGENTS.md` and `scripts/dev_setup.sh` stated that chilmesh is not on PyPI. It is (`chilmesh>=1.2.1`).
 
 ### Removed

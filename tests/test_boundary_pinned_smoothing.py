@@ -59,17 +59,46 @@ def test_boundary_coords_identical_across_smoothing(name, smoother):
     assert np.array_equal(out.points[idx, :2], before)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="cleanup_boundary_quads (collapse mode) deletes boundary quads and "
-    "remaps boundary vertices; not a smoother. Open item, see CHANGELOG.",
-)
-@pytest.mark.parametrize("name", NAMES)
-def test_run_pipeline_keeps_original_boundary_vertices(name):
-    m = _load(name)
-    p = m.points[:, :2].copy()
+def _lost(m, q):
+    p = m.points[:, :2]
     b = p[_bidx(m)]
     tol = 1e-9 * np.linalg.norm(p.max(0) - p.min(0))
-    q = run_pipeline(m)
     d, _ = cKDTree(q.points[:, :2]).query(b)
-    assert int((d > tol).sum()) == 0
+    return int((d > tol).sum())
+
+
+def _interior_tris(q):
+    """Triangles (padded rows) with no boundary edge."""
+    bdy = set(int(e) for e in q.boundary_edges())
+    n = 0
+    for e, row in enumerate(q.connectivity_list):
+        if int(row[2]) == int(row[3]):
+            if not any(int(x) in bdy for x in q.elem2edge(e).ravel()):
+                n += 1
+    return n
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_preserve_boundary_keeps_original_vertices(name):
+    m = _load(name)
+    q = run_pipeline(m, preserve_boundary=True)
+    assert _lost(m, q) == 0
+    assert _interior_tris(q) == 0
+
+
+# Default is MATLAB-faithful: cleanup_boundary_quads may drop boundary vertices.
+# Measured counts on the bundled meshes; update if cleanup behavior changes.
+DEFAULT_LOST = {
+    "Block_O.14": 12,
+    "annulus_200pts.fort.14": 18,
+    "donut_domain.fort.14": 4,
+    "structuredMesh1.14": 2,
+}
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_default_pipeline_loss_is_documented(name):
+    m = _load(name)
+    q = run_pipeline(m)
+    assert _lost(m, q) == DEFAULT_LOST[name]
+    assert _interior_tris(q) == 0

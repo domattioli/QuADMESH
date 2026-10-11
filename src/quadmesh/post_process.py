@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from chilmesh import CHILmesh
 
-from .cleanup_boundary_quads import cleanup_boundary_quads
+from .cleanup_boundary_quads import boundary_points, cleanup_boundary_quads
 from .doublet_collapse import _is_quad_row, doublet_collapse
 from .quad_vertex_merge import quad_vertex_merge
 from .remove_unused import remove_unused_vertices
@@ -302,6 +302,8 @@ def post_process_routine(
     repair: bool = False,
     truss_smooth: bool = False,
     truss_fh=None,
+    preserve_boundary: bool = False,
+    protected_points=None,
 ) -> CHILmesh:
     """Iteratively improve quad-mesh quality.
 
@@ -318,7 +320,18 @@ def post_process_routine(
             ``repair_chilmesh`` directly after this routine.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
+        preserve_boundary: If True, keep every original boundary vertex.
+            Boundary-quad cleanup skips any collapse or shift that would
+            delete or move one. Default False (MATLAB-faithful: cleanup may
+            drop boundary vertices).
+        protected_points: (n, 2) coordinates to keep when
+            ``preserve_boundary`` is True. Default None: use the boundary
+            of ``mesh`` as passed in.
     """
+    if preserve_boundary and protected_points is None:
+        protected_points = boundary_points(mesh)
+    if not preserve_boundary:
+        protected_points = None
     outer = 0
     n_elems_prev = mesh.n_elems
     while outer < max_outer_iter:
@@ -333,7 +346,10 @@ def post_process_routine(
                 break
 
         if getattr(mesh, "type", None) != "Mixed-Element":
-            mesh = cleanup_boundary_quads(mesh, can_remove_edges=can_remove_edges)
+            mesh = cleanup_boundary_quads(
+                mesh, can_remove_edges=can_remove_edges,
+                protected_points=protected_points,
+            )
 
         if mesh.n_elems >= n_elems_prev:
             break

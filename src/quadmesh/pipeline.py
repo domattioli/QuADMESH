@@ -25,6 +25,7 @@ def run_pipeline(
     truss_smooth: bool = False,
     truss_fh=None,
     refuse_boundary_merge: bool = False,
+    preserve_boundary: bool = False,
 ) -> CHILmesh:
     """Full create_quad_domain → tri2quad → post_process sweep.
 
@@ -44,10 +45,17 @@ def run_pipeline(
         refuse_boundary_merge: pass-through to tri2quad_routine (#98 option A,
             default OFF). Emit 2-3-boundary-edge leftover tris as boundary
             triangles instead of degenerate quads.
+        preserve_boundary: If True, keep every boundary vertex of the input
+            mesh. Boundary-quad cleanup skips collapses and shifts that would
+            delete or move one. Default False (MATLAB-faithful).
 
     Returns:
         Final quad CHILmesh.
     """
+    protected = None
+    if preserve_boundary:
+        from .cleanup_boundary_quads import boundary_points
+        protected = boundary_points(mesh)
     domain = create_quad_domain(mesh, polygon=polygon)
     quad = tri2quad_routine(
         domain, can_remove_edges=can_remove_edges, parent=mesh, method=method,
@@ -62,5 +70,7 @@ def run_pipeline(
             max_inner_iter=max_inner_iter,
             truss_smooth=truss_smooth,
             truss_fh=truss_fh,
+            preserve_boundary=preserve_boundary,
+            protected_points=protected,
         )
     return quad

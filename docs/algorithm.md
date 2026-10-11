@@ -121,6 +121,9 @@ Point insertion runs only on the `"layered"` path and only on triangles that are
 | Boundary-layer index | the boundary layer is matched last, OE before IE; `removeTrianglesFun.m:12` tests `iLayer == 1` | layer 0 is the boundary layer for the matcher, leftover routing and `_layer_priority` | `tri2quad.py:668`, `:926`, `:949` | same |
 | Boundary-edge collapse in the boundary layer | `edgeRemoval` when `canRemoveEdges` is true | edge bisection, so that every original boundary vertex is kept | `_tri_removal.py:378-385` | differs |
 | Lone boundary triangles | add a boundary point (IE) or collapse an edge (OE) | interior point insertion, on by default | `tri2quad.py:529`, `:1118` | differs |
+| Boundary-quad cleanup (`cleanup_boundary_quads`) | collapses a quad whose boundary corner angle exceeds 134 degrees; may delete boundary vertices | same by default; `preserve_boundary=True` skips any collapse or shift that would delete or move an original boundary vertex | `cleanup_boundary_quads.py` | same by default |
+
+Post-processing can drop original boundary vertices by default. The boundary-quad cleanup collapses side vertices into the corner, as the MATLAB code does. On the bundled meshes `run_pipeline` loses 12 (`Block_O`), 18 (`annulus_200pts`), 4 (`donut_domain`) and 2 (`structuredMesh1`). Set `preserve_boundary=True` (CLI: `--preserve-boundary`) to skip those collapses. The run then loses none, keeps zero interior residual triangles, and returns a few more elements (1 to 9) with slightly lower mean skew.
 
 ## 5. Experimental fallback: layer-priority global matching
 
