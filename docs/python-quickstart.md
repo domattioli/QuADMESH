@@ -51,7 +51,7 @@ quadmesh mesh.14 -o out.14 --no-post-process
 | Test_Case_1 | 2417 | 7 | <1 s |
 | Block_O | 5214 | 9 | ~1.2 s |
 
-## Provenance
+## Source information
 
 MAT src: `../02_QuADMESH_Library/`. Map: `MAPPING.md`. Spec: `../specs/001-matlab-to-python-port/`.
 

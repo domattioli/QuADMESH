@@ -3,8 +3,7 @@
 Thanks for your interest in QuADMESH, a Python port of the MATLAB QuADMESH+
 algorithm for triangular-to-quadrilateral mesh conversion. This is the
 **canonical** contributor guide (day-to-day mechanics). Authoritative project
-rules live in [`AGENTS.md`](AGENTS.md); project governance lives in
-[`DomI/specs/consumers/quadmesh/memory/constitution.md`](https://github.com/domattioli/DomI/tree/development/specs/consumers/quadmesh/memory/constitution.md) (if present).
+rules live in [`AGENTS.md`](AGENTS.md); the project constitution is maintained privately by the maintainer.
 
 ## Repo shape
 
@@ -59,7 +58,7 @@ pytest tests/test_cli.py -v      # Single test file
 ```
 
 **Note on test fixtures:** Test mesh files (`.14` format) are not vendored.
-They are provisioned on-demand from the `domattioli/Valence` registry into
+They are provisioned on-demand through Valence into
 gitignored `tests/fixtures/meshes/`. To enable mesh-dependent tests, set:
 
 ```bash
@@ -112,6 +111,4 @@ equivalents. Open issues track every live backlog item.
 
 ## Share your mesh
 
-<!-- TODO: the valence-intake repo does not exist yet. Update the link below once it does. -->
-
-Meshes are a useful contribution. If you have a fort.14 mesh you can share, please submit it through the [share-mesh form](https://github.com/domattioli/valence-intake/issues/new?template=share-mesh.yml). Choose a license, name the generator, and describe the region and resolution. See [docs/share-your-mesh.md](docs/share-your-mesh.md) for details.
+Meshes are a useful contribution. If you have a fort.14 mesh you can share, please open an issue in this repository (https://github.com/domattioli/quadmesh/issues/new). Choose a license, name the generator, and describe the region and resolution. See [docs/share-your-mesh.md](docs/share-your-mesh.md) for details.

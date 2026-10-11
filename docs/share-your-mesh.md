@@ -1,7 +1,5 @@
 # Share your mesh
 
-<!-- TODO: the valence-intake repo does not exist yet. Update the link below once it does. -->
-
 We are building an open collection of ADCIRC fort.14 meshes for testing mesh tools. If you have a mesh you can share, we would be glad to receive it.
 
 ## What we accept
@@ -12,7 +10,7 @@ We are building an open collection of ADCIRC fort.14 meshes for testing mesh too
 
 ## What to send
 
-Open the [share-mesh form](https://github.com/domattioli/valence-intake/issues/new?template=share-mesh.yml) and fill in these fields.
+Open an issue in this repository (https://github.com/domattioli/quadmesh/issues/new) and include these fields.
 
 1. The .14 file. Drag it into the upload box.
 2. A license: CC-BY-4.0, CC0-1.0, ODbL-1.0, or other.

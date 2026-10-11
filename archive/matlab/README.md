@@ -9,7 +9,7 @@ To run the MATLAB code, check out a pre-reorg commit (before the `003-root-reorg
 change) where the original `0X_*` directory layout is intact.
 
 For the maintained, runnable implementation, use the Python port in
-[`../src/quadmesh/`](../src/quadmesh/).
+[`../../src/quadmesh/`](../../src/quadmesh/).
 
 ## Contents
 

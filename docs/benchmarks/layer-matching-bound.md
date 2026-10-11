@@ -190,7 +190,7 @@ python experiments/layer_matching_bound/bound.py \
     "$(python -c 'import os,chilmesh;print(os.path.dirname(chilmesh.__file__))')/data/Block_O.14"
 # real meshes (from a Valence checkout):
 python experiments/layer_matching_bound/bound.py \
-    /path/to/Valence/registry_data/meshes/WNAT_Hagen.14 --json out.json
+    /path/to/meshes/WNAT_Hagen.14 --json out.json
 ```
 
 WNAT_Hagen (98k elems, 30 layers) runs in a few minutes; the largest layer's
