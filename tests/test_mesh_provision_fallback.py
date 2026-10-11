@@ -76,3 +76,10 @@ def test_no_fetch_env_uses_bundled_even_with_token(tmp_path, monkeypatch):
     monkeypatch.setattr(_mp, "registry", _Client(error=AssertionError("network used")))
     monkeypatch.setattr(_mp, "_chilmesh_data_bytes", lambda _: DATA)
     assert _mp.provision(names=[NAME], dest=tmp_path)[NAME] == "fetched-chilmesh"
+
+
+def test_wrong_pin_then_outage_fails_not_skips(tmp_path, monkeypatch):
+    class _Outage(_Client):
+        def fetch_mesh_bytes(self, name): raise _Client.RegistryUnavailableError()
+    monkeypatch.setenv("VALENCE_TOKEN", "token"); monkeypatch.setattr(_mp, "registry", _Outage(digest="0" * 64))
+    with pytest.raises(RuntimeError, match="registry hash differs from pin"): _mp.provision(dest=tmp_path)

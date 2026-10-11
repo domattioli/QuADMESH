@@ -75,14 +75,22 @@ def provision(names: list[str] | None = None, dest: Path | None = None) -> dict[
             continue
         try:
             remote_hash = registry.fetch_hash(name)
+        except Exception as error:
+            if _is_outage(error):
+                results[name] = "skip: registry unavailable"
+                continue
+            raise RuntimeError(f"fixture {name}: registry request failed") from error
+        # Check the pin before the byte fetch so a wrong pin fails even if
+        # the registry then goes down.
+        if not isinstance(remote_hash, str) or remote_hash != MANIFEST[name]:
+            raise RuntimeError(f"fixture {name}: registry hash differs from pin")
+        try:
             data = registry.fetch_mesh_bytes(name)
         except Exception as error:
             if _is_outage(error):
                 results[name] = "skip: registry unavailable"
                 continue
             raise RuntimeError(f"fixture {name}: registry request failed") from error
-        if not isinstance(remote_hash, str) or remote_hash != MANIFEST[name]:
-            raise RuntimeError(f"fixture {name}: registry hash differs from pin")
         if _sha256(data) != MANIFEST[name]:
             raise RuntimeError(f"fixture {name}: downloaded bytes differ from pin")
         dest.mkdir(parents=True, exist_ok=True)
