@@ -190,6 +190,10 @@ The fallback in section 5 shares one framing with Blossom-Quad: both build quadr
 
 The `Tri2QuadRoutine.m` row of [`MAPPING.md`](MAPPING.md) records MATLAB parity as the intent of the port. The function map in `MAPPING.md` shows which MATLAB routines have a Python counterpart. Capturing the MATLAB counts remains open (`MAPPING.md`, open item 5).
 
+## Known limitations
+
+Some boundary-layer quads can be concave. Smoothing can push a wide pinned boundary corner past 180 degrees, because the boundary vertices stay fixed while the interior moves. The quality report prints the count of concave quads as `concave=N`. Both limits are tracked for a later release.
+
 ## 8. References
 
 - Mattioli, D. D. (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. Master's thesis, The Ohio State University. OhioLINK ETD, http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088. In-repo copy: [`docs/Mattioli_Thesis.pdf`](Mattioli_Thesis.pdf).

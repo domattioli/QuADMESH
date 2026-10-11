@@ -9,11 +9,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 Documentation and metadata release, with one algorithm fix: the boundary layer is now routed as the thesis specifies.
 
 ### Added
+- `n_concave` in `compute_quality_stats` and `concave=N` in `format_quality_report`: count of quads with a reflex corner.
 - `docs/algorithm.md`: one long-form document for the thesis algorithm, the port as implemented, a thesis-versus-port difference table, the experimental global-matching fallback, its relation to Blossom-Quad (Remacle et al. 2012), and MATLAB parity status.
 - `tests/test_release_metadata.py`: guard test that fails when `CITATION.cff` or `README.md` names a DOI other than the Zenodo concept DOI `10.5281/zenodo.20350483`.
 - Ethan J. Kubatko (Ohio State University) as second author in `CITATION.cff`.
 
 - `preserve_boundary` option (default `False`) on `run_pipeline` and `post_process_routine`, plus `protected_points` on `post_process_routine` and `cleanup_boundary_quads`, and the CLI flag `--preserve-boundary`. With it on, boundary-quad cleanup skips any collapse that would delete an original boundary vertex and any shift that would move one. On the four bundled meshes this changes vertices lost from 12, 18, 4 and 2 to 0, at a cost of 1 to 9 extra elements and 0.001 to 0.011 mean skew. The default stays MATLAB-faithful.
+
+### Known limitations
+- Some boundary-layer quads can be concave. Smoothing can push a wide pinned boundary corner past 180 degrees. Both are tracked for a later release.
 
 ### Changed
 - README opening states what the conversion keeps and adds, and links to `docs/algorithm.md`. The status banner no longer carries a month stamp.

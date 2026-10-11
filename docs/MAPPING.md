@@ -23,7 +23,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `05_Post-Process_Routine/plotQualityProgress.m` | `quality_report.compute_quality_stats` + `format_quality_report` | done (stats; plot skipped) |
 | `06_Cleanup_Boundary_Quads/CleanupBoundaryQuads_v2.m` | `cleanup_boundary_quads` | done (collapse MATLAB-aligned: side verts -> corner; shift: Python-only) |
 | `06_Cleanup_Boundary_Quads/TruncateBoundaryQuads.m` | - | skip (legacy) |
-| `07_Doublet_Collapse/DoubletCollapse.m` | `doublet_collapse.doublet_collapse` | done |
+| `07_Doublet_Collapse/DoubletCollapse.m` | `doublet_collapse.doublet_collapse` | done (removes interior valence-2 doublets only; the `DoubletCollapse.m` header says it "collapses all concave quads", which overstates it, because its code targets interior valence-2 vertices only) |
 | `08_Quad_Vertex_Merge/QuadVertexMerge.m` | - | skip (legacy) |
 | `08_Quad_Vertex_Merge/QuadVertexMerge_v2.m` | `quad_vertex_merge.quad_vertex_merge` | done |
 | `10_Remove_Unused_Vertices/RemoveUnusedVertices.m` | `remove_unused.remove_unused_vertices` | done |
