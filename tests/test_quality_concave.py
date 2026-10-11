@@ -35,3 +35,9 @@ def test_bundled_mesh_smoke_and_format():
     stats = compute_quality_stats(out)
     assert isinstance(stats["n_concave"], int) and 0 <= stats["n_concave"] <= out.n_elems
     assert f"concave={stats['n_concave']}" in format_quality_report(stats)
+
+
+def test_collinear_corner_with_noise_is_not_concave():
+    for noise in (1e-13, -1e-13, 0.0):
+        p = np.array([[0, 0], [1, noise], [2, 0], [2, 2]], dtype=float)
+        assert count_concave_quads(p, np.array([[0, 1, 2, 3]])) == 0

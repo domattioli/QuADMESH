@@ -11,7 +11,8 @@ def count_concave_quads(points, conn) -> int:
     """Count quads (4 distinct vertices) with at least one reflex corner.
 
     Each quad is oriented counter-clockwise by signed area; a corner is reflex
-    when the cross product of its two edges is negative. Padded triangles
+    when sin(turn) < -1e-9 (relative tolerance, so straight 180-degree corners
+    with float noise are not reflex). Padded triangles
     ([a,b,c,c] or any row with fewer than 4 distinct vertices) are skipped.
     """
     pts = np.asarray(points, dtype=float)[:, :2]
@@ -28,7 +29,8 @@ def count_concave_quads(points, conn) -> int:
         e_in = p - np.roll(p, 1, axis=0)
         e_out = np.roll(p, -1, axis=0) - p
         cross = e_in[:, 0] * e_out[:, 1] - e_in[:, 1] * e_out[:, 0]
-        if np.any(cross < 0):
+        norm = np.hypot(e_in[:, 0], e_in[:, 1]) * np.hypot(e_out[:, 0], e_out[:, 1])
+        if np.any(cross < -1e-9 * norm):
             n += 1
     return n
 
