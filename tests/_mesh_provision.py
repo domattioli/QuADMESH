@@ -32,14 +32,14 @@ def _chilmesh_data_bytes(name: str) -> bytes | None:
     return None
 
 MANIFEST: dict[str, str] = {
-    "Block_O.14": "9a98cf04ca54cd1d2a7a96efab317e854888fb90",
+    "Block_O.14": "52ddb433bd45b97d373b00339082fc2131d288f8",
     "Mixed_Test.14": "e49ed31fe40c6651e39ce063b52eedb0e4a6c3f2",
-    "Test_Case_1.14": "6b1c65e181f21d4f52f63a3f22f13008bc1328e5",
-    "Test_Case_2.14": "2ff0e29d03553460f4df4e18e742ddd59b53246c",
-    "Test_Case_3.14": "5576fc647fd1199ebdc76fac798975cd0a7a2edf",
+    "Test_Case_1.14": "788dd8caaf2d4cd62403b00cb7691594b3868dea",
+    "Test_Case_2.14": "a00ee41a0bccfb406b1f0e519c1f6d967f47bea6",
+    "Test_Case_3.14": "63863ce176b62e3ef90d6f86a62bdad483fc6342",
     "simple_test_case.14": "8816d2c6a8cac839a8cddd719de549bb92368291",
-    "square_mesh_test.14": "b130328508df96e45e4373b38d41307235950aa7",
-    "structuredMesh1.14": "8bfaa8adbac1d623fc1650c1370ba63f7a1b9884",
+    "square_mesh_test.14": "8cef835c86bfecc62dd4f8d26ed6d9125411b21d",
+    "structuredMesh1.14": "f8f79543fcdad76f52e7d686ef6e1178da1cce46",
 }
 
 
