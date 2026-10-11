@@ -111,6 +111,42 @@ See [MAPPING.md](docs/MAPPING.md) for the MATLAB → Python function corresponde
 
 ---
 
+## Meshes from the Valence registry
+
+The Valence registry serves test meshes over HTTPS. Access needs a token.
+
+1. Open `<API URL>/auth/github` and sign in with GitHub.
+2. The operator approves each request by hand.
+3. After approval, sign in again. The page shows the token once. Copy it then.
+
+A token expires after one year. The limit is 120 requests per minute for each token.
+
+Set two environment variables:
+
+```bash
+export VALENCE_TOKEN=<token>
+export VALENCE_API_URL=<API URL>
+```
+
+Convert a registry mesh from the command line:
+
+```bash
+quadmesh --from-registry NAME -o out.14
+```
+
+Load a registry mesh in Python:
+
+```python
+from quadmesh.registry import fetch_mesh
+mesh = fetch_mesh("NAME")
+```
+
+The client checks the SHA-256 hash of each download. A registry error gives exit code 2 on the command line.
+
+This feature needs a chilmesh release that ships `chilmesh.registry`. Older releases raise an `ImportError` that asks you to upgrade. The `chilmesh` pin in `pyproject.toml` is unchanged.
+
+---
+
 ## Performance
 
 On the largest mesh in the [Valence](https://github.com/domattioli/Valence) registry, `ENPAC2003` (the Eastern North Pacific tidal grid of **531,680 triangles across 272,913 nodes**), QuADMESH+ returns a fully quadrilateral mesh of **274,321 quadrilaterals with zero interior residual triangles** (the faithfulness invariant) in **773 s (12.9 min)**, single-threaded, on the `chilmesh` 1.0.0 backend.
