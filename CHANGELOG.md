@@ -21,6 +21,8 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 - Some boundary-layer quads can be concave. Smoothing can push a wide pinned boundary corner past 180 degrees. Both are tracked for a later release.
 
 ### Changed
+- Test fixtures now come from the Valence API through `chilmesh.registry` (`VALENCE_TOKEN`), pinned by SHA-256. The GitHub contents fetcher, the `GITHUB_TOKEN` path and the git-blob pins are removed. `Mixed_Test.14` left the registry (Valence#347), so its tests skip.
+- Dependency pin raised to `chilmesh>=1.6.0`. chilmesh 1.6.0 must be on PyPI before this quadmesh release; until then local installs need the editable CHILmesh checkout (`QUADMESH_CHILMESH_SRC`).
 - README opening states what the conversion keeps and adds, and links to `docs/algorithm.md`. The status banner no longer carries a month stamp.
 - `CITATION.cff` and `README.md` cite the Zenodo concept DOI `10.5281/zenodo.20350483` in place of the version DOI `10.5281/zenodo.20351165`.
 - Version is 0.3.0 in `pyproject.toml`, `src/quadmesh/__init__.py`, and `CITATION.cff`.

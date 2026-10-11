@@ -26,14 +26,14 @@ bash scripts/dev_setup.sh
 pytest tests/
 python -m quadmesh.cli input.14 -o output.14
 # Optional: provision private Valence fixtures.
-GITHUB_TOKEN=<pat> python scripts/fetch_fixtures.py
+VALENCE_TOKEN=<token> python scripts/fetch_fixtures.py
 ```
 
-`scripts/dev_setup.sh` creates `.venv` and installs `quadmesh[dev]`, which pulls chilmesh from PyPI (`chilmesh>=1.2.1`). To develop against a local CHILmesh checkout, set `QUADMESH_CHILMESH_SRC=<path>` (for example `../CHILmesh`); the script then editable-installs that checkout. This override is optional.
+`scripts/dev_setup.sh` creates `.venv` and installs `quadmesh[dev]`, which pulls `chilmesh>=1.6.0` from PyPI. To develop against a local CHILmesh checkout, set `QUADMESH_CHILMESH_SRC=<path>` (for example `../CHILmesh`); the script then editable-installs that checkout. This override is optional.
 
 ## Testing and data
 
-The `.14` fixtures are not vendored. They are fetched from the private `domattioli/Valence` registry into the gitignored `tests/fixtures/meshes/` directory and checked against pinned git blob hashes. Access requires `GITHUB_TOKEN` or `GH_TOKEN` with cross-repository read permission.
+The `.14` fixtures are not vendored. They are fetched from the private `domattioli/Valence` registry into the gitignored `tests/fixtures/meshes/` directory and checked against pinned SHA-256 hashes. Access requires `VALENCE_TOKEN`. Forks have no secret and skip unavailable fixtures.
 
 Without that token, Valence-dependent tests skip. The faithfulness gate also uses meshes bundled with `chilmesh.data` when those files are available. See `tests/fixtures/README.md` for the fixture protocol.
 

@@ -63,7 +63,7 @@ They are provisioned on-demand from the `domattioli/Valence` registry into
 gitignored `tests/fixtures/meshes/`. To enable mesh-dependent tests, set:
 
 ```bash
-GITHUB_TOKEN=<your-pat> python scripts/fetch_fixtures.py
+VALENCE_TOKEN=<your-token> python scripts/fetch_fixtures.py
 pytest tests/
 ```
 

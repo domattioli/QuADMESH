@@ -10,11 +10,16 @@ from chilmesh import CHILmesh
 
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "meshes"
+PROVISION_SKIPS: dict[str, str] = {}
 
 
 def _load(name: str) -> CHILmesh:
+    if name == "Mixed_Test.14":
+        pytest.skip("Mixed_Test.14 removed from Valence registry (#347)")
     path = FIXTURE_DIR / name
     if not path.exists():
+        if name in PROVISION_SKIPS:
+            pytest.skip(PROVISION_SKIPS[name])
         pytest.skip(f"fixture missing: {path}")
     return CHILmesh.read_from_fort14(path)
 
@@ -62,7 +67,7 @@ def pytest_configure(config):
     """Best-effort provision of test meshes from the Valence registry.
 
     Meshes are not vendored in this repo (see Valence registry); when a
-    GITHUB_TOKEN / GH_TOKEN with cross-repo read on domattioli/Valence is
+    VALENCE_TOKEN with registry read access is
     available, fetch + integrity-check them into tests/fixtures/meshes/.
     No token or offline -> no-op; mesh-dependent tests skip as before.
     """
@@ -74,6 +79,7 @@ def pytest_configure(config):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     results = mod.provision()
+    PROVISION_SKIPS.update({n: s.removeprefix("skip: ") for n, s in results.items() if s.startswith("skip: ")})
     fetched = [n for n, s in results.items() if s == "fetched"]
     errors = {n: s for n, s in results.items() if s.startswith("error")}
     if fetched:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Provision QuADMESH test meshes from the domattioli/Valence registry into tests/fixtures/meshes/.
 
-Requires GITHUB_TOKEN or GH_TOKEN with cross-repo read on domattioli/Valence.
+Requires VALENCE_TOKEN with Valence registry read access.
 Usage: python scripts/fetch_fixtures.py
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ def main() -> int:
         print(f"{name}: {results[name]}")
 
     errors = {n: s for n, s in results.items() if s.startswith("error")}
-    skip_no_token = {n: s for n, s in results.items() if s == "skip-no-token"}
+    skipped = {n: s for n, s in results.items() if s.startswith("skip:")}
     present = {n: s for n, s in results.items() if s == "present"}
     fetched = {n: s for n, s in results.items() if s == "fetched"}
 
@@ -32,9 +32,9 @@ def main() -> int:
         print(f"\n{len(errors)} error(s)", file=sys.stderr)
         return 1
 
-    if skip_no_token and not present and not fetched:
+    if skipped and not present and not fetched:
         print(
-            "\nno GITHUB_TOKEN/GH_TOKEN with Valence read — nothing provisioned",
+            "\nno VALENCE_TOKEN with Valence read — nothing provisioned",
             file=sys.stderr,
         )
         return 1

@@ -1,182 +1,95 @@
-"""Provision test .14 meshes from domattioli/Valence registry via authenticated GitHub API.
-
-Meshes are integrity-checked by git-blob-sha1 and cached into tests/fixtures/meshes/
-(gitignored). Falls back to installed chilmesh package data dir when network/token unavailable.
-"""
+"""Provision pinned test meshes through ``chilmesh.registry`` only."""
 from __future__ import annotations
 
-import base64
 import hashlib
-import json
 import os
-import urllib.error
-import urllib.request
+from importlib import resources
 from pathlib import Path
 
+try:
+    import chilmesh.registry as registry
+except ImportError:
+    registry = None
+
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "meshes"
-
-VALENCE_OWNER = "domattioli"
-VALENCE_REPO = "Valence"
-VALENCE_PATH = "registry_data/meshes"
-
-
-def _chilmesh_data_bytes(name: str) -> bytes | None:
-    """Return bytes of `name` from the installed chilmesh package data dir, or None."""
-    try:
-        from importlib import resources
-        res = resources.files("chilmesh").joinpath("data", name)
-        if res.is_file():
-            return res.read_bytes()
-    except (ModuleNotFoundError, FileNotFoundError, OSError, AttributeError):
-        return None
-    return None
-
 MANIFEST: dict[str, str] = {
-    "Block_O.14": "52ddb433bd45b97d373b00339082fc2131d288f8",
-    "Mixed_Test.14": "e49ed31fe40c6651e39ce063b52eedb0e4a6c3f2",
-    "Test_Case_1.14": "788dd8caaf2d4cd62403b00cb7691594b3868dea",
-    "Test_Case_2.14": "a00ee41a0bccfb406b1f0e519c1f6d967f47bea6",
-    "Test_Case_3.14": "63863ce176b62e3ef90d6f86a62bdad483fc6342",
-    "simple_test_case.14": "8816d2c6a8cac839a8cddd719de549bb92368291",
-    "square_mesh_test.14": "8cef835c86bfecc62dd4f8d26ed6d9125411b21d",
-    "structuredMesh1.14": "f8f79543fcdad76f52e7d686ef6e1178da1cce46",
+    "Block_O.14": "d67869e16282d36e6b8bd5cd512cd7a960ddedc53af87196c0f4e8a7e55440dc",
+    "Test_Case_1.14": "39bfe3bd5ca35b37d3379267a92297e10ab265bf6a5b132253ec1d50c9285ce9",
+    "Test_Case_2.14": "28b8119fae43ec3ed6ec046ff7e4767a94eb72abf2762216688ff3326016e505",
+    "Test_Case_3.14": "179427a6f48c2cf92d8139e91b2a4de39825f8bc26e38b4b9cd2e2f71775bb8d",
+    "simple_test_case.14": "0e0f8e65e1b3c3208ef75acfe3323f8d43d58e2286c02e86206ea2b4b8293a99",
+    "square_mesh_test.14": "77ee24d326270681198245907b1f185faf6ff4f6ed2dd1d48a29593976be2455",
+    "structuredMesh1.14": "baf81485021e39edaebf7d1a0f7c320b4e1d47b8f2db7096549ff38b1ee13f60",
 }
 
 
-def _token() -> str | None:
-    """Return GitHub token from env, or None."""
-    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or None
+def _chilmesh_data_bytes(name: str) -> bytes | None:
+    try:
+        path = resources.files("chilmesh").joinpath("data", name)
+        return path.read_bytes() if path.is_file() else None
+    except (ModuleNotFoundError, FileNotFoundError, OSError, AttributeError):
+        return None
 
 
-def _git_blob_sha1(data: bytes) -> str:
-    """Compute git blob sha1 of data."""
-    blob_header = b"blob " + str(len(data)).encode() + b"\0"
-    return hashlib.sha1(blob_header + data).hexdigest()
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
-def _download(name: str, token: str) -> bytes:
-    """Download mesh file from Valence registry via authenticated GitHub API.
-
-    Returns raw bytes. Raises urllib.error.HTTPError, json.JSONDecodeError, ValueError on error.
-    """
-    url = (
-        f"https://api.github.com/repos/{VALENCE_OWNER}/{VALENCE_REPO}/"
-        f"contents/{VALENCE_PATH}/{name}"
-    )
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "quadmesh-fixture-provision",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        j = json.load(resp)
-    if j.get("encoding") != "base64":
-        raise ValueError(f"expected base64 encoding, got {j.get('encoding')}")
-    return base64.b64decode(j["content"])
-
-
-def _try_chilmesh_fallback(
-    name: str, dest: Path, verify: bool = True
-) -> str | None:
-    """Attempt to provision mesh from chilmesh.data. Return status string or None."""
+def _fallback(name: str, dest: Path, reason: str) -> str:
     data = _chilmesh_data_bytes(name)
-    if data is None:
-        return None
-    if verify and name in MANIFEST:
-        got = _git_blob_sha1(data)
-        if got != MANIFEST[name]:
-            return None  # Mismatch; don't use the fallback.
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-        (dest / name).write_bytes(data)
-        return "fetched-chilmesh"
-    except OSError:
-        return None
+    if data is None or _sha256(data) != MANIFEST[name]:
+        return f"skip: {reason}; bundled bytes differ from pin"
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / name).write_bytes(data)
+    return "fetched-chilmesh"
 
 
-def provision(
-    names: list[str] | None = None, dest: Path | None = None, *, verify: bool = True
-) -> dict[str, str]:
-    """Provision test meshes from Valence registry, with chilmesh.data offline fallback.
+def _is_outage(error: Exception) -> bool:
+    return error.__class__.__name__ == "RegistryUnavailableError"
 
-    Parameters
-    ----------
-    names : list[str] | None
-        Mesh filenames to provision. Defaults to all in MANIFEST.
-    dest : Path | None
-        Destination directory. Defaults to FIXTURE_DIR.
-    verify : bool
-        Verify git-blob-sha1 integrity. Defaults to True.
 
-    Returns
-    -------
-    dict[str, str]
-        Mapping name -> status in {"present", "fetched", "fetched-chilmesh", "skip-no-token", "error: <msg>"}.
-    """
-    if names is None:
-        names = list(MANIFEST)
-    if dest is None:
-        dest = FIXTURE_DIR
-
-    token = _token()
-    results = {}
-
-    try:
-        dest.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        pass
-
-    no_fetch = os.environ.get("QUADMESH_NO_FETCH")
-
+def provision(names: list[str] | None = None, dest: Path | None = None) -> dict[str, str]:
+    """Provision pinned meshes. Integrity and authenticated-not-found errors fail."""
+    names = list(MANIFEST) if names is None else names
+    dest = FIXTURE_DIR if dest is None else dest
+    token = os.environ.get("VALENCE_TOKEN", "").strip()
+    results: dict[str, str] = {}
     for name in names:
+        if name not in MANIFEST:
+            raise ValueError(f"un-pinned fixture: {name}")
         local = dest / name
-        if local.exists():
-            results[name] = "present"
+        if local.is_file():
+            if _sha256(local.read_bytes()) == MANIFEST[name]:
+                results[name] = "present"
+                continue
+            # Stale cache from an older pin: discard and re-provision.
+            local.unlink()
+        if os.environ.get("QUADMESH_NO_FETCH"):
+            results[name] = _fallback(name, dest, "QUADMESH_NO_FETCH set")
             continue
-
-        # If NO_FETCH is set, skip network entirely but try chilmesh fallback.
-        if no_fetch:
-            fallback_status = _try_chilmesh_fallback(name, dest, verify)
-            results[name] = fallback_status if fallback_status else "skip-no-token"
+        if not token:
+            results[name] = _fallback(name, dest, "no VALENCE_TOKEN")
             continue
-
-        # If no token, skip network but try chilmesh fallback.
-        if token is None:
-            fallback_status = _try_chilmesh_fallback(name, dest, verify)
-            results[name] = fallback_status if fallback_status else "skip-no-token"
+        if registry is None:
+            results[name] = _fallback(name, dest, "chilmesh.registry unavailable")
             continue
-
-        # Token present, not NO_FETCH: try network download.
         try:
-            data = _download(name, token)
-            if verify and name in MANIFEST:
-                got = _git_blob_sha1(data)
-                if got != MANIFEST[name]:
-                    raise RuntimeError(f"sha mismatch {got} != {MANIFEST[name]}")
-            local.write_bytes(data)
-            results[name] = "fetched"
-        except (
-            urllib.error.URLError,
-            urllib.error.HTTPError,
-            OSError,
-            ValueError,
-            RuntimeError,
-            json.JSONDecodeError,
-        ) as e:
-            # Network download failed; try chilmesh fallback before giving up.
-            fallback_status = _try_chilmesh_fallback(name, dest, verify)
-            if fallback_status:
-                results[name] = fallback_status
-            else:
-                results[name] = f"error: {type(e).__name__}: {e}"
-
+            remote_hash = registry.fetch_hash(name)
+            data = registry.fetch_mesh_bytes(name)
+        except Exception as error:
+            if _is_outage(error):
+                results[name] = "skip: registry unavailable"
+                continue
+            raise RuntimeError(f"fixture {name}: registry request failed") from error
+        if not isinstance(remote_hash, str) or remote_hash != MANIFEST[name]:
+            raise RuntimeError(f"fixture {name}: registry hash differs from pin")
+        if _sha256(data) != MANIFEST[name]:
+            raise RuntimeError(f"fixture {name}: downloaded bytes differ from pin")
+        dest.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(data)
+        results[name] = "fetched"
     return results
 
 
 def needed_names() -> list[str]:
-    """Return list of mesh filenames in the manifest."""
     return list(MANIFEST)
