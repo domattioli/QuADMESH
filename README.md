@@ -168,6 +168,22 @@ python scripts/diagnose_bad_quads.py --mesh path/to/mesh.14 --tag mymesh
 
 ---
 
+## Benchmark
+
+`quadmesh-bench` runs several triangle-to-quad methods on the same mesh and prints one table per mesh. Each row reports element count, quad fraction, residual triangles (interior and boundary), skew mean, min and standard deviation, runtime, and boundary-vertex changes. A method that fails or is absent gets a row with its status; the run continues.
+
+Adapters with a measured row in [`docs/benchmarks/0.3.0/results.md`](docs/benchmarks/0.3.0/results.md): QuADMESH+. On the four bundled meshes, QuADMESH+ leaves no residual triangles and has skew min 0.000. Its default point insertion adds boundary vertices; the table reports boundary vertices lost (input boundary vertices with no match in the output) and added (new output boundary vertices).
+
+Available adapters without a measured row: Gmsh Blossom-Quad and QuadriFlow, each marked "requires user-installed tool". Both run as subprocesses of an executable you install. Nothing from either tool ships in this package, and neither was present when the table was produced. QuadriFlow remeshes from a cross field and may move or drop boundary vertices. Its Python route (`pyquadriflow`, installed by `quadmesh[bench-quadriflow]` on Linux and Windows only) is pre-alpha and unverified here.
+
+```bash
+quadmesh-bench --list                                  # adapters and install routes
+quadmesh-bench --bundled --out docs/benchmarks/0.3.0   # reproduce the table
+quadmesh-bench mesh.14 --disable gmsh-blossom          # skip an adapter
+```
+
+Set `QUADMESH_BENCH_DISABLE=name1,name2` to disable adapters for every run. `--strict` returns a non-zero exit code when any row is not `ok`.
+
 ## Citation
 
 **Algorithm & theory** (cite the original thesis):

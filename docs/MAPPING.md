@@ -144,3 +144,11 @@ QuADMESH calls CHILmesh where CHILmesh offers an equivalent public API. The tabl
 | 16 | `scripts/render_quadmesh.py` | `chilmesh.chilplotting` | Partial, `downstream-api`. Mesh drawing can delegate. The diagnostic overlays stay. It is a script outside the package API. |
 | 17 | `tests/_mesh_provision.py`, `scripts/fetch_fixtures.py` | none | Partial, `downstream-api`. The token-based fetch and the SHA-1 check stay. A shared fetch API would remove the local copy. |
 | 18 | ADMESH | `admesh.quad_prep` | No duplicate. QuADMESH does not depend on ADMESH. |
+
+## Benchmark subpackage (058)
+
+`quadmesh.benchmark` compares tri-to-quad meshers through adapters. It has no MATLAB counterpart. It reads and writes Gmsh `.msh` 2.2 and Wavefront `.obj` files with local helpers in `benchmark/_io.py`.
+
+| Item | Sibling | Status |
+|---|---|---|
+| `.msh` and `.obj` read and write (`benchmark/_io.py`) | none (CHILmesh has `.14` I/O only) | Partial, `downstream-api`. Needed: OBJ and MSH I/O in CHILmesh. The local helpers stay until it exists. |

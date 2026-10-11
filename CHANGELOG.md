@@ -9,6 +9,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 Documentation and metadata release, with one algorithm fix: the boundary layer is now routed as the thesis specifies.
 
 ### Added
+- `quadmesh-bench` and `quadmesh.benchmark`: adapter harness comparing QuADMESH+ with other triangle-to-quad methods and, when the executables are installed, Gmsh Blossom-Quad and QuadriFlow (subprocess only, nothing vendored). Results for the bundled meshes are in `docs/benchmarks/0.3.0/`.
 - `n_concave` in `compute_quality_stats` and `concave=N` in `format_quality_report`: count of quads with a reflex corner.
 - `docs/algorithm.md`: one long-form document for the thesis algorithm, the port as implemented, a thesis-versus-port difference table, the experimental global-matching fallback, its relation to Blossom-Quad (Remacle et al. 2012), and MATLAB parity status.
 - `tests/test_release_metadata.py`: guard test that fails when `CITATION.cff` or `README.md` names a DOI other than the Zenodo concept DOI `10.5281/zenodo.20350483`.

@@ -22,9 +22,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov"]
 plot = ["matplotlib>=3.6"]
+# pyquadriflow 0.0.4 (MIT, pre-alpha) ships Linux and Windows binaries only. On macOS the extra
+# installs nothing; put a quadriflow executable on PATH or set QUADMESH_QUADRIFLOW (spec 058 T020).
+bench-quadriflow = ["pyquadriflow; sys_platform == 'linux' or sys_platform == 'win32'"]
+bench = ["quadmesh[bench-quadriflow]"]
 
 [project.scripts]
 quadmesh = "quadmesh.cli:main"
+quadmesh-bench = "quadmesh.benchmark.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
