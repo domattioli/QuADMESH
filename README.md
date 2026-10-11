@@ -131,14 +131,14 @@ export VALENCE_API_URL=<API URL>
 Convert a registry mesh from the command line:
 
 ```bash
-quadmesh --from-registry NAME -o out.14
+quadmesh --from-registry Block_O.14 -o out.14
 ```
 
 Load a registry mesh in Python:
 
 ```python
 from quadmesh.registry import fetch_mesh
-mesh = fetch_mesh("NAME")
+mesh = fetch_mesh("Block_O.14")
 ```
 
 The client checks the SHA-256 hash of each download. A registry error gives exit code 2 on the command line.
