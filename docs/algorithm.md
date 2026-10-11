@@ -106,7 +106,7 @@ After the loop, triangles that belong to no layer go to the global matcher `_mat
 
 Point insertion runs only on the `"layered"` path and only on triangles that are still unpaired (`tri2quad.py:1118`). Set `point_insert=False` to keep those triangles as boundary triangles. Set `can_remove_edges=False` to stop boundary-edge collapse during routing.
 
-## 4. The port differs from the thesis in eight places
+## 4. Port and thesis compared
 
 | Topic | Thesis | Port | Code | Status |
 |---|---|---|---|---|
@@ -184,7 +184,7 @@ The fallback in section 5 shares one framing with Blossom-Quad: both build quadr
 | Unmatched triangles | perfect matching targets zero unmatched triangles | interior saturation steers unmatched triangles to the boundary (`tri2quad.py:184`) |
 | Point insertion | part of the method that produces the all-quadrilateral mesh | the matching inserts no points; the post-sweep `point_insert` stage (on by default, `tri2quad.py:1118`) adds one interior point per remaining lone triangle |
 
-## 7. Parity with MATLAB is intent, not a verified result
+## 7. Parity with MATLAB is the port intent; no test verifies it
 
 `tests/test_parity.py` pins the current Python output on Test_Case_1 and Block_O as a regression baseline. MATLAB element counts for these meshes were never captured: the Block_O `.mat` artifact cannot be read from Python. The test therefore compares Python with Python, with loose tolerances.
 

@@ -30,6 +30,5 @@ The following were deleted (recover any from git history:
   and [`domattioli/ADMESH`](https://github.com/domattioli/ADMESH) repos, which
   own their own MATLAB references.
 - `matlab_test_cases/` — MATLAB-opaque `.mat` mesh binaries + `.14` meshes;
-  the maintained meshes come from the [`domattioli/Valence`](https://github.com/domattioli/Valence)
-  registry (see `tests/fixtures/README.md`).
+  the maintained meshes come from Valence (see `tests/fixtures/README.md`).
 - `results/` — old MATLAB result outputs.

@@ -29,7 +29,7 @@ Port status. v0.5 (faithful-port milestone M2).
 | `10_Remove_Unused_Vertices/RemoveUnusedVertices.m` | `remove_unused.remove_unused_vertices` | done |
 | `11_FEM_Smoothing/FEMSmooth.m` | `post_process.fem_smoother` | done |
 | `11_FEM_Smoothing/MCSmooth.m` | - | not ported (boundary-layer MCSmooth half never implemented) |
-| `11_FEM_Smoothing/twoPartSmoother.m` | `post_process.fem_smoother` | done (FEM half only; renamed from `two_part_smoother`, MCSmooth half absent) |
+| `11_FEM_Smoothing/twoPartSmoother.m` | `post_process.fem_smoother` | done (FEM half only; `two_part_smoother` stays as a deprecated alias; MCSmooth half absent) |
 | `11_FEM_Smoothing/extdom_edges2.m` | `chilmesh.boundary_edges()` | done via chilmesh |
 | `99_In_Progress/*` | - | skip (drafts) |
 
@@ -54,17 +54,22 @@ Port status. v0.5 (faithful-port milestone M2).
 
 MATLAB `subroutineCleanupBoundaryQuads`:
 - corner = middleVertID, stays at its position.
-- side1 = `verts[(ci-1)%4]`, side2 = `verts[(ci+1)%4]` -- both remapped to corner everywhere.
+- side1 = `verts[(ci-1)%4]`, side2 = `verts[(ci+1)%4]`; both are remapped to corner everywhere.
 - Bad quad deleted. Two vertices removed per pass.
 
-Prev Python (v0.1): moved corner to opposing, remapped opposing->corner. Different topology, one vertex removed.
-Current Python (v0.2+): MATLAB-aligned.
+Python (v0.2+) is MATLAB-aligned.
 
-## v0.3 bug fixes
+## Version history
 
-- `two_part_smoother`: `method="angle"` -> `method="angle-based"` -- smoother was silently broken (ValueError caught by bare `except Exception`). Discovered angle-based is ~42s/pass; defaulted to FEM-only.
+### v0.1 collapse
 
-## v0.4 bug fixes
+Python v0.1 moved the corner to the opposing vertex and remapped opposing->corner. The topology differed from MATLAB and removed one vertex.
+
+### v0.3 bug fixes
+
+- `two_part_smoother`: `method="angle"` -> `method="angle-based"`. The smoother was silently broken (ValueError caught by bare `except Exception`). Angle-based costs ~42s/pass, so the default is FEM-only.
+
+### v0.4 bug fixes
 
 - `edge_insertion`: `domain.edge2vert(e).astype(int).tolist()` missed `.ravel()`,
   shape `(1,2)` failed to unpack into 2 ints. Latent: aggressive path is dead
@@ -72,15 +77,14 @@ Current Python (v0.2+): MATLAB-aligned.
 
 ## deferred v0.5
 
-1. Case-2 iLayer-1 retriangulation -- design doc landed in v0.4
-   (`specs/001-matlab-to-python-port/case-2-design.md`). Impl needs LayerState
-   + adjacency invalidation; pairs with the `merge_elements` wiring (chilmesh#132
-   closed upstream + consumed -- a reserved v0.3 feature, not an open blocker).
-2. Aggressive leftover-tri routing wired into `tri2quad_routine` -- a reserved
+1. Case-2 iLayer-1 retriangulation: the design doc landed in v0.4
+   (`specs/001-matlab-to-python-port/case-2-design.md`). The implementation needs
+   LayerState + adjacency invalidation. It pairs with the `merge_elements` wiring
+   (chilmesh#132, closed upstream and consumed; a reserved v0.3 feature that blocks nothing).
+2. Aggressive leftover-tri routing wired into `tri2quad_routine`: a reserved
    v0.3 feature (`tri2quad(aggressive=)`). chilmesh#132 (`merge_elements`) is
-   closed upstream and consumed, so this is deferred by choice, not blocked by a
-   missing upstream API.
-3. ~~`two_part_smoother` sub-domain split~~ -- dropped (#44). The MCSmooth
+   closed upstream and consumed, so the deferral is a choice; no upstream API is missing.
+3. ~~`two_part_smoother` sub-domain split~~: dropped (#44). The MCSmooth
    boundary-layer half of the MATLAB two-part smoother was never ported; the
    smoother is FEM-only (`fem_smoother`), so no `CHILmesh.submesh()` split is planned.
 4. ADMESH library (`01_ADMESH_Library/`).
@@ -92,22 +96,22 @@ Current Python (v0.2+): MATLAB-aligned.
 
 All five filed chilmesh API issues are closed upstream and consumed here; none is an open blocker (see `AGENTS.md`).
 
-- chilmesh#132: `MutableMesh.merge_elements` -- closed upstream. Wiring `tri2quad(aggressive=)` to it is a reserved v0.3 feature, not a blocker.
-- chilmesh#133: public `ccw_edges_around_vert` -- consumed; `_topology.py` uses the public helper, no private call remains.
-- chilmesh#134: `CHILmesh(compute_adjacencies=True)` independent of `compute_layers` -- consumed.
-- chilmesh#138: `CHILmesh.submesh(elem_ids)` -- closed upstream; adoption mooted by the `two_part_smoother` -> `fem_smoother` switch (#44). No longer a quadmesh smoother blocker.
-- chilmesh#139: `angle_based_smoother` performance -- consumed; port uses `fem_smoother` only (`two_part_smoother` deprecated).
+- chilmesh#132: `MutableMesh.merge_elements`: closed upstream. Wiring `tri2quad(aggressive=)` to it is a reserved v0.3 feature and blocks nothing.
+- chilmesh#133: public `ccw_edges_around_vert`: consumed; `_topology.py` uses the public helper, no private call remains.
+- chilmesh#134: `CHILmesh(compute_adjacencies=True)` independent of `compute_layers`: consumed.
+- chilmesh#138: `CHILmesh.submesh(elem_ids)`: closed upstream; the `two_part_smoother` -> `fem_smoother` switch (#44) makes adoption moot. It does not block the quadmesh smoother.
+- chilmesh#139: `angle_based_smoother` performance: consumed; port uses `fem_smoother` only (`two_part_smoother` deprecated).
 
 ## Recombination operators (new in M2)
 
 | Thesis ref | Python | Status |
 |---|---|---|
-| Fig 3.2 (p39) — edge-swap | `_recombine.edge_swap` | done |
-| Fig 3.3 (p39) — vertex-duplication | `_recombine.vertex_duplication` | done |
-| Fig 3.6 (p40) / Fig 4.4 (p69) — edge-flip + walk | `_recombine.edge_flip`, `walk_isolated_tri` | done |
-| Ch 4.1 — IE-before-OE, T1/T2 heuristics | `_match_quadmesh_plus.match_layer_heuristic` | done |
-| Ch 4.2 — OE-before-IE, walkability pre-pass | `_match_quadmesh_plus.walkability_prepass` | done |
-| T007 — LayerState | `_tri_removal.LayerState` | done |
+| Fig 3.2 (p39): edge-swap | `_recombine.edge_swap` | done |
+| Fig 3.3 (p39): vertex-duplication | `_recombine.vertex_duplication` | done |
+| Fig 3.6 (p40) / Fig 4.4 (p69): edge-flip + walk | `_recombine.edge_flip`, `walk_isolated_tri` | done |
+| Ch 4.1: IE-before-OE, T1/T2 heuristics | `_match_quadmesh_plus.match_layer_heuristic` | done |
+| Ch 4.2: OE-before-IE, walkability pre-pass | `_match_quadmesh_plus.walkability_prepass` | done |
+| T007: LayerState | `_tri_removal.LayerState` | done |
 
 ## chilmesh gaps (all closed upstream + consumed)
 
@@ -115,7 +119,7 @@ None open. Retained as a resolution ledger; live detail is in the section above.
 
 | API | Issue | Status |
 |---|---|---|
-| `merge_elements` | chilmesh#132 | closed upstream; `tri2quad(aggressive=)` wiring reserved for v0.3 (not blocked) |
+| `merge_elements` | chilmesh#132 | closed upstream; `tri2quad(aggressive=)` wiring reserved for v0.3 (nothing blocks it) |
 | `ccw_edges_around_vert` public | chilmesh#133 | consumed; `_topology` uses the public helper |
 | `submesh()` API | chilmesh#138 | closed; adoption mooted by `fem_smoother` switch (#44) |
 | `angle_based_smoother` perf | chilmesh#139 | consumed; port uses `fem_smoother` only |

@@ -1,27 +1,27 @@
 # Size-function drift on real meshes (#21)
 
-Durable record of the `scripts/size_drift_report.py` measurement on **real,
-non-uniform-`h` ADCIRC meshes**, run under the current `method="quadmesh+"`
-pipeline. This closes the gap left by the earlier synthetic-only and
-old-`method="matching"` runs (see issue #21 thread) — the real-mesh
-confirmation previously blocked on Valence mesh availability.
+Record of the `scripts/size_drift_report.py` measurement on real,
+non-uniform-`h` ADCIRC meshes, run under the current `method="quadmesh+"`
+pipeline. It closes the gap left by the earlier synthetic-only and
+old-`method="matching"` runs (see issue #21 thread). Valence mesh availability had blocked the real-mesh
+confirmation.
 
 ## What is measured
 
-For each mesh, `h_local(v)` is recovered from the **input** triangulation as the
+For each mesh, `h_local(v)` is recovered from the input triangulation as the
 mean length of the unique edges incident to each vertex. The ratio
 `|edge| / h_local` (evaluated at the nearest input vertex to each edge midpoint,
-so it is robust to vertices being added, removed, or moved) is reported at three
+so it holds when vertices are added, removed, or moved) is reported at three
 pipeline stages:
 
-- `input-tris` — the input triangular mesh (baseline; ratio ≈ 1 by construction)
-- `post-tri2quad` — after `tri2quad_routine` (`method="quadmesh+"`)
-- `post-smooth` — after `post_process_routine` (doublet / QVM / cleanup +
+- `input-tris`: the input triangular mesh (baseline; ratio ≈ 1 by construction)
+- `post-tri2quad`: after `tri2quad_routine` (`method="quadmesh+"`)
+- `post-smooth`: after `post_process_routine` (doublet / QVM / cleanup +
   `fem_smoother`)
 
 A ratio inside `[0.5, 2.0]` means the mesh honours the input size function to
 within a factor of two locally. `frac in [0.5,2.0]` is the fraction of edges
-inside that band — the issue's acceptance criterion.
+inside that band. This is the issue's acceptance criterion.
 
 ## Results (2026-07-23, `method="quadmesh+"`, real meshes)
 
@@ -49,30 +49,29 @@ inside that band — the issue's acceptance criterion.
 | post-tri2quad | 27816 | 0.820 | 0.996 | 1.193 | 1.002 | 1.000 | 0.288 | 2.074 |
 | post-smooth | 26482 | 0.634 | 0.952 | 1.330 | 0.963 | 0.992 | 0.170 | 3.671 |
 
-## Conclusion — acceptance branch (a), benign, bound documented
+## Conclusion: acceptance branch (a), benign, bound documented
 
-1. **The `[0.5, 2.0]` p95 bound holds with margin on every mesh.** Post-smooth
-   p95 is 1.29 / 1.35 / 1.33; frac-in-band is 0.990–0.994. The pipeline does not
-   systematically violate the input size contract, including on the 200×-contrast
+1. The `[0.5, 2.0]` p95 bound holds with margin on every mesh. Post-smooth
+   p95 is 1.29 / 1.35 / 1.33; frac-in-band is 0.990–0.994. The pipeline keeps
+   the input size contract, including on the 200×-contrast
    Delaware mesh.
-2. **`tri2quad` is benign.** p50, mean, and frac-in-band are essentially
+2. `tri2quad` is benign. p50, mean, and frac-in-band are essentially
    unchanged from the input across all three meshes. The merge lowers only the
-   `min` (a thin tail of short merge-diagonal / boundary-pad edges), not the bulk
-   distribution.
-3. **Smoothing is the drift source, and it is bounded.** The `fem_smoother`
+   `min` (a thin tail of short merge-diagonal / boundary-pad edges); the bulk
+   distribution stays put.
+3. Smoothing is the drift source, and the drift is bounded. The `fem_smoother`
    optimises angle quality with no `h`-awareness, so it contracts the median
    ~5% and widens the p5/p95 spread ~20–40%; ≤1% of edges leave the band. The
    worst tail (`max = 3.67`) is on the highest size-contrast mesh (Delaware),
-   exactly as the issue hypothesised.
-4. **Tighter than the removed `matching` method.** Under the old
+   as the issue hypothesised.
+4. `quadmesh+` is tighter than the removed `matching` method. Under
    `method="matching"` (removed by #46) the same real meshes gave post-smooth
-   p95 ≈ 1.5 and max 3.8–7.0. The current `quadmesh+` sweep is measurably better:
+   p95 ≈ 1.5 and max 3.8–7.0. The `quadmesh+` sweep gives
    p95 ≈ 1.3, max 2.0–3.7.
 
-**Lever if outlier tails ever matter downstream** (not needed for (a)): feed the
+Lever if outlier tails matter downstream (not needed for (a)): feed the
 recovered `h`-field into the existing size-aware smoothing path
-(`post_process_routine(truss_smooth=True, truss_fh=<h-field>)`) rather than
-writing a per-move `α·h_local` displacement cap into `fem_smoother`.
+(`post_process_routine(truss_smooth=True, truss_fh=<h-field>)`). A per-move `α·h_local` displacement cap in `fem_smoother` is the alternative.
 
 ## Reproduce
 
