@@ -25,7 +25,7 @@ bash scripts/dev_setup.sh
 . .venv/bin/activate
 pytest tests/
 python -m quadmesh.cli input.14 -o output.14
-# Optional: provision private Valence fixtures.
+# Optional: provision Valence fixtures.
 VALENCE_TOKEN=<token> python scripts/fetch_fixtures.py
 ```
 
@@ -33,7 +33,7 @@ VALENCE_TOKEN=<token> python scripts/fetch_fixtures.py
 
 ## Testing and data
 
-The `.14` fixtures are not vendored. They are fetched from the private `domattioli/Valence` registry into the gitignored `tests/fixtures/meshes/` directory and checked against pinned SHA-256 hashes. Access requires `VALENCE_TOKEN`. Forks have no secret and skip unavailable fixtures.
+The `.14` fixtures are not vendored. They are fetched from the `domattioli/Valence` registry into the gitignored `tests/fixtures/meshes/` directory and checked against pinned SHA-256 hashes. Access requires `VALENCE_TOKEN`. Forks have no secret and skip unavailable fixtures.
 
 Without that token, Valence-dependent tests skip. The faithfulness gate also uses meshes bundled with `chilmesh.data` when those files are available. See `tests/fixtures/README.md` for the fixture protocol.
 
