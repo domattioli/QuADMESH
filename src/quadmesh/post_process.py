@@ -249,6 +249,13 @@ def fem_smoother(
 
     mesh = remove_unused_vertices(mesh)
 
+    # Boundary vertices are pinned: direct_smoother holds them with a kinf
+    # penalty (residual drift up to ~2e-10, not exactly zero) and chilmesh has
+    # no fixed-vertices argument, so the exact input coordinates are restored
+    # after every pass.
+    _bidx = np.unique(mesh.edge2vert(mesh.boundary_edges()).ravel()).astype(int)
+    _bxy = np.asarray(mesh.points)[_bidx, :2].copy()
+
     for _ in range(n_iter):
         before = np.asarray(mesh.points).copy()
         try:
@@ -260,6 +267,7 @@ def fem_smoother(
         except Exception:
             mesh.points[...] = before
             break
+        mesh.points[_bidx, :2] = _bxy
         if method == "fem":
             # #107: direct_smoother is a fixed point (position-independent K,
             # pinned boundary). Passes 2+ are numerical no-ops — skip them

@@ -21,6 +21,7 @@ Documentation and metadata release, with one algorithm fix: the boundary layer i
 
 ### Fixed
 - The per-layer sweep flagged the innermost layer (`n_layers - 1`) as the boundary layer. It now flags layer 0, which is the boundary layer in `chilmesh` and in `removeTrianglesFun.m`. Output keeps zero interior residual triangles, is quad-pure by default, and keeps every original boundary vertex. Mean skew on the bundled `structuredMesh1` changes from 0.696 to 0.647, and the expected values in the quality tests were updated (spec 059).
+- `fem_smoother` now restores the exact coordinates of every boundary vertex after each pass. `CHILmesh.direct_smoother` pins the boundary with a penalty and left up to 2e-10 of drift (no fixed-vertices argument exists). `tests/test_boundary_pinned_smoothing.py` covers all bundled triangular meshes. Known open item: `run_pipeline` still drops original boundary vertices on the bundled meshes because `cleanup_boundary_quads` collapses boundary quads, not because of smoothing.
 - `AGENTS.md` and `scripts/dev_setup.sh` stated that chilmesh is not on PyPI. It is (`chilmesh>=1.2.1`).
 
 ### Removed
