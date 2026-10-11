@@ -206,3 +206,9 @@ No commercial use and no use as AI/ML training data without a separate written l
 <p align="center">
   <sub>Regenerate logo GIF: <code>python videos/scripts/render_logo_gif.py</code> (matplotlib only, no ffmpeg).</sub>
 </p>
+
+## Share your mesh
+
+<!-- TODO: the valence-intake repo does not exist yet. Update the link below once it does. -->
+
+If you have a fort.14 mesh you can share, please send it through the [share-mesh form](https://github.com/domattioli/valence-intake/issues/new?template=share-mesh.yml). We are collecting meshes for testing. Details are in [docs/share-your-mesh.md](docs/share-your-mesh.md).

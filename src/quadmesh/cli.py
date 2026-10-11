@@ -11,6 +11,7 @@ import numpy as np
 from chilmesh import CHILmesh
 
 from .pipeline import run_pipeline
+from .share_hint import maybe_log_share_hint
 from .quality_report import compute_quality_stats, format_quality_report
 
 
@@ -72,6 +73,7 @@ def main(argv=None) -> int:
     print(f"output: {out.n_elems} elems, {out.n_verts} verts")
     print(format_quality_report(stats))
     out.write_to_fort14(str(args.output))
+    maybe_log_share_hint()
     print(f"written: {args.output}")
     return 0
 

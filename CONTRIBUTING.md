@@ -109,3 +109,9 @@ CI runs on every PR (currently: linting, tests on Python 3.10+).
 are under [`docs/sessions/`](docs/sessions/).
 [`docs/MAPPING.md`](docs/MAPPING.md) maps MATLAB functions to their Python
 equivalents. Open issues track every live backlog item.
+
+## Share your mesh
+
+<!-- TODO: the valence-intake repo does not exist yet. Update the link below once it does. -->
+
+Meshes are a useful contribution. If you have a fort.14 mesh you can share, please submit it through the [share-mesh form](https://github.com/domattioli/valence-intake/issues/new?template=share-mesh.yml). Choose a license, name the generator, and describe the region and resolution. See [docs/share-your-mesh.md](docs/share-your-mesh.md) for details.
