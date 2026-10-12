@@ -137,7 +137,7 @@ The DOI resolves to the latest release; version DOIs are on the [Zenodo record](
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). To share a mesh, open an issue in this repository (https://github.com/domattioli/quadmesh/issues/new).
 
-Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J. Kubatko: [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
+Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J. Kubatko: [OSU profile](https://people.engineering.osu.edu/people/kubatko.3)
 
 [Back to top](#table-of-contents)
 
@@ -145,6 +145,6 @@ Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J
 
 Noncommercial and research use only. PolyForm Noncommercial License 1.0.0 with an additional No-AI/ML-training restriction; see [LICENSE](LICENSE) and [AI-USAGE.md](https://github.com/domattioli/quadmesh/blob/development/docs/AI-USAGE.md).
 
-Commercial or AI-training licenses: contact domattioli via mango-kooky-okay@duck.com
+Commercial or AI-training licenses: contact the author through [GitHub](https://github.com/domattioli)
 
 [Back to top](#table-of-contents)
