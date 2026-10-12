@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Removed
+- `quadmesh._topology`: private wrapper module with no source callers. Code calls `CHILmesh.ccw_edges_around_vert`, `chilmesh.quad_from_tri_pair` and `chilmesh.quads_from_tri_pairs` directly. Other CHILmesh 1.5.5 overlaps (MSH 2.2 I/O, benchmark metrics, `create_quad_domain`, `repair` edge map and merge, quality report, signed-area predicates) stay in quadmesh because the CHILmesh versions differ in padding, precision, vertex renumbering, output keys or are private.
+
 ## [0.2.5] - 2026-10-12
 
 Documentation and metadata release, with one algorithm fix: the boundary layer is now routed as the thesis specifies.
