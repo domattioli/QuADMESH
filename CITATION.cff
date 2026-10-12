@@ -17,7 +17,7 @@ repository-code: "https://github.com/domattioli/QuADMESH"
 url: "https://github.com/domattioli/QuADMESH"
 version: 0.2.5
 # The release skill sets date-released at tag time.
-date-released: "2026-07-13"
+date-released: "2026-10-12"
 # Zenodo concept DOI: resolves to every version of this software.
 doi: 10.5281/zenodo.20350483
 identifiers:
