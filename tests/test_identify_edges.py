@@ -66,3 +66,64 @@ def test_boundary_edges_wellformed_every_layer(fixture_name, request):
         bids = sel.boundary_edge_ids
         assert bids.size == 0 or int(bids.min()) >= 0
         assert len(set(bids.tolist())) == bids.size  # no duplicate boundary edges
+
+
+# --- Token-free offline coverage (issue #109) -------------------------------
+# The tests above use `.14` fixtures that need a Valence token, so they SKIP in
+# CI. These provision a small mesh from chilmesh.data so identify_edges_in_layer
+# is actually exercised offline. Mirrors tests/test_no_interior_tris.py.
+_OFFLINE_FIXTURES = ["structuredMesh1.14", "Block_O.14"]
+
+
+def _offline_mesh():
+    """Load a small tri mesh provisionable offline from chilmesh.data, or skip."""
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _here = _Path(__file__).resolve().parent
+    if str(_here) not in _sys.path:
+        _sys.path.insert(0, str(_here))
+    from _mesh_provision import provision, FIXTURE_DIR
+
+    provision(_OFFLINE_FIXTURES)
+    for name in _OFFLINE_FIXTURES:
+        p = FIXTURE_DIR / name
+        if p.exists():
+            from chilmesh import CHILmesh
+
+            return CHILmesh.read_from_fort14(p)
+    pytest.skip("no offline fixture provisioned (chilmesh.data unavailable)")
+
+
+def test_identify_edges_offline_all_layers_disjoint():
+    """Token-free (#109): removed-edge elem pairs are disjoint in every layer."""
+    mesh = _offline_mesh()
+    saw_removed = False
+    for k in range(mesh.n_layers):
+        sel = identify_edges_in_layer(mesh, k)
+        if sel.elem_ids_global.size == 0:
+            continue
+        assert sel.sub_mesh is not None
+        if sel.removed_edge_ids.size == 0:
+            continue
+        saw_removed = True
+        edge2elem = sel.sub_mesh.adjacencies["Edge2Elem"]
+        used = set()
+        for eid in sel.removed_edge_ids:
+            a, b = edge2elem[int(eid)]
+            assert int(a) not in used and int(b) not in used
+            used.add(int(a))
+            used.add(int(b))
+    assert saw_removed, "offline mesh exercised no edge removal in any layer"
+
+
+def test_identify_edges_offline_boundary_wellformed():
+    """Every non-empty layer exposes a well-formed, duplicate-free boundary set."""
+    mesh = _offline_mesh()
+    for k in range(mesh.n_layers):
+        sel = identify_edges_in_layer(mesh, k)
+        if sel.elem_ids_global.size == 0:
+            continue
+        bids = sel.boundary_edge_ids
+        assert bids.size == 0 or int(bids.min()) >= 0
+        assert len(set(bids.tolist())) == bids.size

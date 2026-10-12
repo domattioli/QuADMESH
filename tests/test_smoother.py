@@ -57,13 +57,13 @@ def test_fem_smoother_fem_path_short_circuits(monkeypatch):
     pp = importlib.import_module("quadmesh.post_process")
 
     calls = {"n": 0}
-    real = pp._balendran_smooth
-    def counting(mesh):
-        calls["n"] += 1
-        return real(mesh)
-    monkeypatch.setattr(pp, "_balendran_smooth", counting)
-
     mesh = _grid_mesh()
+    real = type(mesh).direct_smoother
+    def counting(self, *a, **k):
+        calls["n"] += 1
+        return real(self, *a, **k)
+    monkeypatch.setattr(type(mesh), "direct_smoother", counting)
+
     fem_smoother(copy.deepcopy(mesh), n_iter=3, method="fem")
     assert calls["n"] == 1  # #107: passes 2+ are no-ops, short-circuited
 

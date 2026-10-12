@@ -315,14 +315,24 @@ def route_leftover_tri(
     sub_b_edge_set: set,
     sub_b_vert_set: set,
     refuse_boundary_merge: bool = False,
-) -> bool:
+    preserve_boundary_verts: bool = False,
+) -> Optional[bool]:
     """Apply the right sub-op given tri's boundary-edge count.
 
     Mirrors MATLAB ``removeTrianglesFun`` switch. ``sub_b_edge_set`` is the
     set of sub-mesh boundary edge IDs in *parent* indexing; ``sub_b_vert_set``
     likewise for verts.
 
-    Returns True if the tri was handled (paired/cleared/consumed in place), False if it was refused (left as a boundary triangle) because refuse_boundary_merge is set.
+    Returns ``True`` if the tri was converted (paired, cleared, or consumed in
+    place), ``False`` if it was refused (left as a boundary triangle) because
+    ``refuse_boundary_merge`` is set, and ``None`` if no sub-op applied and the
+    tri is unchanged. The caller passes unchanged tris on to the closing pass.
+
+    A boundary-edge collapse (``edgeRemoval``) is replaced by a boundary-edge
+    bisection when the collapse would merge two vertices of an emitted quad;
+    the collapse would turn that quad into a triangle, or when
+    ``preserve_boundary_verts`` is set (a collapse would move two original
+    boundary vertices).
     """
     edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
     bdy_edges_local = [
@@ -333,6 +343,16 @@ def route_leftover_tri(
     conn = domain.connectivity_list[tri_elem_id, :3].astype(int)
     bdy_verts_in_tri = [int(v) for v in conn if int(v) in sub_b_vert_set]
 
+    # 059: with preserve_boundary_verts, a collapse of a domain-boundary edge
+    # would move two original boundary vertices; bisect that edge instead.
+    on_domain_boundary = preserve_boundary_verts and on_mesh_boundary
+
+    def _collapse_is_safe(local_idx: int) -> bool:
+        v_a, v_b = domain.edge2vert(int(edge_ids[local_idx])).ravel().astype(int).tolist()
+        return not any(
+            (q == v_a).any() and (q == v_b).any() for q in work.quads
+        )
+
     if not on_mesh_boundary and n_bdy >= 1:
         # MATLAB edgeBisection Case 2: bisect the layer-interior edge, then
         # re-triangulate the iLayer-1 neighbour at the new midpoint so the
@@ -342,22 +362,30 @@ def route_leftover_tri(
         if np_id is not None:
             _split_opposing_tri(domain, eid, np_id, tri_elem_id, work)
     elif on_mesh_boundary and n_bdy == 0:
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
+        if not bdy_verts_in_tri:
+            return None
+        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
     elif not on_mesh_boundary and n_bdy == 0:
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
+        if not bdy_verts_in_tri:
+            return None
+        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
     elif on_mesh_boundary and n_bdy in (2, 3):
         if refuse_boundary_merge:
             return False  # #98 option A: leave as a boundary triangle
-        if bdy_verts_in_tri:
-            edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif on_mesh_boundary and n_bdy == 1 and can_remove_edges:
+        if not bdy_verts_in_tri:
+            return None
+        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
+    elif (on_mesh_boundary and n_bdy == 1 and can_remove_edges
+          and not on_domain_boundary
+          and _collapse_is_safe(bdy_edges_local[0])):
         edge_removal(domain, work, tri_elem_id, bdy_edges_local[0])
-    elif on_mesh_boundary and n_bdy == 1 and not can_remove_edges:
-        # MATLAB removeTrianglesFun: edgeBisection(1) when canRemoveEdges=false.
-        edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
-    # Else: silently leave as triangle (degenerate, rare).
+    elif on_mesh_boundary and n_bdy == 1:
+        # MATLAB removeTrianglesFun: edgeBisection(1) when canRemoveEdges=false;
+        # also used when a collapse would degenerate an emitted quad.
+        if edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0]) is None:
+            return None
+    else:
+        return None  # no sub-op applies; tri unchanged
     return True
 
 

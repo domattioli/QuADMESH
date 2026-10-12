@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from chilmesh import CHILmesh
 
-from .cleanup_boundary_quads import cleanup_boundary_quads
+from .cleanup_boundary_quads import boundary_points, cleanup_boundary_quads
 from .doublet_collapse import _is_quad_row, doublet_collapse
 from .quad_vertex_merge import quad_vertex_merge
 from .remove_unused import remove_unused_vertices
@@ -39,52 +39,6 @@ def _quad_rows(conn) -> "np.ndarray":
     if not rows:
         return np.empty((0, 4), dtype=int)
     return np.asarray(rows, dtype=int)
-
-
-def _balendran_smooth(mesh: "CHILmesh") -> "np.ndarray":
-    """Balendran direct FEM smoother matching MATLAB FEMSmooth.m exactly.
-
-    chilmesh direct_smoother is bugged: it applies angle-based cotangent forces
-    (Zhou & Shimada) as RHS, which is inconsistent with the Balendran rotation
-    stiffness matrix K. On large meshes this causes K*x=F to have no geometric
-    meaning, flinging interior nodes hundreds of element-widths.
-
-    MATLAB FEMSmooth.m uses F=0 for interior nodes — K drives equilibrium purely
-    via structural coupling to pinned boundary nodes. This function replicates that.
-
-    See chilmesh issue #173 for details.
-    """
-    import numpy as np
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.linalg import spsolve
-
-    kinf = 1e12
-    p = mesh.points[:, :2].copy()
-    n = mesh.n_verts
-
-    tri_indices, quad_indices = mesh._detect_element_types()
-    if len(quad_indices) == 0:
-        rows, cols, data = mesh._tri_stiffness_assembly(tri_indices, p, n)
-    elif len(tri_indices) == 0:
-        rows, cols, data = mesh._quad_stiffness_assembly(quad_indices, p, n)
-    else:
-        rows, cols, data = mesh._mixed_stiffness_assembly(tri_indices, quad_indices, p, n)
-
-    K = csr_matrix((data, (rows, cols)), shape=(2 * n, 2 * n))
-    F = np.zeros(2 * n)  # zero interior RHS — matches MATLAB FEMSmooth.m
-
-    edge_verts = mesh.edge2vert(mesh.boundary_edges())
-    boundary_nodes = np.unique(edge_verts.flatten())
-    for v in boundary_nodes:
-        v = int(v)
-        F[2 * v : 2 * v + 2] = kinf * p[v]
-        K[2 * v, 2 * v] = kinf
-        K[2 * v + 1, 2 * v + 1] = kinf
-
-    c = spsolve(K, F)
-    new_pts = mesh.points.copy()
-    new_pts[:, :2] = c.reshape(-1, 2)
-    return new_pts
 
 
 def truss_smoother(
@@ -272,7 +226,7 @@ def fem_smoother(
     Use method='angle-based' for higher quality at ~1400s/pass (chilmesh is slow).
 
     Note:
-        The 'fem' path (`_balendran_smooth`) is a connectivity-anchored global
+        The 'fem' path (`CHILmesh.direct_smoother`) is a connectivity-anchored global
         equilibrium solve: its stiffness matrix K is built purely from element
         connectivity (constant per-element reference matrices — no node
         positions), and the interior RHS is zero with boundary nodes pinned via
@@ -295,19 +249,27 @@ def fem_smoother(
 
     mesh = remove_unused_vertices(mesh)
 
+    # Boundary vertices are pinned: direct_smoother holds them with a kinf
+    # penalty (residual drift up to ~2e-10, not exactly zero) and chilmesh has
+    # no fixed-vertices argument, so the exact input coordinates are restored
+    # after every pass.
+    _bidx = np.unique(mesh.edge2vert(mesh.boundary_edges()).ravel()).astype(int)
+    _bxy = np.asarray(mesh.points)[_bidx, :2].copy()
+
     for _ in range(n_iter):
         before = np.asarray(mesh.points).copy()
         try:
             if method == "fem":
-                new_pts = _balendran_smooth(mesh)
-                mesh.points[:, :2] = new_pts[:, :2]
+                new_pts = mesh.direct_smoother()
+                mesh.points[:, :2] = np.asarray(new_pts)[:, :2]
             else:
                 mesh.smooth_mesh(method=method, acknowledge_change=True)
         except Exception:
             mesh.points[...] = before
             break
+        mesh.points[_bidx, :2] = _bxy
         if method == "fem":
-            # #107: _balendran_smooth is a fixed point (position-independent K,
+            # #107: direct_smoother is a fixed point (position-independent K,
             # pinned boundary). Passes 2+ are numerical no-ops — skip them
             # (~n-fold smoothing wall-clock cut, output unchanged to ~5e-12).
             break
@@ -324,7 +286,7 @@ def two_part_smoother(mesh: CHILmesh, n_iter: int = 3, method: str = "fem") -> C
     import warnings
 
     warnings.warn(
-        "two_part_smoother is deprecated; use fem_smoother",
+        "two_part_smoother is deprecated and will be removed in 0.4.0; use fem_smoother",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -340,6 +302,8 @@ def post_process_routine(
     repair: bool = False,
     truss_smooth: bool = False,
     truss_fh=None,
+    preserve_boundary: bool = False,
+    protected_points=None,
 ) -> CHILmesh:
     """Iteratively improve quad-mesh quality.
 
@@ -356,7 +320,18 @@ def post_process_routine(
             ``repair_chilmesh`` directly after this routine.
         truss_smooth: If True, apply truss_smoother before fem_smoother.
         truss_fh: Callable or None. Target edge length function for truss_smoother.
+        preserve_boundary: If True, keep every original boundary vertex.
+            Boundary-quad cleanup skips any collapse or shift that would
+            delete or move one. Default False (MATLAB-faithful: cleanup may
+            drop boundary vertices).
+        protected_points: (n, 2) coordinates to keep when
+            ``preserve_boundary`` is True. Default None: use the boundary
+            of ``mesh`` as passed in.
     """
+    if preserve_boundary and protected_points is None:
+        protected_points = boundary_points(mesh)
+    if not preserve_boundary:
+        protected_points = None
     outer = 0
     n_elems_prev = mesh.n_elems
     while outer < max_outer_iter:
@@ -371,7 +346,10 @@ def post_process_routine(
                 break
 
         if getattr(mesh, "type", None) != "Mixed-Element":
-            mesh = cleanup_boundary_quads(mesh, can_remove_edges=can_remove_edges)
+            mesh = cleanup_boundary_quads(
+                mesh, can_remove_edges=can_remove_edges,
+                protected_points=protected_points,
+            )
 
         if mesh.n_elems >= n_elems_prev:
             break

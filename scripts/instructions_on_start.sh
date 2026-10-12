@@ -8,7 +8,7 @@
 # This script detects the repo type by inspecting known markers and runs
 # the appropriate health checks. It works for:
 #   - DomI (domattioli/DomI) — skill library integrity + manifest sync
-#   - Consumer repos — git health, CLAUDE.md presence, optional test smoke
+#   - Consumer repos: git health, AGENTS.md presence, optional test smoke
 #
 # EXTENSION POINTS:
 # Consumer repos can extend this script without forking by creating:
@@ -17,7 +17,7 @@
 # DECISION TREE:
 #   IF this is DomI → run skill library maintenance checks (integrity, manifest sync, skill-request audit)
 #   IF this is a consumer repo → run consumer health checks
-#   ALWAYS → git hygiene snapshot + CLAUDE.md presence check
+#   ALWAYS: git hygiene snapshot + AGENTS.md presence check
 #   IF ./scripts/onstart_local.sh exists → source it for repo-specific extras
 #
 # DOMI-SPECIFIC RULES:
@@ -65,16 +65,15 @@ if echo "$REMOTE_URL" | grep -qi "domattioli/DomI\|domattioli/Dom_Intelligence";
 fi
 
 # ============================================================================
-# 1. ALWAYS: CLAUDE.md presence
+# 1. ALWAYS: AGENTS.md presence
 # ============================================================================
-echo "Checking CLAUDE.md..."
-if [ ! -f "$REPO_ROOT/CLAUDE.md" ]; then
-  echo "  ❌ CLAUDE.md missing — every Claude-driven repo must have one"
-  echo "     Bootstrap: /maintain-claude-md init"
-  BLOCKERS+=("CLAUDE.md missing")
+echo "Checking AGENTS.md..."
+if [ ! -f "$REPO_ROOT/AGENTS.md" ]; then
+  echo "  ❌ AGENTS.md missing"
+  BLOCKERS+=("AGENTS.md missing")
   ISSUES=$((ISSUES + 1))
 else
-  echo "  ✓ CLAUDE.md present"
+  echo "  ✓ AGENTS.md present"
 fi
 echo ""
 
@@ -87,7 +86,7 @@ DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
 STASH_COUNT="$(git stash list 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Branch: $BRANCH | Uncommitted: $DIRTY | Stashed: $STASH_COUNT"
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
-  echo "  ⚠ On default branch — per CLAUDE.md, work on a feature branch"
+  echo "  ⚠ On default branch; see AGENTS.md for the working branch policy"
 fi
 
 if [ "$IS_DOMI" = "true" ] && echo "$BRANCH" | grep -qE '^claude/'; then
@@ -97,7 +96,7 @@ if [ "$IS_DOMI" = "true" ] && echo "$BRANCH" | grep -qE '^claude/'; then
   echo "════════════════════════════════════════════════════════════════════"
   echo ""
   echo "  Current branch: $BRANCH"
-  echo "  CLAUDE.md mandates:  development"
+  echo "  AGENTS.md mandates: development"
   echo ""
   echo "  CLAUDE: Switch branches NOW before any write work:"
   echo "      git checkout development"
@@ -225,9 +224,9 @@ if [ "$IS_DOMI" = "true" ]; then
 
   if [ -x "$REPO_ROOT/scripts/specify_bootstrap.sh" ]; then
     if bootstrap_out="$(bash "$REPO_ROOT/scripts/specify_bootstrap.sh" --check 2>&1)"; then
-      echo "  ✓ .specify/ infra present ($(echo "$bootstrap_out" | sed -E 's/.*digest=([0-9a-f]+).*/digest=\1/'))"
+      echo "  ✓ DomI/specs/consumers/quadmesh/ infra present ($(echo "$bootstrap_out" | sed -E 's/.*digest=([0-9a-f]+).*/digest=\1/'))"
     else
-      echo "  ⚠ .specify/ infra incomplete — run scripts/specify_bootstrap.sh"
+      echo "  ⚠ DomI/specs/consumers/quadmesh/ infra incomplete — run scripts/specify_bootstrap.sh"
       echo "$bootstrap_out" | sed 's/^/    /'
       ISSUES=$((ISSUES + 1))
     fi
@@ -408,7 +407,6 @@ else
     echo "  ⚠ speckit skills not found in ~/.claude/skills/"
     echo "    Routines referencing /speckit.* will fail. To install:"
     echo "      claude plugin install sync-from-domi@DomI && /sync from DomI"
-    echo "    Or fall back to gsd-* equivalents. See DomI issue #54."
   fi
   echo ""
 fi
@@ -496,7 +494,7 @@ else
   echo "╔══════════════════════════════════════════════════════════════╗"
   echo "║  CAVEMAN ULTRA — activate now (#122 nuclear fix)            ║"
   echo "║  Plugin loaded → run: /caveman:caveman ultra                ║"
-  echo "║  Plugin absent → CLAUDE.md §Communication Style = fallback  ║"
+  echo "║  Plugin absent: use the DomI communication policy           ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
   if command -v claude &> /dev/null && [ "${CLAUDE_INTERACTIVE:-}" = "1" ]; then

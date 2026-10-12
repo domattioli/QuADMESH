@@ -9,7 +9,7 @@ array — only the connectivity of a WorkingMesh.
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 

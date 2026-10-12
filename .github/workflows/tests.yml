@@ -26,6 +26,7 @@ jobs:
         python-version: ["3.11"]
     env:
       MPLBACKEND: Agg
+      VALENCE_TOKEN: ${{ secrets.VALENCE_TOKEN }}
     steps:
       - uses: actions/checkout@v5
 

@@ -11,6 +11,7 @@ import numpy as np
 from chilmesh import CHILmesh
 
 from .pipeline import run_pipeline
+from .share_hint import maybe_log_share_hint
 from .quality_report import compute_quality_stats, format_quality_report
 
 
@@ -28,7 +29,12 @@ def main(argv=None) -> int:
         prog="quadmesh",
         description="Convert tri mesh to quad mesh (fort.14 in/out).",
     )
-    parser.add_argument("input", type=Path, help="Input fort.14 path.")
+    parser.add_argument("input", type=Path, nargs="?", default=None,
+                         help="Input fort.14 path.")
+    parser.add_argument("--from-registry", metavar="NAME", default=None,
+                         help="Fetch mesh NAME from the Valence registry "
+                              "instead of reading a file (needs VALENCE_TOKEN; "
+                              "VALENCE_API_URL optionally overrides the API).")
     parser.add_argument("-o", "--output", type=Path, required=True,
                          help="Output fort.14 path.")
     parser.add_argument("--polygon", type=Path, default=None,
@@ -47,13 +53,29 @@ def main(argv=None) -> int:
                         help="#98 option A: emit 2-3-boundary-edge leftover tris "
                              "as boundary triangles instead of degenerate quads "
                              "(mixed tri/quad output).")
+    parser.add_argument("--preserve-boundary", action="store_true",
+                        help="Keep every input boundary vertex: skip cleanup "
+                             "collapses and shifts that would delete or move one "
+                             "(default: MATLAB-faithful, may drop them).")
     args = parser.parse_args(argv)
 
-    if not args.input.exists():
-        parser.error(f"input not found: {args.input}")
+    if (args.input is None) == (args.from_registry is None):
+        parser.error("give exactly one of: input path or --from-registry NAME")
 
-    mesh = CHILmesh.read_from_fort14(args.input)
-    print(f"loaded: {args.input.name} — {mesh.n_elems} elems, {mesh.n_verts} verts, {mesh.n_layers} layers")
+    if args.from_registry is not None:
+        from . import registry
+        try:
+            mesh = registry.fetch_mesh(args.from_registry)
+        except (registry.RegistryError, ImportError) as exc:
+            print(f"quadmesh: {exc}", file=sys.stderr)
+            return 2
+        label = args.from_registry
+    else:
+        if not args.input.exists():
+            parser.error(f"input not found: {args.input}")
+        mesh = CHILmesh.read_from_fort14(args.input)
+        label = args.input.name
+    print(f"loaded: {label} — {mesh.n_elems} elems, {mesh.n_verts} verts, {mesh.n_layers} layers")
 
     polygon = _load_polygon(args.polygon) if args.polygon else None
 
@@ -66,12 +88,14 @@ def main(argv=None) -> int:
         max_outer_iter=args.max_outer_iter,
         max_inner_iter=args.max_inner_iter,
         refuse_boundary_merge=args.refuse_boundary_merge,
+        preserve_boundary=args.preserve_boundary,
     )
 
     stats = compute_quality_stats(out)
     print(f"output: {out.n_elems} elems, {out.n_verts} verts")
     print(format_quality_report(stats))
     out.write_to_fort14(str(args.output))
+    maybe_log_share_hint()
     print(f"written: {args.output}")
     return 0
 

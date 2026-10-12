@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quadmesh"
-version = "0.2.0"
-description = "QuADMESH+: Quadrangular ADvanced Mesh generator. Python port of MATLAB QuADMESH library."
+version = "0.2.5"
+description = "QuADMESH+ converts an existing shallow-water triangulation into a quadrilateral mesh by merging adjacent triangle pairs layer by layer (https://github.com/domattioli/QuADMESH)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
@@ -15,15 +15,21 @@ authors = [
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
-    "chilmesh>=1.2.1",
+    "chilmesh>=1.5.5",
+    "matplotlib>=3.6",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-cov"]
 plot = ["matplotlib>=3.6"]
+# pyquadriflow 0.0.4 (MIT, pre-alpha) ships Linux and Windows binaries only. On macOS the extra
+# installs nothing; put a quadriflow executable on PATH or set QUADMESH_QUADRIFLOW (spec 058 T020).
+bench-quadriflow = ["pyquadriflow; sys_platform == 'linux' or sys_platform == 'win32'"]
+bench = ["quadmesh[bench-quadriflow]"]
 
 [project.scripts]
 quadmesh = "quadmesh.cli:main"
+quadmesh-bench = "quadmesh.benchmark.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -112,13 +112,41 @@ def _scan_bad_quads(mesh: CHILmesh):
         yield elem_id, corner, opposing, ci, verts, p_prev, p_next
 
 
-def cleanup_boundary_quads(mesh: CHILmesh, can_remove_edges: bool = True) -> CHILmesh:
+def boundary_points(mesh: CHILmesh) -> np.ndarray:
+    """XY coordinates of every boundary vertex of ``mesh``."""
+    idx = np.unique(mesh.edge2vert(mesh.boundary_edges()).ravel()).astype(int)
+    return np.asarray(mesh.points)[idx, :2].copy()
+
+
+def _protected_mask(mesh: CHILmesh, protected_points) -> np.ndarray:
+    """Boolean mask over ``mesh`` vertices that coincide with a protected point."""
+    mask = np.zeros(mesh.n_verts, dtype=bool)
+    if protected_points is None or len(protected_points) == 0:
+        return mask
+    from scipy.spatial import cKDTree
+
+    pts = np.asarray(mesh.points)[:, :2]
+    prot = np.asarray(protected_points, dtype=float)[:, :2]
+    span = np.linalg.norm(pts.max(axis=0) - pts.min(axis=0))
+    d, _ = cKDTree(pts).query(prot, distance_upper_bound=1e-9 * span + 1e-300)
+    hit = np.isfinite(d)
+    _, j = cKDTree(pts).query(prot[hit])
+    mask[j] = True
+    return mask
+
+
+def cleanup_boundary_quads(
+    mesh: CHILmesh, can_remove_edges: bool = True, protected_points=None
+) -> CHILmesh:
     """Single pass. Loop caller until stable.
 
     Args:
         mesh: Quad (or padded-tri) CHILmesh.
         can_remove_edges: True -> collapse mode (MATLAB-faithful).
                           False -> shift mode (v0.2, Python-only).
+        protected_points: Optional (n, 2) coordinates. A collapse that would
+            delete a vertex at one of these points, or a shift that would
+            move one, is skipped. Default None (MATLAB-faithful: no pinning).
     """
     if mesh.connectivity_list.shape[1] != 4:
         return mesh
@@ -129,6 +157,7 @@ def cleanup_boundary_quads(mesh: CHILmesh, can_remove_edges: bool = True) -> CHI
 
     new_pts = mesh.points.copy()
     new_rows = mesh.connectivity_list.copy()
+    pinned = _protected_mask(mesh, protected_points)
 
     if can_remove_edges:
         # MATLAB subroutineCleanupBoundaryQuads:
@@ -140,6 +169,8 @@ def cleanup_boundary_quads(mesh: CHILmesh, can_remove_edges: bool = True) -> CHI
         for elem_id, corner, opposing, ci, verts, p_prev, p_next in bad:
             side1 = verts[(ci - 1) % 4]
             side2 = verts[(ci + 1) % 4]
+            if pinned[side1] or pinned[side2]:
+                continue  # collapse would delete a protected vertex
             # Rows affected by the remap (excluding the quad being deleted).
             mask = (
                 np.any((new_rows == side1) | (new_rows == side2), axis=1) & ~deleted
@@ -169,6 +200,8 @@ def cleanup_boundary_quads(mesh: CHILmesh, can_remove_edges: bool = True) -> CHI
     else:
         # Shift: move corner toward opposing until angle <= target.
         for elem_id, corner, opposing, ci, verts, p_prev, p_next in bad:
+            if pinned[corner]:
+                continue  # shift would move a protected vertex
             new_pts[corner] = _shift_to_target_angle(
                 mesh.points[corner], p_prev, p_next, mesh.points[opposing]
             )

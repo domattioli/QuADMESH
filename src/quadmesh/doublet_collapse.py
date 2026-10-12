@@ -1,8 +1,9 @@
 """Doublet collapse. Port of MATLAB DoubletCollapse.m.
 
-Two quads share 3 vertices → collapse to 1 quad. Triggered when an interior
-vertex has valence exactly 2 and both incident elems are quads. The shared
-"diagonal" vert is removed; the two quads merge.
+Removes interior valence-2 doublets. Two quads share three vertices around
+an interior vertex of valence 2; the two quads merge into one and that vertex
+is removed. Other concave quads are left unchanged. The MATLAB header says it
+collapses all concave quads; its code targets interior valence-2 vertices only.
 
 In MATLAB the test was: ``interior valence-2 vertex, both elems quads``.
 Output: collapsed mesh; the consumed vert ID added to ``removed_vert_ids``.
