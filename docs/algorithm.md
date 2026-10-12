@@ -196,7 +196,7 @@ Some boundary-layer quads can be concave. Smoothing can push a wide pinned bound
 
 ## 8. References
 
-- Mattioli, D. D. (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. Master's thesis, The Ohio State University. OhioLINK ETD, http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088. In-repo copy: [`docs/Mattioli_Thesis.pdf`](Mattioli_Thesis.pdf).
+- Mattioli, D. O. (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. Master's thesis, The Ohio State University. OhioLINK ETD, http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088. In-repo copy: [`docs/Mattioli_Thesis.pdf`](Mattioli_Thesis.pdf).
 - Remacle, J.-F., Lambrechts, J., Seny, B., Marchandise, E., Johnen, A., Geuzaine, C. (2012). Blossom-Quad: a non-uniform quadrilateral mesh generator using a minimum cost perfect matching algorithm. International Journal for Numerical Methods in Engineering, 89(9), 1102-1119.
 - Berge, C. (1957). Two theorems in graph theory. Proceedings of the National Academy of Sciences, 43(9), 842-844.
 - [`docs/MAPPING.md`](MAPPING.md): MATLAB-to-Python function map.

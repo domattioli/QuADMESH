@@ -8,7 +8,7 @@ abstract: >-
 type: software
 authors:
   - family-names: Mattioli
-    given-names: Dominik D.
+    given-names: Dominik O.
   - family-names: Kubatko
     given-names: Ethan J.
     affiliation: "Ohio State University"
@@ -29,7 +29,7 @@ preferred-citation:
   title: "QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models"
   authors:
     - family-names: Mattioli
-      given-names: Dominik D.
+      given-names: Dominik O.
   year: 2017
   institution:
     name: "Ohio State University"
