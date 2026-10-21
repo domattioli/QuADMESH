@@ -20,7 +20,7 @@ common path. Behaviour matches MATLAB on typical meshes (Test_Case_1, Block_O).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -78,19 +78,31 @@ class WorkingMesh:
     tris: Optional[List[Optional[np.ndarray]]] = None
     _n_pts: int = field(default=0, init=False, repr=False)
     _extra_pts: List[np.ndarray] = field(default_factory=list, init=False, repr=False)
+    # First id still held in ``_extra_pts``; advances on every flush so ids
+    # buffered after a flush resolve to the right slot.
+    _base: int = field(default=0, init=False, repr=False)
+    # vertex id -> indices into ``quads`` that reference it.
+    _v2q: Dict[int, Set[int]] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_n_pts", self.points.shape[0])
+        object.__setattr__(self, "_base", self.points.shape[0])
+        self.quads = [np.asarray(q, dtype=int).ravel() for q in self.quads]
+        for i, q in enumerate(self.quads):
+            for v in q.tolist():
+                self._v2q.setdefault(int(v), set()).add(i)
 
     def add_quad(self, quad: np.ndarray) -> int:
         idx = len(self.quads)
-        self.quads.append(np.asarray(quad, dtype=int).ravel())
+        row = np.asarray(quad, dtype=int).ravel()
+        self.quads.append(row)
+        for v in row.tolist():
+            self._v2q.setdefault(int(v), set()).add(idx)
         return idx
 
     def add_point(self, xyz: np.ndarray) -> int:
-        # Buffer new points in a list; domain.points is synced once at end of
-        # _faithful_per_layer via flush_points_to_domain().  New point coords are
-        # never read back from domain.points during the sweep.
+        # Buffer new points in a list; domain.points is synced at layer
+        # boundaries / the end of the sweep via flush_points_to_domain().
         xyz = np.asarray(xyz, dtype=float).ravel()
         if xyz.size == 2:
             xyz = np.array([xyz[0], xyz[1], 0.0])
@@ -105,9 +117,19 @@ class WorkingMesh:
         return self._n_pts
 
     def get_extra_point(self, idx: int) -> np.ndarray:
-        """Coordinates for a buffered new vertex (idx >= original n_pts)."""
-        offset = idx - self.points.shape[0]
-        return self._extra_pts[offset]
+        """Coordinates for a buffered (not yet flushed) new vertex."""
+        return self._extra_pts[idx - self._base]
+
+    def quads_with(self, v: int) -> Set[int]:
+        """Indices of quads that reference vertex ``v``."""
+        return self._v2q.get(int(v), set())
+
+    def replace_vertex_in_quad(self, qi: int, old: int, new: int) -> None:
+        """Rewrite ``old`` -> ``new`` in quad ``qi`` and keep the index current."""
+        q = self.quads[qi]
+        q[q == old] = new
+        self._v2q.get(int(old), set()).discard(qi)
+        self._v2q.setdefault(int(new), set()).add(qi)
 
     def flush_points_to_domain(self, domain) -> None:
         """Extend domain.points with all buffered new points in one vstack."""
@@ -116,6 +138,7 @@ class WorkingMesh:
         extra = np.stack(self._extra_pts)
         domain.points = np.vstack([domain.points, extra])
         self._extra_pts.clear()
+        object.__setattr__(self, "_base", self._n_pts)
 
 
 def edge_removal(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
@@ -136,8 +159,8 @@ def edge_removal(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
     cl = domain.connectivity_list
     cl[cl == v_b] = v_a
     # Rewrite any existing quads referencing v_b → v_a.
-    for q in work.quads:
-        q[q == v_b] = v_a
+    for qi in list(work.quads_with(v_b)):
+        work.replace_vertex_in_quad(qi, v_b, v_a)
 
 
 def edge_bisection(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
@@ -305,6 +328,398 @@ def edge_insertion(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
     return np_id
 
 
+# ── Conforming sweep state (QuADMESH tri2quad T-junction fix) ────────────────
+
+
+def _corner_sines(poly: np.ndarray) -> np.ndarray:
+    """Signed sine of each interior corner of a CCW polygon (> 0 = convex)."""
+    k = poly.shape[0]
+    out = np.empty(k)
+    for i in range(k):
+        e1 = poly[(i + 1) % k] - poly[i]
+        e2 = poly[(i - 1) % k] - poly[i]
+        n = float(np.hypot(*e1) * np.hypot(*e2))
+        out[i] = (e1[0] * e2[1] - e1[1] * e2[0]) / n if n > 0.0 else -1.0
+    return out
+
+
+def _signed_area(poly: np.ndarray) -> float:
+    x, y = poly[:, 0], poly[:, 1]
+    return 0.5 * float(x @ np.roll(y, -1) - np.roll(x, -1) @ y)
+
+
+class SweepContext:
+    """Live mesh topology for the per-layer QuADMESH+ sweep.
+
+    The sweep converts layers innermost first. A leftover triangle in layer
+    ``L`` is closed into a quad by adding one vertex on its outer ring: the
+    ring edge it shares with layer ``L - 1`` (still all triangles), or the
+    domain boundary when ``L == 0``. The triangle across that ring edge is
+    split at the new vertex, so the working mesh stays conforming and the
+    inner layers never see a hanging node.
+
+    Classification uses the live connectivity (``domain.connectivity_list``
+    rows plus ``work.quads``), not the parent's adjacency tables, because the
+    sweep appends rows and vertices as it goes. ``sync`` rebuilds the parent's
+    adjacency at each layer start so ``identify_edges_in_layer`` sees the
+    current mesh.
+    """
+
+    MAX_FAN = 64
+    SPLIT_FRACTIONS = (0.5, 1.0 / 3.0, 0.25, 1.0 / 6.0)
+    APEX_FRACTIONS = (0.15, 0.25, 1.0 / 3.0, 0.5)
+    MIN_SINE = 0.06  # about 3.4 degrees from a straight or a zero angle
+
+    def __init__(self, domain: CHILmesh, work: WorkingMesh, consumed: set,
+                 refused: set, boundary_edges) -> None:
+        self.domain = domain
+        self.work = work
+        self.consumed = consumed
+        self.refused = refused
+        nl = int(getattr(domain, "n_layers", 0) or 0)
+        src = domain.layers
+        self.layers: Dict[str, list] = {
+            k: [np.asarray(a, dtype=int).copy() for a in src.get(k, [])]
+            for k in ("OE", "IE", "OV", "IV", "bEdgeIDs")
+        }
+        domain.layers = self.layers  # private copy; caller restores the original
+        self.elem_layer: Dict[int, Tuple[int, str]] = {}
+        for li in range(nl):
+            for kind in ("OE", "IE"):
+                for e in self.layers[kind][li].tolist():
+                    self.elem_layer.setdefault(int(e), (li, kind))
+        self.v2t: Dict[int, Set[int]] = {}
+        cl = domain.connectivity_list
+        for r in range(cl.shape[0]):
+            for v in set(int(x) for x in cl[r, :3]):
+                self.v2t.setdefault(v, set()).add(r)
+        self.dom_bdy: Set[frozenset] = {frozenset((int(a), int(b))) for a, b in boundary_edges}
+        self.dom_bdy_verts: Set[int] = {v for e in self.dom_bdy for v in e}
+        self.layer_idx = nl - 1
+        self.dirty = False
+
+    # -- geometry / topology queries ------------------------------------------
+
+    def xy(self, v: int) -> np.ndarray:
+        v = int(v)
+        if v < self.domain.points.shape[0]:
+            return np.asarray(self.domain.points[v, :2], dtype=float)
+        return np.asarray(self.work.get_extra_point(v)[:2], dtype=float)
+
+    def poly(self, verts) -> np.ndarray:
+        return np.array([self.xy(v) for v in verts], dtype=float)
+
+    def tri_row(self, r: int) -> List[int]:
+        return [int(x) for x in self.domain.connectivity_list[r, :3]]
+
+    def live(self, r: int) -> bool:
+        """Row ``r`` is still a triangle of the working mesh."""
+        if r in self.consumed and r not in self.refused:
+            return False
+        return len(set(self.tri_row(r))) == 3
+
+    def _outer(self, r: int) -> bool:
+        lay = self.elem_layer.get(r)
+        return lay is not None and lay[0] < self.layer_idx and self.live(r)
+
+    def outer_tris_on_edge(self, u: int, v: int) -> List[int]:
+        both = self.v2t.get(u, set()) & self.v2t.get(v, set())
+        return [r for r in both if self._outer(r)]
+
+    def is_ring_edge(self, u: int, v: int) -> bool:
+        if self.layer_idx == 0:
+            return frozenset((u, v)) in self.dom_bdy
+        return bool(self.outer_tris_on_edge(u, v))
+
+    def is_ring_vert(self, v: int) -> bool:
+        if self.layer_idx == 0:
+            return v in self.dom_bdy_verts
+        return any(self._outer(r) for r in self.v2t.get(v, ()))
+
+    def elem_verts(self, el: Tuple[str, int]) -> List[int]:
+        kind, i = el
+        if kind == "q":
+            return [int(x) for x in self.work.quads[i]]
+        return self.tri_row(i)
+
+    def elems_on_edge(self, u: int, v: int) -> List[Tuple[str, int]]:
+        """Live quads and triangles that have ``(u, v)`` as an edge."""
+        out: List[Tuple[str, int]] = []
+        for qi in self.work.quads_with(u) & self.work.quads_with(v):
+            q = [int(x) for x in self.work.quads[qi]]
+            k = len(q)
+            if any({q[j], q[(j + 1) % k]} == {u, v} for j in range(k)):
+                out.append(("q", qi))
+        for r in self.v2t.get(u, set()) & self.v2t.get(v, set()):
+            if self.live(r):
+                out.append(("t", r))
+        return out
+
+    # -- mutations ------------------------------------------------------------
+
+    def _set_row(self, r: int, verts: List[int]) -> None:
+        cl = self.domain.connectivity_list
+        cl[r, :3] = verts
+        if cl.shape[1] > 3:  # keep padded-triangle convention
+            cl[r, 3:] = verts[-1]
+
+    def retire_tri(self, r: int) -> None:
+        """Remove triangle row ``r`` from the working mesh (zeroed row)."""
+        for v in set(self.tri_row(r)):
+            self.v2t.get(v, set()).discard(r)
+        self.domain.connectivity_list[r, :] = 0
+
+    def replace_vertex(self, el: Tuple[str, int], old: int, new: int) -> None:
+        kind, i = el
+        if kind == "q":
+            self.work.replace_vertex_in_quad(i, old, new)
+            return
+        self._set_row(i, [new if v == old else v for v in self.tri_row(i)])
+        self.v2t.get(old, set()).discard(i)
+        self.v2t.setdefault(new, set()).add(i)
+
+    def split_outer(self, r: int, x: int, y: int, m: int) -> int:
+        """Split triangle ``r`` across its edge ``(x, y)`` at new vertex ``m``.
+
+        Row ``r`` keeps the half on ``x``; the half on ``y`` is appended as a
+        new row in the same layer list. Stored vertex order (orientation) is
+        kept in both halves. Returns the new row id.
+        """
+        row = self.tri_row(r)
+        keep = [m if v == y else v for v in row]
+        new = [m if v == x else v for v in row]
+        self._set_row(r, keep)
+        cl = self.domain.connectivity_list
+        add = np.zeros((1, cl.shape[1]), dtype=cl.dtype)
+        add[0, :3] = new
+        if cl.shape[1] > 3:
+            add[0, 3:] = new[-1]
+        nid = cl.shape[0]
+        self.domain.connectivity_list = np.vstack([cl, add])
+        self.v2t.get(y, set()).discard(r)
+        self.v2t.setdefault(m, set()).add(r)
+        for v in new:
+            self.v2t.setdefault(v, set()).add(nid)
+        lay = self.elem_layer.get(r)
+        if lay is not None:
+            li, kind = lay
+            self.elem_layer[nid] = lay
+            self.layers[kind][li] = np.append(self.layers[kind][li], nid)
+            for key in ("IV", "OV"):
+                arr = self.layers[key][li]
+                if x in arr and y in arr:
+                    self.layers[key][li] = np.append(arr, m)
+        self.dirty = True
+        return nid
+
+    def split_ring_edge(self, x: int, y: int, m: int,
+                        outer: Optional[int]) -> None:
+        """Insert ``m`` on ring edge ``(x, y)``: split the outer tri, or the
+        domain-boundary edge when sweeping layer 0."""
+        if outer is not None:
+            self.split_outer(outer, x, y, m)
+        else:
+            self.dom_bdy.discard(frozenset((x, y)))
+            self.dom_bdy.add(frozenset((x, m)))
+            self.dom_bdy.add(frozenset((m, y)))
+            self.dom_bdy_verts.add(m)
+        self.dirty = True
+
+    def sync(self) -> None:
+        """Make the parent CHILmesh match the working mesh (points, rows,
+        adjacency) so per-layer identification sees the current topology."""
+        if not self.dirty:
+            return
+        d = self.domain
+        self.work.flush_points_to_domain(d)
+        cl = d.connectivity_list
+        for r in self.consumed:
+            if r not in self.refused and r < cl.shape[0] and cl[r].any():
+                self.retire_tri(r)
+        d.n_verts = d.points.shape[0]
+        d.n_elems = d.connectivity_list.shape[0]
+        d._build_adjacencies(validate=False)
+        self.dirty = False
+
+    # -- leftover-triangle operations -----------------------------------------
+
+    def _ring_target(self, x: int, y: int) -> Tuple[bool, Optional[int]]:
+        """``(ok, outer_row)`` for ring edge ``(x, y)``; ok is False when the
+        edge is not a clean two-element ring edge."""
+        if self.layer_idx == 0:
+            return frozenset((x, y)) in self.dom_bdy, None
+        outer = self.outer_tris_on_edge(x, y)
+        if len(outer) != 1:
+            return False, None
+        return True, outer[0]
+
+    def _bisect_point(self, a: int, b: int, c: int,
+                      outer: Optional[int]) -> Optional[np.ndarray]:
+        """New vertex for closing ``(a, b, c)`` across ring edge ``(a, b)``.
+
+        On the domain boundary (layer 0) it is the edge midpoint, as in MATLAB
+        edgeBisection. Inside the mesh a midpoint would give the quad a
+        180-degree corner (a geometric triangle), so the point moves from the
+        midpoint toward the outer triangle's apex; the fraction with the best
+        worst corner over the quad and both outer halves wins. ``None`` when
+        no fraction keeps every corner above ``MIN_SINE``.
+        """
+        pa, pb, pc = self.xy(a), self.xy(b), self.xy(c)
+        mid = 0.5 * (pa + pb)
+        if outer is None:
+            return mid
+        apex = [v for v in self.tri_row(outer) if v not in (a, b)]
+        if len(apex) != 1:
+            return None
+        pz = self.xy(apex[0])
+        best = None
+        for t in self.APEX_FRACTIONS:
+            pm = mid + t * (pz - mid)
+            worst = min(
+                float(_corner_sines(np.array([pa, pm, pb, pc])).min()),
+                float(_corner_sines(np.array([pa, pz, pm])).min()),
+                float(_corner_sines(np.array([pm, pz, pb])).min()),
+            )
+            if worst > self.MIN_SINE and (best is None or worst > best[0]):
+                best = (worst, pm)
+        return None if best is None else best[1]
+
+    def bisect(self, r: int, a: int, b: int, c: int, flat_ok: bool = False) -> bool:
+        """Close CCW triangle ``(a, b, c)`` with ring edge ``(a, b)`` into the
+        quad ``(a, m, b, c)`` and split the element across ``(a, b)`` at
+        ``m`` (see ``_bisect_point``). ``flat_ok`` allows the edge midpoint
+        inside the mesh as a last resort."""
+        ok, outer = self._ring_target(a, b)
+        if not ok:
+            return False
+        pm = self._bisect_point(a, b, c, outer)
+        if pm is None:
+            if not flat_ok:
+                return False
+            pm = 0.5 * (self.xy(a) + self.xy(b))
+        m = self.work.add_point(np.append(pm, 0.0))
+        self.work.add_quad(np.array([a, m, b, c], dtype=int))
+        self.retire_tri(r)
+        self.split_ring_edge(a, b, m, outer)
+        return True
+
+    def _fan(self, r: int, b: int, start: int) -> Optional[Tuple[int, List[Tuple[str, int]]]]:
+        """Walk the elements around ``b`` from triangle ``r`` across edge
+        ``(b, start)`` until a ring edge ``(b, s)``. Returns ``(s, elems)``
+        or ``None`` when the walk is non-manifold, open, or too long."""
+        prev: Tuple[str, int] = ("t", r)
+        cur = start
+        elems: List[Tuple[str, int]] = []
+        for _ in range(self.MAX_FAN):
+            if self.is_ring_edge(b, cur):
+                return (cur, elems) if elems else None
+            nxt_elems = [e for e in self.elems_on_edge(b, cur) if e != prev]
+            if len(nxt_elems) != 1:
+                return None
+            el = nxt_elems[0]
+            if el == ("t", r) or el in elems:
+                return None
+            vs = self.elem_verts(el)
+            if vs.count(b) != 1:
+                return None
+            k = len(vs)
+            i = vs.index(b)
+            nbrs = [vs[(i - 1) % k], vs[(i + 1) % k]]
+            if cur not in nbrs:
+                return None
+            nxt = nbrs[1] if nbrs[0] == cur else nbrs[0]
+            elems.append(el)
+            prev, cur = el, nxt
+        return None
+
+    def vertex_split(self, r: int, b: int, p: int, q: int) -> bool:
+        """Close CCW triangle ``(b, p, q)`` whose only ring contact is vertex
+        ``b``: move ``b`` to a new vertex ``n`` on ring edge ``(b, s)`` in the
+        elements between the triangle and that edge, so the triangle gains a
+        fourth corner. The element across ``(b, s)`` is split at ``n``.
+        Picks the side and the split fraction with the best worst corner."""
+        best = None
+        for side, start in (("A", p), ("B", q)):
+            fan = self._fan(r, b, start)
+            if fan is None:
+                continue
+            s, elems = fan
+            ok, outer = self._ring_target(b, s)
+            if not ok:
+                continue
+            pb, ps = self.xy(b), self.xy(s)
+            olds = []
+            for el in elems:
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                olds.append((vs, sign, sign * _corner_sines(self.poly(vs))))
+            for t in self.SPLIT_FRACTIONS:
+                pn = pb + t * (ps - pb)
+                worst = np.inf
+                valid = True
+                for vs, sign, o_sin in olds:
+                    poly = np.array([pn if v == b else self.xy(v) for v in vs])
+                    if sign * _signed_area(poly) <= 0.0:
+                        valid = False
+                        break
+                    n_sin = sign * _corner_sines(poly)
+                    convex = o_sin > 0.0
+                    if np.any(n_sin[convex] <= np.minimum(self.MIN_SINE, o_sin[convex])):
+                        valid = False
+                        break
+                    if convex.any():
+                        worst = min(worst, float(n_sin[convex].min()))
+                if not valid:
+                    continue
+                quad_pts = (
+                    np.array([pb, pn, self.xy(p), self.xy(q)]) if side == "A"
+                    else np.array([pb, self.xy(p), self.xy(q), pn])
+                )
+                if _signed_area(quad_pts) <= 0.0:
+                    continue
+                q_sin = _corner_sines(quad_pts)
+                if q_sin.min() <= self.MIN_SINE:
+                    continue
+                worst = min(worst, float(q_sin.min()))
+                if best is None or worst > best[0]:
+                    best = (worst, side, t, s, elems, outer, pn)
+        if best is None:
+            return False
+        _, side, _, s, elems, outer, pn = best
+        n = self.work.add_point(np.append(pn, 0.0))
+        for el in elems:
+            self.replace_vertex(el, b, n)
+        quad = [b, n, p, q] if side == "A" else [b, p, q, n]
+        self.work.add_quad(np.array(quad, dtype=int))
+        self.retire_tri(r)
+        self.split_ring_edge(b, s, n, outer)
+        return True
+
+    def route(self, r: int, refuse_boundary_merge: bool) -> Optional[bool]:
+        """Conforming ``removeTrianglesFun``: see ``route_leftover_tri``."""
+        if not self.live(r):
+            return None
+        tri = self.tri_row(r)
+        if _signed_area(self.poly(tri)) < 0.0:
+            tri = tri[::-1]
+        a, b, c = tri
+        sides = ((a, b, c), (b, c, a), (c, a, b))
+        ring = [s for s in sides if self.is_ring_edge(s[0], s[1])]
+        if self.layer_idx == 0 and len(ring) >= 2 and refuse_boundary_merge:
+            return False  # #98 option A: leave as a boundary triangle
+        ring.sort(key=lambda s: -float(np.hypot(*(self.xy(s[0]) - self.xy(s[1])))))
+        for x, y, z in ring:
+            if self.bisect(r, x, y, z):
+                return True
+        for x, y, z in sides:
+            if self.is_ring_vert(x) and self.vertex_split(r, x, y, z):
+                return True
+        for x, y, z in ring:
+            if self.bisect(r, x, y, z, flat_ok=True):
+                return True
+        return None
+
+
 def route_leftover_tri(
     domain: CHILmesh,
     work: WorkingMesh,
@@ -316,6 +731,7 @@ def route_leftover_tri(
     sub_b_vert_set: set,
     refuse_boundary_merge: bool = False,
     preserve_boundary_verts: bool = False,
+    ctx: Optional[SweepContext] = None,
 ) -> Optional[bool]:
     """Apply the right sub-op given tri's boundary-edge count.
 
@@ -333,7 +749,16 @@ def route_leftover_tri(
     the collapse would turn that quad into a triangle, or when
     ``preserve_boundary_verts`` is set (a collapse would move two original
     boundary vertices).
+
+    With ``ctx`` (the per-layer sweep), the tri is classified on its live
+    outer ring instead of ``sub_b_edge_set`` / ``sub_b_vert_set``, and every
+    op keeps the mesh conforming: a ring-edge bisection splits the element
+    across the edge, and a tri that touches the ring at one vertex is closed
+    by a vertex split (``SweepContext.vertex_split``). Edges are never
+    collapsed. ``None`` leaves the tri for the closing passes.
     """
+    if ctx is not None:
+        return ctx.route(tri_elem_id, refuse_boundary_merge)
     edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
     bdy_edges_local = [
         i for i, e in enumerate(edge_ids) if int(e) in sub_b_edge_set

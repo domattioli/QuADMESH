@@ -361,9 +361,14 @@ def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
 # from `scripts/bench_boundary_layer.py --mesh <name>`.
 # 059: boundary-correct routing (layer 0 is the boundary layer) is the new
 # reference. Block_O 274 -> 264, structuredMesh1 20 -> 22.
+# #108: Block_O 273 -> 274 (the pairing-merge degeneracy guard leaves one
+# boundary sliver as boundary tris, which is allowed).
+# Conforming sweep (SweepContext): leftover tris close on their live outer
+# ring instead of a hanging-node insertion. Block_O 264 -> 17,
+# structuredMesh1 22 -> 5.
 _GEO_TRI_BASELINE = {
-    "Block_O.14": 264,  # 273 -> 274 (#108): pairing-merge degeneracy guard leaves
-    "structuredMesh1.14": 22,  # one boundary sliver as boundary tris (allowed)
+    "Block_O.14": 17,
+    "structuredMesh1.14": 5,
 }
 
 
@@ -402,10 +407,13 @@ def test_boundary_geo_tri_baseline(fixture_name):
 # the flag and prevent re-characterization churn.
 # 059: boundary-correct routing is the new reference. Block_O 274 -> 261,
 # structuredMesh1 19 -> 22.
+# #108: the pairing-merge acceptance criterion (the offline lever named above)
+# rejects near-flat merges, so one boundary sliver splits to tris.
+# Conforming sweep (SweepContext): Block_O 261 -> 17, structuredMesh1 22 -> 4.
 _GEO_TRI_FLAG_ON = {
-    "Block_O.14": 261,  # 273 -> 274 (#108): the pairing-merge acceptance criterion
-    "structuredMesh1.14": 22,  # (named above as the real offline lever) now rejects
-}                              # near-flat merges -> one boundary sliver splits to tris
+    "Block_O.14": 17,
+    "structuredMesh1.14": 4,
+}
 
 
 @pytest.mark.parametrize("fixture_name", list(_GEO_TRI_FLAG_ON))

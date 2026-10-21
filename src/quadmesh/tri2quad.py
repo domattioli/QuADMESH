@@ -818,18 +818,26 @@ def _quadmesh_plus_per_layer(
     tris: np.ndarray,
     can_remove_edges: bool,
     refuse_boundary_merge: bool = False,
-) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray, set]:
+) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray, set,
+           np.ndarray, Set[Tuple[int, int]]]:
     """True MATLAB Tri2QuadRoutine per-layer loop.
 
     Mirrors ``Tri2QuadRoutine.m``: innermost layer first, per-layer
     identifyEdges → mergeTriangles → removeTriangles, then a fallback global
     matcher for any elements not covered by the skeleton layers.
 
-    Returns ``(quads, leftover_global_idx, points)`` where ``leftover_global_idx``
-    indexes into the original ``tris`` array for tris not handled by the
-    per-layer sweep, and ``points`` is the (possibly augmented) vertex table.
+    Returns ``(quads, leftover_idx, points, refused, tris_out, bset_out)``.
+    The sweep keeps the mesh conforming: a leftover tri gains its fourth
+    corner on its outer ring and the tri across that ring is split, so rows
+    are rewritten and appended as it goes. ``tris_out`` is the final tri
+    table (consumed rows zeroed); ``leftover_idx`` and ``refused`` index into
+    it. ``bset_out`` is the domain-boundary edge set after layer-0 splits.
+    ``points`` is the augmented vertex table.
+
+    Mutates ``domain`` (points, connectivity, layers, adjacency); the caller
+    restores it.
     """
-    from ._tri_removal import WorkingMesh, route_leftover_tri
+    from ._tri_removal import SweepContext, WorkingMesh, route_leftover_tri
     from chilmesh import quad_from_tri_pair
 
     def merge_tri_pair(mesh, la: int, lb: int) -> np.ndarray:
@@ -844,7 +852,8 @@ def _quadmesh_plus_per_layer(
     refused: set = set()
 
     nl = int(getattr(domain, "n_layers", 0) or 0)
-    layers = domain.layers
+    ctx = SweepContext(domain, work, consumed, refused, _boundary_edge_set(tris))
+    layers = domain.layers  # ctx's private copy; grows as outer tris split
 
     # All elem IDs that belong to at least one layer — the rest fall through to
     # the global matcher below.
@@ -854,6 +863,8 @@ def _quadmesh_plus_per_layer(
         all_layer_elems.update(int(e) for e in layers["IE"][li])
 
     for li in range(nl - 1, -1, -1):  # MATLAB: nLayers downto 1 (innermost first)
+        ctx.layer_idx = li
+        ctx.sync()  # adjacency must see the rows/points the last layer added
         try:
             sel = identify_edges_in_layer(domain, li)
         except Exception:
@@ -951,9 +962,10 @@ def _quadmesh_plus_per_layer(
 
         # Route leftover (unmatched) tris (removeTrianglesFun).
         # Boundary layer = CHILmesh layer 0 (MATLAB removeTrianglesFun.m:12,
-        # ``iLayer == 1``).
+        # ``iLayer == 1``). ``ctx`` classifies each tri on its live outer ring;
+        # ``sel.boundary_edge_ids`` are sub-mesh edge ids and must not be
+        # compared with parent edge ids.
         on_mesh_boundary = _is_boundary_layer(li)
-        b_edge_set = set(int(e) for e in sel.boundary_edge_ids)
         b_vert_set = set(int(v) for v in sel.boundary_vert_ids_global)
 
         for gid in glob:
@@ -965,28 +977,35 @@ def _quadmesh_plus_per_layer(
                     domain, work, gid_i, li,
                     on_mesh_boundary=on_mesh_boundary,
                     can_remove_edges=can_remove_edges,
-                    sub_b_edge_set=b_edge_set,
+                    sub_b_edge_set=set(),
                     sub_b_vert_set=b_vert_set,
                     refuse_boundary_merge=refuse_boundary_merge,
                     preserve_boundary_verts=True,
+                    ctx=ctx,
                 )
             except Exception:
-                handled = True  # degenerate — preserve prior consume behavior
+                handled = None  # leave the tri in place; never drop it (hole)
             if handled is None:
                 continue  # unchanged: leave for leftover_idx and the closing pass
             if handled is False:
                 refused.add(gid_i)
             consumed.add(gid_i)
 
+    # Flush buffered new points to domain in one batch vstack.
+    work.flush_points_to_domain(domain)
+    tris_out = np.asarray(domain.connectivity_list)[:, :3].astype(int).copy()
+    for i in consumed - refused:
+        tris_out[i] = 0
+
     # Global matcher fallback for any elems not covered by skeleton layers.
     unclaimed_idx = [
         i for i in range(len(tris))
         if i not in consumed
         and i not in all_layer_elems
-        and len(set(tris[i].tolist())) == 3  # skip zero/degenerate rows
+        and len(set(tris_out[i].tolist())) == 3  # skip zero/degenerate rows
     ]
     if unclaimed_idx:
-        unclaimed_tris = tris[unclaimed_idx]
+        unclaimed_tris = tris_out[unclaimed_idx]
         unc_quads, unc_left_local = _match_tris_to_quads(
             unclaimed_tris, domain.points
         )
@@ -1002,15 +1021,14 @@ def _quadmesh_plus_per_layer(
     # Remaining tris: in consumed set but zero-row means consumed-in-place (fine).
     # Not in consumed = genuinely unhandled, pass to downstream cleanup.
     leftover_idx = [
-        i for i in range(len(tris))
-        if i not in consumed and len(set(tris[i].tolist())) == 3
+        i for i in range(len(tris_out))
+        if i not in consumed and len(set(tris_out[i].tolist())) == 3
     ]
-
-    # Flush buffered new points to domain in one batch vstack, then sync.
-    work.flush_points_to_domain(domain)
     points_out = domain.points.copy()
+    bset_out = {tuple(sorted(int(v) for v in e)) for e in ctx.dom_bdy}
 
-    return [tuple(int(v) for v in q) for q in work.quads], leftover_idx, points_out, refused
+    return ([tuple(int(v) for v in q) for q in work.quads], leftover_idx,
+            points_out, refused, tris_out, bset_out)
 
 
 def tri2quad_routine(
@@ -1087,23 +1105,32 @@ def tri2quad_routine(
         nl_check = int(getattr(domain, "n_layers", 0) or 0)
         if nl_check > 0:
             # True per-layer loop: identifyEdges → mergePairs → routeLeftovers per layer
-            # (mirrors Tri2QuadRoutine.m).  Route ops mutate domain.points /
-            # domain.connectivity_list in place during the sweep; snapshot +
-            # restore so the caller's mesh comes back untouched (callers and
-            # session-scoped test fixtures share the input object).
-            pts_snapshot = domain.points.copy()
-            cl_snapshot = np.asarray(domain.connectivity_list).copy()
+            # (mirrors Tri2QuadRoutine.m).  The sweep rewrites and appends
+            # points, connectivity rows, layers and adjacency; it works on
+            # private copies and the originals are put back so the caller's
+            # mesh comes back untouched (callers and session-scoped test
+            # fixtures share the input object).
+            saved = {
+                k: getattr(domain, k)
+                for k in ("points", "connectivity_list", "layers",
+                          "adjacencies", "n_verts", "n_elems", "n_edges", "type")
+                if hasattr(domain, k)
+            }
+            domain.points = np.asarray(domain.points).copy()
+            domain.connectivity_list = np.asarray(domain.connectivity_list).copy()
             try:
-                quads, leftover_idx, points, refused_idx = _quadmesh_plus_per_layer(
+                (quads, leftover_idx, points, refused_idx, tris,
+                 bset_sweep) = _quadmesh_plus_per_layer(
                     domain, tris, can_remove_edges,
                     refuse_boundary_merge=refuse_boundary_merge,
                 )
             finally:
-                domain.points = pts_snapshot
-                domain.connectivity_list = cl_snapshot
+                for k, v in saved.items():
+                    setattr(domain, k, v)
         else:
             # No skeleton layers (e.g. mesh too coarse) — degrade gracefully.
             refused_idx: set = set()
+            bset_sweep = None
             prio = _layer_priority(domain, len(tris))
             try:
                 seed, forbidden = _sweep_pairs(domain)
@@ -1116,7 +1143,7 @@ def tri2quad_routine(
         raise ValueError(f"unknown method {method!r} (use 'quadmesh+')")
 
     if remove_boundary_tris and leftover_idx:
-        bset = _boundary_edge_set(tris)
+        bset = bset_sweep if bset_sweep is not None else _boundary_edge_set(tris)
         mbc = (
             minimize_boundary_change
             if minimize_boundary_change is not None
