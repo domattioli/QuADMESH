@@ -29,6 +29,12 @@ from quadmesh import compute_quality_stats, post_process, tri2quad
 # Block_O 0.251->0.680; output elem counts drop (more tri pairs merged into
 # quads). Pins re-tightened 2026-06-13. Still loose tolerances vs MATLAB
 # ground-truth (not yet captured).
+#
+# Conforming sweep (SweepContext, 2026-10-21): leftover tris close on their
+# live outer ring instead of a hanging-node insertion. Block_O pins
+# n_elems_out 2727 -> 2833 and mean quality 0.680 -> 0.801 (the code before
+# the fix measured 2725 and 0.677). Test_Case_1 was not re-measured (Valence
+# fixture not available offline).
 EXPECTED = {
     "Test_Case_1.14": {
         "n_elems_in": 2417,
@@ -38,9 +44,9 @@ EXPECTED = {
     },
     "Block_O.14": {
         "n_elems_in": 5214,
-        "n_elems_out": 2727,
+        "n_elems_out": 2833,
         "quad_frac": 1.000,
-        "mean_quality": 0.680,
+        "mean_quality": 0.801,
     },
 }
 
