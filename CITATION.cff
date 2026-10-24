@@ -35,3 +35,5 @@ preferred-citation:
     name: "Ohio State University"
   thesis-type: "Master's thesis"
   url: "http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088"
+  doi: 10.5281/zenodo.23607233
+  notes: "DOI resolves to a corrected PDF with all references resolved; the OhioLINK copy was compiled without the bibliography pass."

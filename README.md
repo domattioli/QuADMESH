@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>A Quadrangular ADvanced, automatic unstructured MESH generator for 2D shallow-water models.</strong><br>
-  Python API and port of the MATLAB library and 'QuADMESH+' <a href="https://github.com/user-attachments/files/19724263/QuADMESH-Thesis.pdf">
+  Python API and port of the MATLAB library and 'QuADMESH+' <a href="https://doi.org/10.5281/zenodo.23607233">
     <img src="https://img.shields.io/badge/Thesis-QuADMESH-ba0c2f?style=flat-square&logo=book&logoColor=white&labelColor=cfd4d8" alt="QuADMESH Thesis"></a> 
 </p>
 
@@ -117,6 +117,8 @@ export VALENCE_TOKEN=<your token>; quadmesh --from-registry Block_O.14 -o out.14
 **Algorithm and theory** (cite the original thesis):
 
 > Mattioli, DO (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. The Ohio State University, OhioLINK - Electronic Theses and Dissertations Center. Master's Thesis. http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088
+
+A corrected PDF of the thesis, with every cross-reference and citation resolved, is archived at https://doi.org/10.5281/zenodo.23607233 and attached to each [GitHub release](https://github.com/domattioli/QuADMESH/releases). The OhioLINK copy prints `??` for figure, chapter and citation references because it was compiled without the bibliography pass.
 
 **This software** (cite the Zenodo release):
 

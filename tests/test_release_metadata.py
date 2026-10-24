@@ -12,6 +12,9 @@ import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 CONCEPT_DOI = "10.5281/zenodo.20350483"
+# The 2017 thesis is its own Zenodo record (publication, not a software version); it may be cited beside the concept DOI.
+THESIS_DOI = "10.5281/zenodo.23607233"
+ALLOWED_DOIS = {CONCEPT_DOI, THESIS_DOI}
 
 
 class ReleaseMetadataTests(unittest.TestCase):
@@ -21,13 +24,13 @@ class ReleaseMetadataTests(unittest.TestCase):
     def test_citation_cites_the_concept_doi(self):
         text = (REPO / "CITATION.cff").read_text(encoding="utf-8")
         self.assertEqual(re.findall(r"(?m)^doi:\s*(\S+)\s*$", text), [CONCEPT_DOI])
-        # QuADMESH addition: identifiers and any other field may name only the concept DOI.
-        self.assertLessEqual(set(re.findall(r"10\.5281/zenodo\.\d+", text)), {CONCEPT_DOI})
+        # QuADMESH addition: identifiers and any other field may name only the concept DOI or the thesis DOI.
+        self.assertLessEqual(set(re.findall(r"10\.5281/zenodo\.\d+", text)), ALLOWED_DOIS)
 
     def test_readme_uses_only_the_concept_doi(self):
         text = (REPO / "README.md").read_text(encoding="utf-8")
         self.assertIn(f"doi.org/{CONCEPT_DOI}", text)
-        self.assertLessEqual(set(re.findall(r"10\.5281/zenodo\.\d+", text)), {CONCEPT_DOI})
+        self.assertLessEqual(set(re.findall(r"10\.5281/zenodo\.\d+", text)), ALLOWED_DOIS)
 
     def test_zenodo_json_never_pins_a_doi(self):
         # A doi or concept field here would make Zenodo file the release outside the concept record.
