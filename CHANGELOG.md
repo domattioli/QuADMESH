@@ -6,6 +6,18 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-23
+
+Patch release: the per-layer sweep no longer leaves hanging nodes, and the thesis PDF is replaced by a copy with every reference resolved.
+
+### Fixed
+- The per-layer QuADMESH+ sweep is conforming again. It compared sub-mesh boundary edge ids with parent edge ids, so most leftover triangles fell through to `edge_insertion`, whose opposite-triangle split is blocked by the #81 guard; each insertion left a hanging node. The sweep now classifies each leftover triangle on its live outer ring and closes it by a ring-edge split or a vertex split. It never collapses an edge. `tri2quad_routine` saves and restores the caller's mesh state. `DEFAULT_LOST` rises in the default pipeline; `preserve_boundary=True` still loses no boundary vertex. Parity pins re-measured: Test_Case_1 mean quality 0.696 to 0.811, Block_O 0.680 to 0.801.
+
+### Changed
+- `docs/Mattioli_Thesis.pdf` is a rebuild of the 2017 thesis from its LaTeX source with every cross-reference and citation resolved. The OhioLINK copy prints `??` and `[?]`. The corrected PDF is archived at [10.5281/zenodo.23607233](https://doi.org/10.5281/zenodo.23607233) and attached to each GitHub release; README, `CITATION.cff` and `.zenodo.json` point at that DOI.
+- Contact lines use GitHub profile links in place of email addresses.
+- CI runs the DomI release-docs lint on README, `CITATION.cff` and `.zenodo.json` changes.
+
 ### Removed
 - `quadmesh._topology`: private wrapper module with no source callers. Code calls `CHILmesh.ccw_edges_around_vert`, `chilmesh.quad_from_tri_pair` and `chilmesh.quads_from_tri_pairs` directly. Other CHILmesh 1.5.5 overlaps (MSH 2.2 I/O, benchmark metrics, `create_quad_domain`, `repair` edge map and merge, quality report, signed-area predicates) stay in quadmesh because the CHILmesh versions differ in padding, precision, vertex renumbering, output keys or are private.
 

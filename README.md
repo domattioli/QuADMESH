@@ -47,7 +47,7 @@
 
 ## 1. Status & Roadmap
 
-**Current release: 0.2.5 (2026-10-12); see [CHANGELOG](CHANGELOG.md).**
+**Current release: 0.2.6 (2026-10-23); see [CHANGELOG](CHANGELOG.md).**
 
 The default `method="quadmesh+"` runs the thesis per-layer sweep and leaves zero interior residual triangles; CI checks this on the meshes bundled with `chilmesh.data`. Algorithm and MATLAB parity status: [`docs/algorithm.md`](docs/algorithm.md).
 
@@ -83,7 +83,7 @@ Useful flags: `--polygon domain.poly` (domain boundary), `--no-post-process`, `-
 
 ## 4. Meshes from the Valence registry
 
-`quadmesh --from-registry NAME -o out.14` ships in 0.2.5 (unreleased). Test meshes are available through Valence, a token-gated mesh service.
+`quadmesh --from-registry NAME -o out.14` ships since 0.2.5. Test meshes are available through Valence, a token-gated mesh service.
 
 1. Sign in with GitHub at https://valence-api.iqh766c2.workers.dev .
 2. A GitHub account at least 30 days old gets a token at once. The page shows it once; copy it then.
