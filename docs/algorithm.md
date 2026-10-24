@@ -84,7 +84,7 @@ A layerless mesh is, for example, a mesh too coarse for skeletonization.
 `_quadmesh_plus_per_layer` (`tri2quad.py:805`) loops from the innermost layer to the boundary layer (`tri2quad.py:839`). For each layer it runs three steps:
 
 1. Identify edges. `identify_edges_in_layer` (`src/quadmesh/identify_edges.py:51`) ports `identifyEdgesFun_v2.m`. It returns the edges to remove (each removal merges two triangles) and the flagged vertex pairs of the layer.
-2. Merge pairs. `merge_tri_pair` (`src/quadmesh/_topology.py:14`) merges each selected pair into a quadrilateral. A merge with a corner of 177 degrees or more is skipped (`_quad_is_degenerate`, `tri2quad.py:780`). Then `match_layer_heuristic` (`src/quadmesh/_match_quadmesh_plus.py:220`) pairs the remaining layer triangles with the thesis T1 and T2 rules (`_t1_select`, `_match_quadmesh_plus.py:55`; `_t2_ladder`, `:104`). The flagged pairs go to it as forbidden pairs (`tri2quad.py:888-917`).
+2. Merge pairs. `chilmesh.quad_from_tri_pair` merges each selected pair into a quadrilateral. A merge with a corner of 177 degrees or more is skipped (`_quad_is_degenerate`, `tri2quad.py:780`). Then `match_layer_heuristic` (`src/quadmesh/_match_quadmesh_plus.py:220`) pairs the remaining layer triangles with the thesis T1 and T2 rules (`_t1_select`, `_match_quadmesh_plus.py:55`; `_t2_ladder`, `:104`). The flagged pairs go to it as forbidden pairs (`tri2quad.py:888-917`).
 3. Route leftovers. `route_leftover_tri` (`src/quadmesh/_tri_removal.py:308`) ports `removeTrianglesFun.m`. It clears each unpaired triangle by edge bisection (`:143`), edge insertion (`:260`), or edge removal (`:121`), selected by boundary-edge count and by `can_remove_edges`.
 
 Steps 2 and 3 treat layer 0 as the boundary layer. `chilmesh` numbers layers from the domain boundary inward, so layer 0 holds the triangles on the domain boundary. One predicate, `_is_boundary_layer` (`tri2quad.py:668`), sets the matcher flag (`:926`) and the routing flag (`:949`). It matches `removeTrianglesFun.m:12` (`iLayer == 1`, 1-based).
@@ -196,7 +196,7 @@ Some boundary-layer quads can be concave. Smoothing can push a wide pinned bound
 
 ## 8. References
 
-- Mattioli, D. D. (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. Master's thesis, The Ohio State University. OhioLINK ETD, http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088. In-repo copy: [`docs/Mattioli_Thesis.pdf`](Mattioli_Thesis.pdf).
+- Mattioli, D. O. (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. Master's thesis, The Ohio State University. OhioLINK ETD, http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088. In-repo copy: [`docs/Mattioli_Thesis.pdf`](Mattioli_Thesis.pdf).
 - Remacle, J.-F., Lambrechts, J., Seny, B., Marchandise, E., Johnen, A., Geuzaine, C. (2012). Blossom-Quad: a non-uniform quadrilateral mesh generator using a minimum cost perfect matching algorithm. International Journal for Numerical Methods in Engineering, 89(9), 1102-1119.
 - Berge, C. (1957). Two theorems in graph theory. Proceedings of the National Academy of Sciences, 43(9), 842-844.
 - [`docs/MAPPING.md`](MAPPING.md): MATLAB-to-Python function map.

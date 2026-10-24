@@ -57,4 +57,4 @@ MAT src: `../02_QuADMESH_Library/`. Map: `MAPPING.md`. Spec: `../specs/001-matla
 
 ## Cite
 
-Mattioli, D. D. (2017). _QuADMESH+: A Quadrangular ADvanced Mesh Generator_. Master's thesis, OSU.
+Mattioli, D. O. (2017). _QuADMESH+: A Quadrangular ADvanced Mesh Generator_. Master's thesis, OSU.

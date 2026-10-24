@@ -1,17 +1,25 @@
-"""Tests for _topology helpers: CCW edges, merge_tri_pair."""
+"""Tests for the CHILmesh topology APIs quadmesh relies on: CCW edges, tri-pair merges."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
+import chilmesh
 from chilmesh import CHILmesh
 
-from quadmesh._topology import (
-    ccw_edges_around_vert,
-    merge_tri_pair,
-    merge_tri_pairs,
-)
+
+def ccw_edges_around_vert(mesh, vert_ids):
+    return [np.asarray(mesh.ccw_edges_around_vert(int(v)), dtype=int) for v in vert_ids]
+
+
+def merge_tri_pair(mesh, a, b):
+    conn = mesh.connectivity_list
+    return chilmesh.quad_from_tri_pair(mesh.points, conn[a, :3].astype(int), conn[b, :3].astype(int))
+
+
+def merge_tri_pairs(mesh, pairs):
+    return chilmesh.quads_from_tri_pairs(mesh.points, mesh.connectivity_list, np.atleast_2d(pairs))
 
 
 @pytest.fixture

@@ -88,11 +88,16 @@ def test_preserve_boundary_keeps_original_vertices(name):
 
 # Default is MATLAB-faithful: cleanup_boundary_quads may drop boundary vertices.
 # Measured counts on the bundled meshes; update if cleanup behavior changes.
+# Conforming sweep (SweepContext): a layer-0 leftover tri is closed by
+# bisecting its boundary edge at the midpoint, which leaves a flat
+# boundary quad that the collapse removes with its two original boundary
+# vertices. Before, those tris took a hanging-node insertion instead.
+# Block_O 12 -> 40, annulus 18 -> 100, donut 4 -> 0, structuredMesh1 2 -> 10.
 DEFAULT_LOST = {
-    "Block_O.14": 12,
-    "annulus_200pts.fort.14": 18,
-    "donut_domain.fort.14": 4,
-    "structuredMesh1.14": 2,
+    "Block_O.14": 40,
+    "annulus_200pts.fort.14": 100,
+    "donut_domain.fort.14": 0,
+    "structuredMesh1.14": 10,
 }
 
 

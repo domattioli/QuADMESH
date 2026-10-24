@@ -12,4 +12,7 @@ exclude = [
     "experiments/",
     "facts.yml",
     "scripts/onstart_local.sh",
+    # Zenodo integration metadata (operator 2026-10-12): read from the repo at the tag,
+    # not needed inside the archive, sdist or wheel.
+    ".zenodo.json",
 ]

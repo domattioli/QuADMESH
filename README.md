@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>A Quadrangular ADvanced, automatic unstructured MESH generator for 2D shallow-water models.</strong><br>
-  Python API and port of the MATLAB library and 'QuADMESH+' <a href="https://github.com/user-attachments/files/19724263/QuADMESH-Thesis.pdf">
+  Python API and port of the MATLAB library and 'QuADMESH+' <a href="https://doi.org/10.5281/zenodo.23607233">
     <img src="https://img.shields.io/badge/Thesis-QuADMESH-ba0c2f?style=flat-square&logo=book&logoColor=white&labelColor=cfd4d8" alt="QuADMESH Thesis"></a> 
 </p>
 
@@ -47,13 +47,13 @@
 
 ## 1. Status & Roadmap
 
-**Current release: 0.2.0. Next: 0.2.5 (unreleased); see [CHANGELOG](CHANGELOG.md).**
+**Current release: 0.2.6 (2026-10-23); see [CHANGELOG](CHANGELOG.md).**
 
 The default `method="quadmesh+"` runs the thesis per-layer sweep and leaves zero interior residual triangles; CI checks this on the meshes bundled with `chilmesh.data`. Algorithm and MATLAB parity status: [`docs/algorithm.md`](docs/algorithm.md).
 
-- Now: boundary-layer walkability and post-process quality tuning.
-- Next: pre- and post-processing quality work; performance; evaluate a C++ or Rust backend; wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
-- Future: formal integration within a unified ecosystem including <a href="https://github.com/domattioli/ADMESH"><img src="https://img.shields.io/pypi/v/admesh2D?label=ADMESH&color=9ae6b4&labelColor=2f855a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMiAyMSBMMTIgMiBMMjIgMjEgWiBNMTIgMiBMNyAyMSBNMTIgMiBMMTcgMjEgTTcgMjEgTDEyIDEyIEwxNyAyMSBNMTIgMTIgTDEyIDIiLz48L3N2Zz4=" alt="ADMESH PyPI version"></a> and <a href="https://github.com/domattioli/CHILmesh"><img src="https://img.shields.io/pypi/v/chilmesh?label=CHILmesh&color=caf0f8&labelColor=0077b6&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMSA4IHEzIC00IDYgMCB0NiAwIHQ2IDAgdDYgMCBNMSAxMyBxMyAtNCA2IDAgdDYgMCB0NiAwIHQ2IDAgTTEgMTggcTMgLTQgNiAwIHQ2IDAgdDYgMCB0NiAwIi8%2BPC9zdmc%2B" alt="CHILmesh PyPI version"></a>
+- **Now:** boundary-layer quality, including the ENPAC2003 low-skew tail ([#90](https://github.com/domattioli/QuADMESH/issues/90)); right-size the test suite ([#109](https://github.com/domattioli/QuADMESH/issues/109)).
+- **Next:** boundary-type-aware layer seeding ([#77](https://github.com/domattioli/QuADMESH/issues/77)); a MATLAB parity oracle ([#116](https://github.com/domattioli/QuADMESH/issues/116)); wire `tri2quad(aggressive=)` to CHILmesh `merge_elements`.
+- **Later:** parallelization ([#38](https://github.com/domattioli/QuADMESH/issues/38)); evaluate a C++ or Rust backend; formal integration within a unified ecosystem including <a href="https://github.com/domattioli/ADMESH"><img src="https://img.shields.io/pypi/v/admesh2D?label=ADMESH&color=9ae6b4&labelColor=2f855a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMiAyMSBMMTIgMiBMMjIgMjEgWiBNMTIgMiBMNyAyMSBNMTIgMiBMMTcgMjEgTTcgMjEgTDEyIDEyIEwxNyAyMSBNMTIgMTIgTDEyIDIiLz48L3N2Zz4=" alt="ADMESH PyPI version"></a> and <a href="https://github.com/domattioli/CHILmesh"><img src="https://img.shields.io/pypi/v/chilmesh?label=CHILmesh&color=caf0f8&labelColor=0077b6&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMSA4IHEzIC00IDYgMCB0NiAwIHQ2IDAgdDYgMCBNMSAxMyBxMyAtNCA2IDAgdDYgMCB0NiAwIHQ2IDAgTTEgMTggcTMgLTQgNiAwIHQ2IDAgdDYgMCB0NiAwIi8%2BPC9zdmc%2B" alt="CHILmesh PyPI version"></a>
 
 Headline result: on ENPAC2003 (531,680 triangles), QuADMESH 0.1.0 with chilmesh 1.0.0 produced 274,321 quads with zero interior residual triangles in 773 s, single-threaded. Details: [docs/benchmarks](docs/benchmarks/README.md).
 
@@ -83,7 +83,7 @@ Useful flags: `--polygon domain.poly` (domain boundary), `--no-post-process`, `-
 
 ## 4. Meshes from the Valence registry
 
-`quadmesh --from-registry NAME -o out.14` ships in 0.2.5 (unreleased). Test meshes are available through Valence, a token-gated mesh service.
+`quadmesh --from-registry NAME -o out.14` ships since 0.2.5. Test meshes are available through Valence, a token-gated mesh service.
 
 1. Sign in with GitHub at https://valence-api.iqh766c2.workers.dev .
 2. A GitHub account at least 30 days old gets a token at once. The page shows it once; copy it then.
@@ -118,6 +118,8 @@ export VALENCE_TOKEN=<your token>; quadmesh --from-registry Block_O.14 -o out.14
 
 > Mattioli, DO (2017). QuADMESH+: A Quadrangular ADvanced Mesh Generator for Hydrodynamic Models. The Ohio State University, OhioLINK - Electronic Theses and Dissertations Center. Master's Thesis. http://rave.ohiolink.edu/etdc/view?acc_num=osu1500627779532088
 
+A corrected PDF of the thesis, with every cross-reference and citation resolved, is archived at https://doi.org/10.5281/zenodo.23607233 and attached to each [GitHub release](https://github.com/domattioli/QuADMESH/releases). The OhioLINK copy prints `??` for figure, chapter and citation references because it was compiled without the bibliography pass.
+
 **This software** (cite the Zenodo release):
 
 > Mattioli, DO, Kubatko, EJ (2026). QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D hydrodynamic domains. Zenodo. https://doi.org/10.5281/zenodo.20350483
@@ -137,7 +139,7 @@ The DOI resolves to the latest release; version DOIs are on the [Zenodo record](
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). To share a mesh, open an issue in this repository (https://github.com/domattioli/quadmesh/issues/new).
 
-Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J. Kubatko: [kubatko.3@osu.edu](mailto:kubatko.3@osu.edu)
+Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J. Kubatko: [OSU profile](https://people.engineering.osu.edu/people/kubatko.3)
 
 [Back to top](#table-of-contents)
 
@@ -145,6 +147,6 @@ Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J
 
 Noncommercial and research use only. PolyForm Noncommercial License 1.0.0 with an additional No-AI/ML-training restriction; see [LICENSE](LICENSE) and [AI-USAGE.md](https://github.com/domattioli/quadmesh/blob/development/docs/AI-USAGE.md).
 
-Commercial or AI-training licenses: contact domattioli via mango-kooky-okay@duck.com
+Commercial or AI-training licenses: contact the author through [GitHub](https://github.com/domattioli)
 
 [Back to top](#table-of-contents)

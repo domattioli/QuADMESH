@@ -27,6 +27,7 @@ GEMINI.md
 claude_routine_instructions.md
 instructions_on_start.sh
 scripts/hooks/
+docs/sessions/
 docs/introspections/
 specs/
 *introspect*.yml
@@ -37,5 +38,7 @@ videos/
 experiments/
 facts.yml
 scripts/onstart_local.sh
+.zenodo.json
 # <<< release-ignore:end
+
 
