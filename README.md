@@ -122,7 +122,7 @@ A corrected PDF of the thesis, with every cross-reference and citation resolved,
 
 **This software** (cite the Zenodo release):
 
-> Mattioli, DO, Kubatko, EJ (2026). QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D hydrodynamic domains. Zenodo. https://doi.org/10.5281/zenodo.20350483
+> Mattioli, DO, Kubatko, EJ (2026). QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D shallow-water models. Zenodo. https://doi.org/10.5281/zenodo.20350483
 
 The DOI resolves to the latest release; version DOIs are on the [Zenodo record](https://doi.org/10.5281/zenodo.20350483).
 

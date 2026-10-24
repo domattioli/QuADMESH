@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite both the software (Zenodo) and the original thesis."
-title: "QuADMESH: Quadrangular ADvanced Mesh generator"
+title: "QuADMESH: A Quadrangular ADvanced, automatic unstructured MESH generator for 2D shallow-water models"
 abstract: >-
   Python port of the MATLAB QuADMESH+ library: a layer-ordered
   triangle-to-quadrilateral mesh generator for hydrodynamic models,
