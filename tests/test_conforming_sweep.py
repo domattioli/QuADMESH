@@ -200,7 +200,10 @@ def test_bisection_splits_the_outer_triangle_off_the_midpoint():
         break
     else:
         pytest.fail("no layer-1 triangle could be bisected")
-    assert ctx.domain.connectivity_list.shape[0] == n_rows + 1  # outer tri split in two
+    # Old pin n_rows + 1 (outer tri split only). New pin n_rows + 2: the outer
+    # tri is split (edgeBisection.m:L78-L80) and tElemID is split in Domain
+    # too (edgeBisection.m:L83-L86) instead of retiring its row.
+    assert ctx.domain.connectivity_list.shape[0] == n_rows + 2
     quad = [int(v) for v in ctx.work.quads[-1]]
     m = quad[1]
     pq = ctx.poly(quad)

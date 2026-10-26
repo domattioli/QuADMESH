@@ -35,6 +35,13 @@ from quadmesh import compute_quality_stats, post_process, tri2quad
 # n_elems_out 2727 -> 2833 and mean quality 0.680 -> 0.801 (the code before
 # the fix measured 2725 and 0.677). Test_Case_1 re-measured 2026-10-23 with
 # the Valence fixture: n_elems_out 1251 -> 1270, mean quality 0.696 -> 0.811.
+#
+# Valence ruling (2026-10-26: bisection and vertex splits in one pool,
+# final-valence cost): Block_O n_elems_out 2833 -> 3095 (+9.2%, re-measured;
+# the restored bookkeeping alone gave 2825). More leftover triangles close
+# by vertex splits, which leave more leftovers in the outer layers. Mean
+# quality 0.7945 (pin 0.801 kept, inside QUALITY_TOL). Test_Case_1 not
+# re-measured (no Valence token in this session).
 EXPECTED = {
     "Test_Case_1.14": {
         "n_elems_in": 2417,
@@ -44,7 +51,7 @@ EXPECTED = {
     },
     "Block_O.14": {
         "n_elems_in": 5214,
-        "n_elems_out": 2833,
+        "n_elems_out": 3095,
         "quad_frac": 1.000,
         "mean_quality": 0.801,
     },

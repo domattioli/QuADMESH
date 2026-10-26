@@ -25,6 +25,18 @@ TOL = 1e-6
 # 0.0 on structuredMesh1.14 and Block_O.14, for both the triangle input and the
 # tri2quad output. Mixed_Test, Test_Case_1 to 3 were not available (no Valence
 # token). Result: delegate (R3, threshold 1e-6).
+#
+# Re-pinned for the restored MATLAB leftover-triangle bookkeeping (tElemID
+# split, CASE 2 fans + bridge, valence choice). Block_O.14 only; measured
+# with the old code (git HEAD af3c2ac) and the new code:
+#   old: n_elems 2833, mean 0.8013828665577247, min 0.26800986345455824
+#   new: n_elems 2825, mean 0.7933965765807829, min 0.26269546813378153
+# structuredMesh1.14 unchanged.
+# Re-pinned again for the valence ruling (bisection and vertex splits in one
+# pool, final-valence cost nq + nt/2). Measured with the code before and
+# after that change:
+#   Block_O.14:         2825 / 0.79340 / 0.26270 -> 3095 / 0.79453 / 0.21352
+#   structuredMesh1.14:  336 / 0.67654 / 0.25494 ->  337 / 0.82167 / 0.31226
 
 
 def _snapshot(path: Path) -> dict:

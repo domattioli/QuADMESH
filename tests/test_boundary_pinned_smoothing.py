@@ -93,11 +93,17 @@ def test_preserve_boundary_keeps_original_vertices(name):
 # boundary quad that the collapse removes with its two original boundary
 # vertices. Before, those tris took a hanging-node insertion instead.
 # Block_O 12 -> 40, annulus 18 -> 100, donut 4 -> 0, structuredMesh1 2 -> 10.
+# MATLAB bookkeeping restored (tElemID split, CASE 2 fans + bridge, valence
+# choice): annulus 100 -> 96 (re-measured: old code 100, new code 96); the
+# other three unchanged.
+# Valence ruling (bisection and vertex splits in one pool, final-valence
+# cost): Block_O 40 -> 39, annulus 96 -> 115, structuredMesh1 10 -> 9
+# (re-measured before/after that change).
 DEFAULT_LOST = {
-    "Block_O.14": 40,
-    "annulus_200pts.fort.14": 100,
+    "Block_O.14": 39,
+    "annulus_200pts.fort.14": 115,
     "donut_domain.fort.14": 0,
-    "structuredMesh1.14": 10,
+    "structuredMesh1.14": 9,
 }
 
 
