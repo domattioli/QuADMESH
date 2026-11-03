@@ -228,6 +228,9 @@ def match_layer_heuristic(
     use_t2_ladder: bool = True,
     is_boundary_layer: bool = False,
     removed_edge_local_pairs: Optional[List[Tuple[int, int]]] = None,
+    forbid_pairs: Optional[Set[FrozenSet[int]]] = None,
+    fan_rows: Optional[Set[int]] = None,
+    pair_ok=None,
 ) -> Tuple[List[Tuple[int, int]], Set[int]]:
     """Apply T1+T2 (interior) or OE-first+walkability (boundary) heuristics.
 
@@ -242,6 +245,12 @@ def match_layer_heuristic(
         use_t2_ladder: if True, extend T1 selections with the T2 ladder walk.
         is_boundary_layer: True for the outermost layer → OE-before-IE + walkability pre-pass (Ch 4.2).
         removed_edge_local_pairs: RE_L pairs (local indices) for the walkability pre-pass.
+        forbid_pairs: #133 fan pairs (global IDs) that must not merge.
+        fan_rows: #133 global IDs of fan triangles. Non-empty turns on the
+            fan rules: pairs failing ``pair_ok`` are dropped; fan pairs are
+            never merged; a pair that takes the last partner of another free
+            fan tri is masked. A fan tri left unpaired goes to routing.
+        pair_ok: ``(local_a, local_b) -> bool``, quad acceptable.
 
     Returns:
         (pairs, newly_consumed) where pairs are (local_a, local_b) indices into
@@ -277,6 +286,32 @@ def match_layer_heuristic(
     pairs: List[Tuple[int, int]] = []
     consumed = set(local_consumed)
 
+    fan_local: Set[int] = set()
+    if fan_rows:
+        fan_local = {global_to_local[g] for g in fan_rows if g in global_to_local}
+        forb_local: Set[FrozenSet[int]] = set()
+        for fp in (forbid_pairs or ()):
+            lst = list(fp)
+            if len(lst) == 2 and lst[0] in global_to_local and lst[1] in global_to_local:
+                forb_local.add(frozenset([global_to_local[lst[0]], global_to_local[lst[1]]]))
+        for ti in range(n):
+            for nb in adj[ti]:
+                if nb > ti and pair_ok is not None and not pair_ok(ti, nb):
+                    local_flagged.add(frozenset([ti, nb]))
+        # Fan pairs stay forbidden. A fan tri left with no allowed pair is
+        # routed (route first); SweepContext closes it if routing cannot.
+        local_flagged |= forb_local
+
+    def _strands(x: int, y: int) -> bool:
+        """Pair (x, y) takes the last partner of another free fan tri."""
+        for f in fan_local:
+            if f in (x, y) or f in consumed:
+                continue
+            nbs = _eligible_neighbours(f, adj, consumed, local_flagged)
+            if nbs and set(nbs) <= {x, y}:
+                return True
+        return False
+
     # Ordering and pre-pass depend on interior vs boundary layer.
     ie_local = np.array([global_to_local[g] for g in ie_global_ids if g in global_to_local], dtype=int)
     oe_local = np.array([global_to_local[g] for g in oe_global_ids if g in global_to_local], dtype=int)
@@ -303,6 +338,10 @@ def match_layer_heuristic(
         if not nb:
             continue
         result = _t1_select([ti], adj, consumed, local_flagged, layer_conn, pts)
+        while result is not None and fan_local and _strands(*result):
+            masked = frozenset(result)
+            local_flagged.add(masked)  # strand mask
+            result = _t1_select([ti], adj, consumed, local_flagged, layer_conn, pts)
         if result is None:
             continue
         a, b = result
@@ -313,6 +352,8 @@ def match_layer_heuristic(
             consumed.add(a)
             consumed.add(b)
             for la, lb in ladder:
+                if fan_local and _strands(la, lb):
+                    break
                 if la not in consumed and lb not in consumed:
                     pairs.append((la, lb))
                     consumed.add(la)

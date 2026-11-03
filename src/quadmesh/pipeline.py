@@ -26,6 +26,7 @@ def run_pipeline(
     truss_fh=None,
     refuse_boundary_merge: bool = False,
     preserve_boundary: bool = False,
+    fan_valence4: bool = False,
 ) -> CHILmesh:
     """Full create_quad_domain → tri2quad → post_process sweep.
 
@@ -48,6 +49,9 @@ def run_pipeline(
         preserve_boundary: If True, keep every boundary vertex of the input
             mesh. Boundary-quad cleanup skips collapses and shifts that would
             delete or move one. Default False (MATLAB-faithful).
+        fan_valence4: If True, close a leftover triangle on an interior ring
+            edge with a valence-4 fan instead of a plain bisect (#133).
+            Default False: output unchanged.
 
     Returns:
         Final quad CHILmesh.
@@ -60,6 +64,7 @@ def run_pipeline(
     quad = tri2quad_routine(
         domain, can_remove_edges=can_remove_edges, parent=mesh, method=method,
         refuse_boundary_merge=refuse_boundary_merge,
+        fan_valence4=fan_valence4,
     )
     if do_post_process:
         quad = post_process_routine(
