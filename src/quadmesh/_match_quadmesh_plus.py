@@ -231,7 +231,6 @@ def match_layer_heuristic(
     forbid_pairs: Optional[Set[FrozenSet[int]]] = None,
     fan_rows: Optional[Set[int]] = None,
     pair_ok=None,
-    has_ring=None,
 ) -> Tuple[List[Tuple[int, int]], Set[int]]:
     """Apply T1+T2 (interior) or OE-first+walkability (boundary) heuristics.
 
@@ -252,7 +251,6 @@ def match_layer_heuristic(
             never merged; a pair that takes the last partner of another free
             fan tri is masked. A fan tri left unpaired goes to routing.
         pair_ok: ``(local_a, local_b) -> bool``, quad acceptable.
-        has_ring: ``local -> bool``, tri has a ring edge.
 
     Returns:
         (pairs, newly_consumed) where pairs are (local_a, local_b) indices into

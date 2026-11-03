@@ -897,12 +897,8 @@ def _quadmesh_plus_per_layer(
             # #133 closing step (b), before any pairing in this layer: undo a
             # fan whose tri has no allowed partner and no ring edge, then
             # re-identify the layer on the restored topology.
-            redo = False
-            try:
-                redo = ctx.fan_prune(set(int(g) for g in sel.elem_ids_global),
-                                     _fold_seam_pairs(sel, np.asarray(sel.elem_ids_global, dtype=int)))
-            except Exception:
-                redo = False
+            redo = ctx.fan_prune(set(int(g) for g in sel.elem_ids_global),
+                                 _fold_seam_pairs(sel, np.asarray(sel.elem_ids_global, dtype=int)))
             if redo:
                 ctx.sync()
                 try:
@@ -1222,6 +1218,13 @@ def tri2quad_routine(
 
     if quads_arr.size == 0 and surviving_tris.size == 0:
         raise RuntimeError("tri2quad produced empty mesh")
+
+    # #133 fan path only: re-cut boundary quads that have a straight corner at
+    # a boundary bisect midpoint (scaled Jacobian 0). Needs a quad-only mesh.
+    if fan_valence4 and quads_arr.size > 0 and surviving_tris.size == 0:
+        from ._tri_removal import SweepContext, resplit_straight_boundary_quads
+        quads_arr, points, _ = resplit_straight_boundary_quads(
+            quads_arr, points, SweepContext.MIN_SINE)
 
     if quads_arr.size > 0 and surviving_tris.size > 0:
         tris_padded = np.hstack([surviving_tris, surviving_tris[:, [2]]])

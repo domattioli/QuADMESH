@@ -104,3 +104,58 @@ def test_fan_mesh_whole(name, post, monkeypatch):
     assert loops == 1
     assert ratio == pytest.approx(1.0, abs=1e-9)
     assert ctxs and len(ctxs[0].fan_records) > len(ctxs[0].fan_undone)
+
+
+def _raw_rows(P0, T0, post):
+    mesh = CHILmesh(connectivity=T0, points=np.c_[P0, np.zeros(len(P0))])
+    q = run_pipeline(mesh, preserve_boundary=True, fan_valence4=True, do_post_process=post)
+    return np.asarray(q.points)[:, :2], np.asarray(q.connectivity_list)
+
+
+@pytest.mark.parametrize("post", [False, True])
+@pytest.mark.parametrize("name", sorted(DEFAULT_QUADS))
+def test_fan_rows_have_four_distinct_vertices(name, post):
+    """_fan4_undo zeroes a connectivity row; no such row may reach the output."""
+    P0, T0 = _load(name)
+    P, rows = _raw_rows(P0, T0, post)
+    assert rows.shape[1] == 4
+    for r in rows:
+        assert len(set(int(v) for v in r)) == 4, r
+
+
+@pytest.mark.parametrize("name", sorted(DEFAULT_QUADS))
+def test_fan_no_straight_corner_at_lone_node(name):
+    """No quad keeps a straight corner at a node that only it uses (boundary bisect)."""
+    P0, T0 = _load(name)
+    P, rows = _raw_rows(P0, T0, False)
+    count = np.bincount(rows.ravel(), minlength=len(P))
+    for r in rows:
+        r = [int(v) for v in r]
+        poly = P[r] if tr._signed_area(P[r]) > 0 else P[r[::-1]]
+        rr = r if tr._signed_area(P[r]) > 0 else r[::-1]
+        s = tr._corner_sines(poly)
+        for k, v in enumerate(rr):
+            if count[v] == 1:
+                assert s[k] > tr.SweepContext.MIN_SINE, (r, v, s)
+
+
+@pytest.mark.parametrize("mirror", [1.0, -1.0])
+def test_resplit_two_straight_nodes(mirror):
+    """a, p, b, x on one straight boundary: cut 1 fails, cut 2 adds two nodes."""
+    P = np.array([[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [1.5, 1.2]], float) * [mirror, 1.0]
+    q, pts, n = tr.resplit_straight_boundary_quads(np.array([[0, 1, 2, 5], [2, 3, 4, 5]]), P, 0.06)
+    assert n == 1 and len(q) == 4 and len(pts) == len(P) + 2
+    area = sum(abs(tr._signed_area(pts[e])) for e in q)
+    assert area == pytest.approx(abs(tr._signed_area(P[[0, 1, 2, 5]])) + abs(tr._signed_area(P[[2, 3, 4, 5]])))
+    for e in q:
+        assert tr._signed_area(pts[e]) > 0
+        assert tr._corner_sines(pts[e]).min() > 0.06
+
+
+def test_resplit_one_cut_no_new_node():
+    """Only p is straight: cut on the diagonal p-s3, no node added."""
+    P = np.array([[0, 0], [1, 0], [2, 0], [3, 0.4], [3, 1.4], [1.5, 1.2]], float)
+    q, pts, n = tr.resplit_straight_boundary_quads(np.array([[0, 1, 2, 5], [2, 3, 4, 5]]), P, 0.06)
+    assert n == 1 and len(q) == 2 and len(pts) == len(P)
+    for e in q:
+        assert tr._corner_sines(pts[e] if tr._signed_area(pts[e]) > 0 else pts[e[::-1]]).min() > 0.06

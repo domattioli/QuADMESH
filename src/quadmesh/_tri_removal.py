@@ -348,6 +348,146 @@ def _signed_area(poly: np.ndarray) -> float:
     return 0.5 * float(x @ np.roll(y, -1) - np.roll(x, -1) @ y)
 
 
+def resplit_straight_boundary_quads(quads: np.ndarray, points: np.ndarray,
+                                    min_sine: float) -> Tuple[np.ndarray, np.ndarray, int]:
+    """#133 fan path: remove boundary quads with a straight corner.
+
+    A boundary bisect leaves quad Q = (p, b, c, a) where p is the midpoint of
+    the boundary edge (a, b). p is in Q only, so its corner is 180 degrees
+    (scaled Jacobian 0), and a smoother with a frozen boundary cannot fix it.
+    Join Q with the quad N across (b, c) or (c, a) into a hexagon
+    S = (p, s1, s2, s3, s4, s5), where s1 is the node of the shared edge that
+    is next to p on the boundary. Then re-cut S:
+
+    1. On the diagonal p-s3 into (p, s1, s2, s3) and (s3, s4, s5, p). No node
+       is added. This fails when s1 is also straight.
+    2. Otherwise with two new interior nodes m1 and m2, into
+       (s5, p, m1, s4), (p, s1, m2, m1), (s1, s2, s3, m2), (m1, m2, s3, s4).
+       With g the mean of the six hexagon nodes, m1 = p + t (g - p) and
+       m2 = s1 + t (g - s1), t in (1/3, 1/2, 2/3).
+
+    Every new quad must be convex with every corner sine above ``min_sine``.
+    Cut 1 is used when it passes. Among the passing candidates of one kind,
+    the one with the largest worst corner sine wins. Returns
+    (quads, points, number of quads re-cut).
+    """
+    q = [list(map(int, r)) for r in np.asarray(quads, dtype=int)]
+    pts = np.asarray(points, dtype=float).copy()
+    new_pts: List[np.ndarray] = []
+
+    def xy(v):
+        return pts[v, :2] if v < len(pts) else new_pts[v - len(pts)][:2]
+
+    def poly(e):
+        return np.array([xy(v) for v in e])
+
+    def ccw(e):
+        return e if _signed_area(poly(e)) > 0 else e[::-1]
+
+    def worst(quads_xy):
+        w = 1.0
+        for P in quads_xy:
+            if _signed_area(P) <= 0:
+                return -1.0
+            w = min(w, float(_corner_sines(P).min()))
+        return w
+
+    q = [ccw(e) for e in q]
+    edge_el: Dict[frozenset, List[int]] = {}
+    node_el: Dict[int, int] = {}
+    for i, e in enumerate(q):
+        for k in range(4):
+            edge_el.setdefault(frozenset((e[k], e[(k + 1) % 4])), []).append(i)
+            node_el[e[k]] = node_el.get(e[k], 0) + 1
+
+    def set_quad(idx, new):
+        if idx < len(q):
+            old = q[idx]
+            for k in range(4):
+                edge_el[frozenset((old[k], old[(k + 1) % 4]))].remove(idx)
+            q[idx] = new
+        else:
+            q.append(new)
+        for k in range(4):
+            edge_el.setdefault(frozenset((new[k], new[(k + 1) % 4])), []).append(idx)
+
+    done: Set[int] = set()
+    n_cut = 0
+    n0 = len(q)
+    for i in range(n0):
+        if i in done:
+            continue
+        e = q[i]
+        sines = _corner_sines(poly(e))
+        for k in range(4):
+            p = e[k]
+            if node_el[p] != 1 or sines[k] > min_sine:
+                continue
+            Q = e[k:] + e[:k]  # p, b, c, a (CCW)
+            cut1, cut2 = None, None
+            for s_ in (1, 2):  # shared edge (b, c) or (c, a)
+                u, v = Q[s_], Q[s_ + 1]
+                nbs = [j for j in edge_el.get(frozenset((u, v)), []) if j != i]
+                if len(nbs) != 1 or nbs[0] in done:
+                    continue
+                j = nbs[0]
+                N = q[j]
+                t = N.index(v)  # N is CCW and holds v -> u
+                if N[(t + 1) % 4] != u:
+                    continue
+                Nw = N[t:] + N[:t]  # v, u, x, y
+                H = Q[:s_ + 1] + [Nw[2], Nw[3]] + Q[s_ + 1:]
+                if len(set(H)) != 6:
+                    continue
+                # S starts at p and walks toward the shared edge; flip marks a
+                # walk against CCW, whose quads are reversed afterwards.
+                S, flip = (H, False) if s_ == 1 else ([H[0]] + H[:0:-1], True)
+                A, B = [S[0], S[1], S[2], S[3]], [S[3], S[4], S[5], S[0]]
+                if flip:
+                    A, B = A[::-1], B[::-1]
+                w = worst([poly(A), poly(B)])
+                if w > min_sine and (cut1 is None or w > cut1[0]):
+                    cut1 = (w, j, A, B)
+                g = np.mean([xy(vv) for vv in S], axis=0)
+                for tt in (1.0 / 3.0, 0.5, 2.0 / 3.0):
+                    m1 = xy(S[0]) + tt * (g - xy(S[0]))
+                    m2 = xy(S[1]) + tt * (g - xy(S[1]))
+                    M1, M2 = -1, -2  # placeholders until the cut is chosen
+                    quads4 = [[S[5], S[0], M1, S[4]], [S[0], S[1], M2, M1],
+                              [S[1], S[2], S[3], M2], [M1, M2, S[3], S[4]]]
+                    if flip:
+                        quads4 = [qq[::-1] for qq in quads4]
+                    loc = {M1: m1, M2: m2}
+                    w2 = worst([np.array([loc[v] if v < 0 else xy(v) for v in qq])
+                                for qq in quads4])
+                    if w2 > min_sine and (cut2 is None or w2 > cut2[0]):
+                        cut2 = (w2, j, quads4, m1, m2)
+            if cut1 is not None:
+                _, j, A, B = cut1
+                set_quad(i, A)
+                set_quad(j, B)
+            elif cut2 is not None:
+                _, j, quads4, m1, m2 = cut2
+                base = len(pts) + len(new_pts)
+                z = pts[p, 2:] if pts.shape[1] > 2 else np.empty(0)
+                new_pts += [np.r_[m1, z], np.r_[m2, z]]
+                ids = {-1: base, -2: base + 1}
+                quads4 = [[ids.get(v, v) for v in qq] for qq in quads4]
+                set_quad(i, quads4[0])
+                set_quad(j, quads4[1])
+                set_quad(len(q), quads4[2])
+                set_quad(len(q), quads4[3])
+            else:
+                continue
+            node_el[p] = 2
+            done |= {i, j}
+            n_cut += 1
+            break
+    if new_pts:
+        pts = np.vstack([pts, np.array(new_pts)])
+    return np.asarray(q, dtype=int).reshape(-1, 4), pts, n_cut
+
+
 class SweepContext:
     """Live mesh topology for the per-layer QuADMESH+ sweep.
 
@@ -889,12 +1029,8 @@ class SweepContext:
             except (ValueError, IndexError):
                 return False
 
-        def has_ring(x: int) -> bool:
-            t = [int(v) for v in layer_conn[x, :3]]
-            return any(self.is_ring_edge(t[i], t[(i + 1) % 3]) for i in range(3))
-
         return dict(forbid_pairs=set(self.fan_forbid), fan_rows=set(self.fan_rows),
-                    pair_ok=pair_ok, has_ring=has_ring)
+                    pair_ok=pair_ok)
 
     def _fan(self, r: int, b: int, start: int) -> Optional[Tuple[int, List[Tuple[str, int]]]]:
         """Walk the elements around ``b`` from triangle ``r`` across edge
