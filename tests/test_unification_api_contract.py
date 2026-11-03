@@ -89,12 +89,16 @@ def test_run_pipeline_signature():
         "truss_fh",
         "refuse_boundary_merge",
         "preserve_boundary",
+        "fan_valence4",
     ]
     assert param_list == expected_params, (
         f"run_pipeline params in wrong order. Expected {expected_params}, got {param_list}"
     )
 
     # Check defaults
+    assert params["fan_valence4"].default is False, (
+        "fan_valence4 (#133) must default to False"
+    )
     assert params["do_post_process"].default is True, (
         "do_post_process must default to True"
     )

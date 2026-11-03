@@ -353,6 +353,146 @@ def _signed_area(poly: np.ndarray) -> float:
     return 0.5 * float(x @ np.roll(y, -1) - np.roll(x, -1) @ y)
 
 
+def resplit_straight_boundary_quads(quads: np.ndarray, points: np.ndarray,
+                                    min_sine: float) -> Tuple[np.ndarray, np.ndarray, int]:
+    """#133 fan path: remove boundary quads with a straight corner.
+
+    A boundary bisect leaves quad Q = (p, b, c, a) where p is the midpoint of
+    the boundary edge (a, b). p is in Q only, so its corner is 180 degrees
+    (scaled Jacobian 0), and a smoother with a frozen boundary cannot fix it.
+    Join Q with the quad N across (b, c) or (c, a) into a hexagon
+    S = (p, s1, s2, s3, s4, s5), where s1 is the node of the shared edge that
+    is next to p on the boundary. Then re-cut S:
+
+    1. On the diagonal p-s3 into (p, s1, s2, s3) and (s3, s4, s5, p). No node
+       is added. This fails when s1 is also straight.
+    2. Otherwise with two new interior nodes m1 and m2, into
+       (s5, p, m1, s4), (p, s1, m2, m1), (s1, s2, s3, m2), (m1, m2, s3, s4).
+       With g the mean of the six hexagon nodes, m1 = p + t (g - p) and
+       m2 = s1 + t (g - s1), t in (1/3, 1/2, 2/3).
+
+    Every new quad must be convex with every corner sine above ``min_sine``.
+    Cut 1 is used when it passes. Among the passing candidates of one kind,
+    the one with the largest worst corner sine wins. Returns
+    (quads, points, number of quads re-cut).
+    """
+    q = [list(map(int, r)) for r in np.asarray(quads, dtype=int)]
+    pts = np.asarray(points, dtype=float).copy()
+    new_pts: List[np.ndarray] = []
+
+    def xy(v):
+        return pts[v, :2] if v < len(pts) else new_pts[v - len(pts)][:2]
+
+    def poly(e):
+        return np.array([xy(v) for v in e])
+
+    def ccw(e):
+        return e if _signed_area(poly(e)) > 0 else e[::-1]
+
+    def worst(quads_xy):
+        w = 1.0
+        for P in quads_xy:
+            if _signed_area(P) <= 0:
+                return -1.0
+            w = min(w, float(_corner_sines(P).min()))
+        return w
+
+    q = [ccw(e) for e in q]
+    edge_el: Dict[frozenset, List[int]] = {}
+    node_el: Dict[int, int] = {}
+    for i, e in enumerate(q):
+        for k in range(4):
+            edge_el.setdefault(frozenset((e[k], e[(k + 1) % 4])), []).append(i)
+            node_el[e[k]] = node_el.get(e[k], 0) + 1
+
+    def set_quad(idx, new):
+        if idx < len(q):
+            old = q[idx]
+            for k in range(4):
+                edge_el[frozenset((old[k], old[(k + 1) % 4]))].remove(idx)
+            q[idx] = new
+        else:
+            q.append(new)
+        for k in range(4):
+            edge_el.setdefault(frozenset((new[k], new[(k + 1) % 4])), []).append(idx)
+
+    done: Set[int] = set()
+    n_cut = 0
+    n0 = len(q)
+    for i in range(n0):
+        if i in done:
+            continue
+        e = q[i]
+        sines = _corner_sines(poly(e))
+        for k in range(4):
+            p = e[k]
+            if node_el[p] != 1 or sines[k] > min_sine:
+                continue
+            Q = e[k:] + e[:k]  # p, b, c, a (CCW)
+            cut1, cut2 = None, None
+            for s_ in (1, 2):  # shared edge (b, c) or (c, a)
+                u, v = Q[s_], Q[s_ + 1]
+                nbs = [j for j in edge_el.get(frozenset((u, v)), []) if j != i]
+                if len(nbs) != 1 or nbs[0] in done:
+                    continue
+                j = nbs[0]
+                N = q[j]
+                t = N.index(v)  # N is CCW and holds v -> u
+                if N[(t + 1) % 4] != u:
+                    continue
+                Nw = N[t:] + N[:t]  # v, u, x, y
+                H = Q[:s_ + 1] + [Nw[2], Nw[3]] + Q[s_ + 1:]
+                if len(set(H)) != 6:
+                    continue
+                # S starts at p and walks toward the shared edge; flip marks a
+                # walk against CCW, whose quads are reversed afterwards.
+                S, flip = (H, False) if s_ == 1 else ([H[0]] + H[:0:-1], True)
+                A, B = [S[0], S[1], S[2], S[3]], [S[3], S[4], S[5], S[0]]
+                if flip:
+                    A, B = A[::-1], B[::-1]
+                w = worst([poly(A), poly(B)])
+                if w > min_sine and (cut1 is None or w > cut1[0]):
+                    cut1 = (w, j, A, B)
+                g = np.mean([xy(vv) for vv in S], axis=0)
+                for tt in (1.0 / 3.0, 0.5, 2.0 / 3.0):
+                    m1 = xy(S[0]) + tt * (g - xy(S[0]))
+                    m2 = xy(S[1]) + tt * (g - xy(S[1]))
+                    M1, M2 = -1, -2  # placeholders until the cut is chosen
+                    quads4 = [[S[5], S[0], M1, S[4]], [S[0], S[1], M2, M1],
+                              [S[1], S[2], S[3], M2], [M1, M2, S[3], S[4]]]
+                    if flip:
+                        quads4 = [qq[::-1] for qq in quads4]
+                    loc = {M1: m1, M2: m2}
+                    w2 = worst([np.array([loc[v] if v < 0 else xy(v) for v in qq])
+                                for qq in quads4])
+                    if w2 > min_sine and (cut2 is None or w2 > cut2[0]):
+                        cut2 = (w2, j, quads4, m1, m2)
+            if cut1 is not None:
+                _, j, A, B = cut1
+                set_quad(i, A)
+                set_quad(j, B)
+            elif cut2 is not None:
+                _, j, quads4, m1, m2 = cut2
+                base = len(pts) + len(new_pts)
+                z = pts[p, 2:] if pts.shape[1] > 2 else np.empty(0)
+                new_pts += [np.r_[m1, z], np.r_[m2, z]]
+                ids = {-1: base, -2: base + 1}
+                quads4 = [[ids.get(v, v) for v in qq] for qq in quads4]
+                set_quad(i, quads4[0])
+                set_quad(j, quads4[1])
+                set_quad(len(q), quads4[2])
+                set_quad(len(q), quads4[3])
+            else:
+                continue
+            node_el[p] = 2
+            done |= {i, j}
+            n_cut += 1
+            break
+    if new_pts:
+        pts = np.vstack([pts, np.array(new_pts)])
+    return np.asarray(q, dtype=int).reshape(-1, 4), pts, n_cut
+
+
 class SweepContext:
     """Live mesh topology for the per-layer QuADMESH+ sweep.
 
@@ -376,7 +516,7 @@ class SweepContext:
     MIN_SINE = 0.06  # about 3.4 degrees from a straight or a zero angle
 
     def __init__(self, domain: CHILmesh, work: WorkingMesh, consumed: set,
-                 refused: set, boundary_edges) -> None:
+                 refused: set, boundary_edges, fan_valence4: bool = False) -> None:
         self.domain = domain
         self.work = work
         self.consumed = consumed
@@ -402,6 +542,15 @@ class SweepContext:
         self.dom_bdy_verts: Set[int] = {v for e in self.dom_bdy for v in e}
         self.layer_idx = nl - 1
         self.dirty = False
+        # #133 valence-4 fan (opt-in). fan_forbid holds row pairs inside one
+        # fan that the matcher must not merge; fan_nodes the inserted nodes.
+        self.fan_valence4 = bool(fan_valence4)
+        self.fan_forbid: Set[frozenset] = set()
+        self.fan_rows: Set[int] = set()
+        self.fan_nodes: List[int] = []
+        self.fan_records: List[dict] = []
+        self.fan_undone: List[int] = []
+        self.fan_stats: Dict[str, int] = {}
 
     # -- geometry / topology queries ------------------------------------------
 
@@ -756,11 +905,301 @@ class SweepContext:
         quad ``(a, m, b, c)`` and split the element across ``(a, b)`` at
         ``m`` (see ``_bisect_point``). ``flat_ok`` allows the edge midpoint
         inside the mesh as a last resort."""
+        if self.fan_valence4:
+            ok, outer = self._ring_target(a, b)
+            if ok and outer is not None and self._fan4(r, a, b, c, outer):
+                return True
         plan = self._bisect_plan(r, a, b, c, flat_ok)
         if plan is None:
             return False
         self._apply_bisect(plan)
         return True
+
+    # -- #133 valence-4 fan ---------------------------------------------------
+
+    FAN_FRACTIONS = (0.1, 0.2, 0.3, 0.4, 0.5)
+
+    def _fan4_plan(self, a: int, b: int, c: int, U: int):
+        """Best fan for ring edge ``(a, b)`` of leftover ``(a, b, c)`` with
+        outer triangle ``U = (a, b, z)``. ``V`` is U's layer L-1 neighbour
+        across ``(b, z)`` or ``(z, a)`` with apex ``w``. ``m`` sits at
+        ``mid + t (mid(z, w) - mid)``; the plan with the best worst corner
+        sine above ``MIN_SINE`` wins. Returns ``(pm, V, p1, p2)`` or None."""
+        L = self.layer_idx
+        z = [v for v in self.tri_row(U) if v not in (a, b)][0]
+        pa, pb, pc, pz = self.xy(a), self.xy(b), self.xy(c), self.xy(z)
+        mid = 0.5 * (pa + pb)
+        su = np.sign(_signed_area(np.array([pa, pb, pz])))
+        st = np.sign(_signed_area(np.array([pa, pb, pc])))
+        best = None
+        for x, y, side in ((b, z, "bz"), (z, a, "za")):
+            cands = [r for r in (self.v2t.get(x, set()) & self.v2t.get(y, set()))
+                     if r != U and self.live(r)
+                     and self.elem_layer.get(r, (None,))[0] == L - 1]
+            if len(cands) != 1:
+                continue
+            V = cands[0]
+            w = [v for v in self.tri_row(V) if v not in (x, y)][0]
+            if self.work.quads_with(w) or any(
+                    self.live(t) and self.elem_layer.get(t, (-1,))[0] >= L
+                    for t in self.v2t.get(w, ())):
+                continue  # a fan edge at w would face layer L
+            pw = self.xy(w)
+            p1, p2 = (w, z) if side == "bz" else (z, w)
+            P1, P2 = self.xy(p1), self.xy(p2)
+            tgt = 0.5 * (pz + pw)
+            for t in self.FAN_FRACTIONS:
+                pm = mid + t * (tgt - mid)
+                fan = [np.array([pm, pb, P1]), np.array([pm, P1, P2]),
+                       np.array([pm, P2, pa])]
+                if any(np.sign(_signed_area(q)) != su for q in fan):
+                    continue  # every fan tri keeps U's orientation
+                if (np.sign(_signed_area(np.array([pa, pm, pc]))) != st
+                        or np.sign(_signed_area(np.array([pm, pb, pc]))) != st):
+                    continue
+                if not all(self._fan4_has_partner(pm, x, y, (U, V))
+                           for x, y in ((b, p1), (p1, p2), (p2, a))):
+                    continue  # a fan tri with no valid outward pair would strand
+                polys = [np.array([pa, pm, pb, pc])] + fan
+                worst = min(float(_corner_sines(q if _signed_area(q) > 0 else q[::-1]).min())
+                            for q in polys)
+                if worst > self.MIN_SINE and (best is None or worst > best[0]):
+                    best = (worst, pm, V, p1, p2)
+        return None if best is None else best[1:]
+
+    def _fan4_has_partner(self, pm: np.ndarray, x: int, y: int, skip) -> bool:
+        """Fan tri ``(m, x, y)`` has a live outward neighbour across
+        ``(x, y)`` that merges into a quad with worst corner sine above
+        ``MIN_SINE``."""
+        for t in self.v2t.get(x, set()) & self.v2t.get(y, set()):
+            if t in skip or not self.live(t) or t in self.consumed:
+                continue
+            d = [v for v in self.tri_row(t) if v not in (x, y)][0]
+            q = np.array([pm, self.xy(x), self.xy(d), self.xy(y)])
+            if _signed_area(q) < 0:
+                q = q[::-1]
+            if float(_corner_sines(q).min()) > self.MIN_SINE:
+                return True
+        return False
+
+    def _fan4(self, r: int, a: int, b: int, c: int, U: int) -> bool:
+        """Close ``(a, b, c)`` as quad ``(a, m, b, c)`` and re-cut ``U + V``
+        into ``(m, b, p1), (m, p1, p2), (m, p2, a)``. Layer 0 is never
+        fanned. Pairs inside the fan go to ``fan_forbid``."""
+        st = self.fan_stats
+        if self.layer_idx - 1 <= 0:
+            st["skip_outer"] = st.get("skip_outer", 0) + 1
+            return False
+        plan = self._fan4_plan(a, b, c, U)
+        if plan is None:
+            st["fallback"] = st.get("fallback", 0) + 1
+            return False
+        pm, V, p1, p2 = plan
+        rec = dict(a=a, b=b, c=c, U=U, V=V, U_row=self.tri_row(U), V_row=self.tri_row(V))
+        sign = np.sign(_signed_area(self.poly(self.tri_row(U))))
+        m = self.work.add_point(np.append(pm, 0.0))
+        self.work.add_quad(np.array([a, m, b, c], dtype=int))
+        self.retire_tri(r)
+
+        def oriented(t):
+            q = np.array([pm if v == m else self.xy(v) for v in t])
+            return list(t) if np.sign(_signed_area(q)) == sign else list(t)[::-1]
+
+        fan = [oriented((m, b, p1)), oriented((m, p1, p2)), oriented((m, p2, a))]
+        for row in (U, V):
+            for v in self.tri_row(row):
+                self.v2t.get(v, set()).discard(row)
+        self._set_row(U, fan[0])
+        self._set_row(V, fan[1])
+        cl = self.domain.connectivity_list
+        add = np.zeros((1, cl.shape[1]), dtype=cl.dtype)
+        add[0, :3] = fan[2]
+        if cl.shape[1] > 3:
+            add[0, 3:] = fan[2][-1]
+        nid = cl.shape[0]
+        self.domain.connectivity_list = np.vstack([cl, add])
+        for row, t in ((U, fan[0]), (V, fan[1]), (nid, fan[2])):
+            for v in t:
+                self.v2t.setdefault(int(v), set()).add(row)
+        li, kind = self.elem_layer[U]
+        self.elem_layer[nid] = (li, kind)
+        self.layers[kind][li] = np.append(self.layers[kind][li], nid)
+        for key in ("IV", "OV"):
+            arr = self.layers[key][li]
+            if a in arr and b in arr:
+                self.layers[key][li] = np.append(arr, m)
+        self.fan_forbid.update({frozenset((U, V)), frozenset((V, nid)), frozenset((U, nid))})
+        self.fan_rows.update((U, V, nid))
+        self.fan_nodes.append(int(m))
+        rec.update(m=int(m), nid=nid,
+                   fan_tris={x: frozenset(self.tri_row(x)) for x in (U, V, nid)})
+        self.fan_records.append(rec)
+        self.dirty = True
+        st["fan"] = st.get("fan", 0) + 1
+        return True
+
+    def _fan4_merge(self, r: int) -> bool:
+        """Closing step (a): a stranded fan tri that stock routing cannot
+        close merges with any live neighbour into a quad whose worst corner
+        sine exceeds ``MIN_SINE``."""
+        tri = self.tri_row(r)
+        best = None
+        for i in range(3):
+            a, b, c = tri[i], tri[(i + 1) % 3], tri[(i + 2) % 3]
+            for t in sorted(self.v2t.get(a, set()) & self.v2t.get(b, set())):
+                if t == r or not self.live(t) or t in self.consumed:
+                    continue
+                d = [v for v in self.tri_row(t) if v not in (a, b)][0]
+                q = [a, d, b, c]
+                pts = self.poly(q)
+                if _signed_area(pts) < 0:
+                    q, pts = q[::-1], pts[::-1]
+                s = float(_corner_sines(pts).min())
+                if s > self.MIN_SINE and (best is None or s > best[0]):
+                    best = (s, q, t)
+        if best is None:
+            self.fan_stats["merge_fail"] = self.fan_stats.get("merge_fail", 0) + 1
+            return False
+        _, q, t = best
+        self.work.add_quad(np.array(q, dtype=int))
+        self.retire_tri(r)
+        self.retire_tri(t)
+        self.consumed.add(t)
+        self.dirty = True
+        self.fan_stats["merge"] = self.fan_stats.get("merge", 0) + 1
+        return True
+
+    def _set_xy(self, v: int, p: np.ndarray) -> None:
+        if v < self.domain.points.shape[0]:
+            self.domain.points[v, :2] = p
+        else:
+            self.work.get_extra_point(v)[:2] = p
+
+    def _fan_intact(self, rec: dict) -> bool:
+        """All three fan rows are live, not consumed, and still hold the
+        triangles the fan made. A vertex split rewrites rows in place
+        (``_write_tri``), so liveness alone does not show the fan is intact."""
+        return all(self.live(x) and x not in self.consumed
+                   and frozenset(self.tri_row(x)) == t
+                   for x, t in rec["fan_tris"].items())
+
+    def _fan4_undo(self, r: int) -> bool:
+        """Closing step (b): restore ``U`` and ``V`` of the fan that holds
+        ``r``, drop the third fan row, put ``m`` back on ``(a, b)`` at the
+        stock bisect point and split ``U`` there (stock ``bisect``). Only
+        when all three fan rows are still live triangles."""
+        for k, rec in enumerate(self.fan_records):
+            rows = (rec["U"], rec["V"], rec["nid"])
+            if r not in rows or k in self.fan_undone:
+                continue
+            if not self._fan_intact(rec):
+                self.fan_stats["undo_blocked"] = self.fan_stats.get("undo_blocked", 0) + 1
+                return False
+            a, b, c, m, U, V = rec["a"], rec["b"], rec["c"], rec["m"], rec["U"], rec["V"]
+            for x in rows:
+                for v in self.tri_row(x):
+                    self.v2t.get(v, set()).discard(x)
+            self.domain.connectivity_list[rec["nid"], :] = 0
+            self.consumed.add(rec["nid"])
+            for x, row in ((U, rec["U_row"]), (V, rec["V_row"])):
+                self._set_row(x, row)
+                for v in row:
+                    self.v2t.setdefault(int(v), set()).add(x)
+            got = self._bisect_point(a, b, c, U)
+            pm = 0.5 * (self.xy(a) + self.xy(b)) if got is None else got[0]
+            self._set_xy(m, pm)
+            self.split_ring_edge(a, b, m, U)
+            self.fan_rows.difference_update(rows)
+            self.fan_undone.append(k)
+            self.dirty = True
+            self.fan_stats["undo"] = self.fan_stats.get("undo", 0) + 1
+            return True
+        return False
+
+    def fan_prune(self, layer_rows: Set[int], fold_pairs: Set[frozenset]) -> bool:
+        """Closing step (b) before pairing: undo every fan in this layer whose
+        tri has no ring edge and no live partner that is allowed (not a fan
+        pair, not a fold-seam pair) and merges into a quad with worst corner
+        sine above ``MIN_SINE``. Returns True if any fan was undone."""
+        any_undone = False
+        for k, rec in enumerate(self.fan_records):
+            rows = (rec["U"], rec["V"], rec["nid"])
+            if k in self.fan_undone or not all(x in layer_rows for x in rows):
+                continue
+            if not self._fan_intact(rec):
+                continue
+            for f in rows:
+                t = self.tri_row(f)
+                if any(self.is_ring_edge(t[i], t[(i + 1) % 3]) for i in range(3)):
+                    continue
+                ok = False
+                for i in range(3):
+                    x, y = t[i], t[(i + 1) % 3]
+                    o = t[(i + 2) % 3]
+                    for g in self.v2t.get(x, set()) & self.v2t.get(y, set()):
+                        if (g == f or g not in layer_rows or not self.live(g)
+                                or g in self.consumed
+                                or frozenset((f, g)) in self.fan_forbid
+                                or frozenset((f, g)) in fold_pairs):
+                            continue
+                        d = [v for v in self.tri_row(g) if v not in (x, y)][0]
+                        q = self.poly([o, x, d, y])
+                        if _signed_area(q) < 0:
+                            q = q[::-1]
+                        if float(_corner_sines(q).min()) > self.MIN_SINE:
+                            ok = True
+                            break
+                    if ok:
+                        break
+                if not ok:
+                    if self._fan4_undo(f):
+                        any_undone = True
+                    break
+        return any_undone
+
+    def fan_strands(self, ga: int, gb: int) -> bool:
+        """Merging rows ``ga`` and ``gb`` would take the last live partner of
+        another free fan tri (strand mask for merges outside the matcher)."""
+        pair = {ga, gb}
+        near = set()
+        for g in pair:
+            for v in self.tri_row(g):
+                near |= self.v2t.get(v, set()) & self.fan_rows
+        for f in near - pair:
+            if not self.live(f) or f in self.consumed:
+                continue
+            t = self.tri_row(f)
+            part = set()
+            for i in range(3):
+                for x in self.v2t.get(t[i], set()) & self.v2t.get(t[(i + 1) % 3], set()):
+                    if (x != f and self.live(x) and x not in self.consumed
+                            and frozenset((f, x)) not in self.fan_forbid):
+                        part.add(x)
+            if part and part <= pair:
+                return True
+        return False
+
+    def fan_matcher_rules(self, glob: np.ndarray, layer_conn: np.ndarray) -> dict:
+        """Keyword arguments for ``match_layer_heuristic`` that carry the
+        fan rules (forbid, strand masking, route first) for this layer."""
+        from chilmesh import quad_from_tri_pair
+        from .tri2quad import _quad_is_degenerate
+        pts = self.domain.points
+
+        def pair_ok(x: int, y: int) -> bool:
+            try:
+                q = quad_from_tri_pair(pts, layer_conn[x, :3].astype(int),
+                                       layer_conn[y, :3].astype(int))
+                pq = np.asarray(pts)[np.asarray(q, int), :2]
+                if _signed_area(pq) < 0:
+                    pq = pq[::-1]
+                return (not bool(_quad_is_degenerate(pts, q))
+                        and float(_corner_sines(pq).min()) > self.MIN_SINE)
+            except (ValueError, IndexError):
+                return False
+
+        return dict(forbid_pairs=set(self.fan_forbid), fan_rows=set(self.fan_rows),
+                    pair_ok=pair_ok)
 
     def _fan(self, r: int, b: int, start: int) -> Optional[Tuple[int, List[Tuple[str, int]]]]:
         """Walk the elements around ``b`` from triangle ``r`` across edge
@@ -1041,6 +1480,9 @@ class SweepContext:
                     plans += self._vertex_split_plans(r, x, y, z)
             plan = self._pick(plans)
             if plan["op"] == "bisect":
+                if (self.fan_valence4 and plan["outer"] is not None
+                        and self._fan4(r, *plan["abc"], plan["outer"])):
+                    return True
                 self._apply_bisect(plan)
             else:
                 self._apply_vertex_split(plan)
@@ -1058,6 +1500,11 @@ class SweepContext:
         if plan is not None:
             self._apply_bisect(plan)
             return True
+        if self.fan_valence4 and r in self.fan_rows:
+            if self._fan4_merge(r):
+                return True
+            if self._fan4_undo(r):
+                return self.route(r, refuse_boundary_merge)  # stock, on restored row
         return None
 
 
