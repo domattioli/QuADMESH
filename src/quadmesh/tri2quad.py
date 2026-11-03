@@ -813,11 +813,32 @@ def _quad_is_degenerate(points, quad, max_angle_deg: float = 177.0) -> bool:
     return False
 
 
+def _fold_seam_pairs(sel, glob: np.ndarray) -> Set[frozenset]:
+    """T018 fold seam: ``sel.flagged_vert_pairs`` as global elem pairs."""
+    out: Set[frozenset] = set()
+    if not sel.flagged_vert_pairs:
+        return out
+    fv = {(int(min(p)), int(max(p))) for p in sel.flagged_vert_pairs}
+    n_sub_edges = sel.sub_mesh.n_edges
+    e2v_all = sel.sub_mesh.edge2vert(np.arange(n_sub_edges))
+    e2e_sub = sel.sub_mesh.adjacencies["Edge2Elem"]
+    for eidx in range(n_sub_edges):
+        u, v = int(e2v_all[eidx, 0]), int(e2v_all[eidx, 1])
+        if (min(u, v), max(u, v)) in fv:
+            row = np.asarray(e2e_sub[eidx]).ravel()
+            if row.size >= 2 and int(row[0]) >= 0 and int(row[1]) >= 0:
+                la2, lb2 = int(row[0]), int(row[1])
+                if la2 < glob.size and lb2 < glob.size:
+                    out.add(frozenset([int(glob[la2]), int(glob[lb2])]))
+    return out
+
+
 def _quadmesh_plus_per_layer(
     domain: CHILmesh,
     tris: np.ndarray,
     can_remove_edges: bool,
     refuse_boundary_merge: bool = False,
+    fan_valence4: bool = False,
 ) -> Tuple[List[Tuple[int, int, int, int]], List[int], np.ndarray, set,
            np.ndarray, Set[Tuple[int, int]]]:
     """True MATLAB Tri2QuadRoutine per-layer loop.
@@ -852,7 +873,8 @@ def _quadmesh_plus_per_layer(
     refused: set = set()
 
     nl = int(getattr(domain, "n_layers", 0) or 0)
-    ctx = SweepContext(domain, work, consumed, refused, _boundary_edge_set(tris))
+    ctx = SweepContext(domain, work, consumed, refused, _boundary_edge_set(tris),
+                       fan_valence4=fan_valence4)
     layers = domain.layers  # ctx's private copy; grows as outer tris split
 
     # All elem IDs that belong to at least one layer — the rest fall through to
@@ -871,6 +893,24 @@ def _quadmesh_plus_per_layer(
             continue
         if sel.sub_mesh is None:
             continue
+        if fan_valence4 and ctx.fan_records:
+            # #133 closing step (b), before any pairing in this layer: undo a
+            # fan whose tri has no allowed partner and no ring edge, then
+            # re-identify the layer on the restored topology.
+            redo = False
+            try:
+                redo = ctx.fan_prune(set(int(g) for g in sel.elem_ids_global),
+                                     _fold_seam_pairs(sel, np.asarray(sel.elem_ids_global, dtype=int)))
+            except Exception:
+                redo = False
+            if redo:
+                ctx.sync()
+                try:
+                    sel = identify_edges_in_layer(domain, li)
+                except Exception:
+                    continue
+                if sel.sub_mesh is None:
+                    continue
 
         e2e = sel.sub_mesh.adjacencies["Edge2Elem"]
         glob = np.asarray(sel.elem_ids_global, dtype=int)
@@ -892,6 +932,10 @@ def _quadmesh_plus_per_layer(
                 continue
             if la in local_consumed or lb in local_consumed:
                 continue
+            if fan_valence4 and frozenset((ga, gb)) in ctx.fan_forbid:
+                continue  # #133: pairs inside one fan never merge
+            if fan_valence4 and ctx.fan_strands(ga, gb):
+                continue  # #133 strand mask
             try:
                 quad = merge_tri_pair(sel.sub_mesh, la, lb)
             except (ValueError, IndexError):
@@ -913,22 +957,7 @@ def _quadmesh_plus_per_layer(
         layer_conn = domain.connectivity_list[glob]
 
         # T018 fold-seam: flagged_vert_pairs (parent verts) -> forbidden global elem pairs.
-        flagged_global_pairs: Set[frozenset] = set()
-        if sel.flagged_vert_pairs:
-            fv = {(int(min(p)), int(max(p))) for p in sel.flagged_vert_pairs}
-            n_sub_edges = sel.sub_mesh.n_edges
-            e2v_all = sel.sub_mesh.edge2vert(np.arange(n_sub_edges))
-            e2e_sub = sel.sub_mesh.adjacencies["Edge2Elem"]
-            for eidx in range(n_sub_edges):
-                u, v = int(e2v_all[eidx, 0]), int(e2v_all[eidx, 1])
-                if (min(u, v), max(u, v)) in fv:
-                    row = np.asarray(e2e_sub[eidx]).ravel()
-                    if row.size >= 2 and int(row[0]) >= 0 and int(row[1]) >= 0:
-                        la2, lb2 = int(row[0]), int(row[1])
-                        if la2 < glob.size and lb2 < glob.size:
-                            flagged_global_pairs.add(
-                                frozenset([int(glob[la2]), int(glob[lb2])])
-                            )
+        flagged_global_pairs = _fold_seam_pairs(sel, glob)
 
         already = {int(glob[i]) for i in local_consumed}
         try:
@@ -941,6 +970,7 @@ def _quadmesh_plus_per_layer(
                 flagged_pairs=flagged_global_pairs,
                 already_consumed=already,
                 is_boundary_layer=_is_boundary_layer(li),
+                **(ctx.fan_matcher_rules(glob, layer_conn) if fan_valence4 else {}),
             )
         except Exception:
             greedy_pairs = []
@@ -1041,6 +1071,7 @@ def tri2quad_routine(
     minimize_boundary_change: Optional[bool] = None,
     point_insert: bool = True,
     refuse_boundary_merge: bool = False,
+    fan_valence4: bool = False,
 ) -> CHILmesh:
     """Convert ``domain`` (triangular) into a quad CHILmesh.
 
@@ -1079,6 +1110,9 @@ def tri2quad_routine(
             leftover boundary tris with 2-3 domain-boundary edges are emitted as
             boundary triangles (mixed tri/quad mesh) instead of being merged into
             degenerate ~180-degree quads. Default OFF = byte-identical behavior.
+        fan_valence4: opt-in (#133, default OFF). Close a leftover tri on an
+            interior ring edge with a 3-triangle fan around a new node, and
+            steer the layer matcher so the node ends with valence 4.
 
     Returns:
         A new CHILmesh of quads (quad-pure by default), or quads plus residual
@@ -1123,6 +1157,7 @@ def tri2quad_routine(
                  bset_sweep) = _quadmesh_plus_per_layer(
                     domain, tris, can_remove_edges,
                     refuse_boundary_merge=refuse_boundary_merge,
+                    fan_valence4=fan_valence4,
                 )
             finally:
                 for k, v in saved.items():
