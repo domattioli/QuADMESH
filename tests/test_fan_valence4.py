@@ -18,8 +18,9 @@ from quadmesh import _tri_removal as tr
 from quadmesh.pipeline import run_pipeline
 
 CELLS = Path(__file__).resolve().parent / "fixtures" / "fan_cells"
-# Quad count of the default path (fan off), measured at af3c2ac.
-DEFAULT_QUADS = {"5.08_admesh": 526, "5.08_constant": 872, "7.62_constant": 380}
+# Quad count of the default path (fan off). af3c2ac gave 526, 872, 380;
+# #131 (valence-driven split choice) changes it to the values below.
+DEFAULT_QUADS = {"5.08_admesh": 587, "5.08_constant": 1031, "7.62_constant": 371}
 
 
 def _load(name):

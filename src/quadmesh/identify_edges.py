@@ -198,9 +198,11 @@ def identify_edges_in_layer(domain: CHILmesh, layer_idx: int) -> LayerEdgeSelect
             if idown <= 1:
                 up_edge = down_edge
                 continue
-            # MATLAB idownEdgeID==2 reversal (identifyEdgesFun_v2.m:86-88): when a
-            # single interior edge sits between up and down, flip positions [1:] so
-            # it lands at the first take position consistently.
+            # Not MATLAB parity (port_check item 16, docs/MAPPING.md): MATLAB
+            # reverses entries 2:end when the down edge is 2nd in the 1-based fan
+            # (identifyEdgesFun_v2.m:L88), i.e. idown == 1 here, which the check
+            # above skips instead. This branch flips at idown == 2 (MATLAB
+            # position 3). Kept as is by operator ruling (document only).
             if idown == 2:
                 ordered = np.concatenate([ordered[:1], ordered[1:][::-1]])
                 idown = int(np.where(ordered == down_edge)[0][0])

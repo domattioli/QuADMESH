@@ -535,17 +535,20 @@ def _point_insert_tri_pairs(
 
     A lone boundary tri cannot become a single quad without a degenerate
     (colinear) vertex. Instead, pair it with an edge-adjacent quad: the union is
-    a pentagon, into which a new **interior** point ``p`` (centroid) is inserted,
-    splitting the region into **two quads** ``(v0,v1,v2,p)`` + ``(v2,v3,v4,p)``.
+    a pentagon. An odd polygon has no all-quad cover, so the tri's
+    domain-boundary edge is split at its midpoint ``m`` (boundary shape
+    unchanged) and an interior point ``p`` is added: the hexagon becomes
+    **three quads** ``(m,L1,L2,p)``, ``(L2,L3,L4,p)``, ``(L4,L5,m,p)``.
 
-    Adds resolution (one interior point per insertion) and **preserves every
-    original vertex** — boundary verts untouched. Local: only the tri + its
-    neighbour quad change; the pentagon perimeter (shared with other elements) is
-    unchanged → conforming. Each insertion applied only if both quads are valid
-    (``_quad_ok``). Iterates to a fixpoint.
+    Adds two points per insertion and **preserves every original vertex**.
+    Local: only the tri + its neighbour quad change; the rest of the pentagon
+    perimeter is unchanged and the split edge is on the domain boundary ->
+    conforming, no hole. Applied only if all three quads are valid
+    (``_quad_ok``) and min quality >= 0.1; a tri with no domain-boundary edge
+    is left as is. Iterates to a fixpoint.
 
-    Returns ``(quads, remaining_tris, points)`` with new interior points appended
-    to ``points``.
+    Returns ``(quads, remaining_tris, points)`` with new points appended to
+    ``points``.
     """
     pts = points.copy()
     elems: List[List[int]] = [list(q) for q in quads] + [
@@ -596,57 +599,76 @@ def _point_insert_tri_pairs(
                 loop = _ordered_loop(perim)
                 if loop is None or len(loop) != 5:
                     continue
-                LP = pts[loop][:, :2]
+                # A pentagon has an odd number of sides, so no set of quads
+                # covers it (4 * n_quads = 2 * interior + boundary edges).
+                # Split one domain-boundary edge of the tri at its midpoint
+                # ``m`` (the boundary shape is unchanged): the hexagon
+                # (m, L1..L5) plus an interior point ``p`` gives three quads
+                # (m, L1, L2, p), (L2, L3, L4, p), (L4, L5, m, p). ``m`` sits
+                # where ``p`` splits its straight angle. No domain-boundary
+                # edge on the tri -> no conforming cover; the tri stays.
+                bdy = []
+                for k in range(3):
+                    a_, b_ = e[k], e[(k + 1) % 3]
+                    if len(edge2elem[tuple(sorted((a_, b_)))]) == 1:
+                        bdy.append((a_, b_))
+                if not bdy:
+                    continue
+                LP5 = pts[loop][:, :2]
                 zc = float(pts[loop][:, 2].mean()) if pts.shape[1] > 2 else 0.0
-                # Candidate interior points: centroid + grid over the bbox.
-                centroid = LP.mean(axis=0)
-                std_cand = [centroid]
-                xs = np.linspace(LP[:, 0].min(), LP[:, 0].max(), 6)[1:-1]
-                ys = np.linspace(LP[:, 1].min(), LP[:, 1].max(), 6)[1:-1]
-                std_cand += [np.array([x, y]) for x in xs for y in ys]
-                # Concave-pentagon fallback (WNAT bays): centroid+grid all land
-                # outside a concave loop. Diagonal midpoints + inward-normal offsets
-                # reach into non-convex regions. Tried ONLY when the standard set
-                # finds nothing, and held to a higher quality floor so a marginal
-                # insertion never replaces a better-left residual tri.
-                diag = float(np.linalg.norm(LP.max(axis=0) - LP.min(axis=0)))
-                fb_cand = [0.5 * (LP[i] + LP[(i + 2) % 5]) for i in range(5)]
-                for i in range(5):
-                    edge_mid = 0.5 * (LP[i] + LP[(i + 1) % 5])
-                    inward = centroid - edge_mid
-                    nrm = float(np.linalg.norm(inward))
-                    if nrm < 1e-12:
-                        continue
-                    inward /= nrm
-                    fb_cand += [edge_mid + t * diag * inward for t in (0.1, 0.2, 0.3, 0.4)]
-                pt = pts.shape[0]  # temp id of the candidate point in `tmp`
+                pt = pts.shape[0]  # temp id of the interior point in `tmp`
+                mt = pts.shape[0] + 1  # temp id of the boundary midpoint
+                centroid5 = LP5.mean(axis=0)
+                diag = float(np.linalg.norm(LP5.max(axis=0) - LP5.min(axis=0)))
 
-                def _scan(cands):
+                def _scan(cands, hexa, mxy):
                     bq, bsel = -1.0, None
                     for pxy in cands:
-                        tmp = np.vstack([pts[:, :2], pxy.reshape(1, -1)])
-                        for r in range(5):
-                            L = loop[r:] + loop[:r]
-                            q1 = ccw([L[0], L[1], L[2], pt], tmp)
-                            q2 = ccw([L[2], L[3], L[4], pt], tmp)
-                            if _quad_ok(tmp[q1]) and _quad_ok(tmp[q2]):
-                                mq = min(_quad_quality(tmp[q1]), _quad_quality(tmp[q2]))
-                                if mq > bq:
-                                    bq, bsel = mq, (pxy, list(q1), list(q2))
+                        tmp = np.vstack([pts[:, :2], pxy.reshape(1, -1), mxy.reshape(1, -1)])
+                        qs = [ccw([hexa[0], hexa[1], hexa[2], pt], tmp),
+                              ccw([hexa[2], hexa[3], hexa[4], pt], tmp),
+                              ccw([hexa[4], hexa[5], hexa[0], pt], tmp)]
+                        if all(_quad_ok(tmp[qq]) for qq in qs):
+                            mq = min(_quad_quality(tmp[qq]) for qq in qs)
+                            if mq > bq:
+                                bq, bsel = mq, (pxy, [list(qq) for qq in qs])
                     return bq, bsel
 
-                best_q, best = _scan(std_cand)
-                if (best is None or best_q < 0.1):
-                    fb_q, fb = _scan(fb_cand)
-                    if fb is not None and fb_q >= 0.3:
-                        best_q, best = fb_q, fb
+                best_q, best, best_m = -1.0, None, None
+                for a_, b_ in bdy:
+                    ia, ib = loop.index(a_), loop.index(b_)
+                    # Insert m between a_ and b_ in loop order; rotate to m.
+                    if (ia + 1) % 5 == ib:
+                        hexa = [mt] + loop[ib:] + loop[:ib]
+                    else:
+                        hexa = [mt] + loop[ia:] + loop[:ia]
+                    mxy = 0.5 * (pts[a_, :2] + pts[b_, :2])
+                    HP = np.vstack([mxy, pts[hexa[1:]][:, :2]])
+                    cen = HP.mean(axis=0)
+                    cands = [cen, 0.5 * (cen + mxy), centroid5]
+                    xs = np.linspace(HP[:, 0].min(), HP[:, 0].max(), 6)[1:-1]
+                    ys = np.linspace(HP[:, 1].min(), HP[:, 1].max(), 6)[1:-1]
+                    cands += [np.array([x, y]) for x in xs for y in ys]
+                    for k in range(6):
+                        em = 0.5 * (HP[k] + HP[(k + 1) % 6])
+                        inward = cen - em
+                        nrm = float(np.linalg.norm(inward))
+                        if nrm > 1e-12:
+                            cands += [em + t * diag * inward / nrm for t in (0.1, 0.2, 0.3)]
+                    bq, bsel = _scan(cands, hexa, mxy)
+                    if bsel is not None and bq > best_q:
+                        best_q, best, best_m = bq, bsel, (mxy, a_, b_)
                 if best is None or best_q < 0.1:
                     continue  # no acceptable placement -> leave tri (rare)
-                pxy, q1l, q2l = best
+                pxy, qls = best
+                mxy, a_, b_ = best_m
                 pid = pts.shape[0] + len(new_pts)
-                new_pts.append(np.array([pxy[0], pxy[1], zc]))
-                new_elems.append([pid if v == pt else v for v in q1l])
-                new_elems.append([pid if v == pt else v for v in q2l])
+                new_pts.append(np.array([pxy[0], pxy[1], zc])[: pts.shape[1]])
+                mid = pts.shape[0] + len(new_pts)
+                zm = 0.5 * (pts[a_, 2] + pts[b_, 2]) if pts.shape[1] > 2 else 0.0
+                new_pts.append(np.array([mxy[0], mxy[1], zm])[: pts.shape[1]])
+                for ql in qls:
+                    new_elems.append([pid if v == pt else (mid if v == mt else v) for v in ql])
                 consumed |= {ti, q}
                 changed = True
                 break
