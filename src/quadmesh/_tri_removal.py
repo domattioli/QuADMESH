@@ -540,6 +540,10 @@ class SweepContext:
                 self.v2t.setdefault(v, set()).add(r)
         self.dom_bdy: Set[frozenset] = {frozenset((int(a), int(b))) for a, b in boundary_edges}
         self.dom_bdy_verts: Set[int] = {v for e in self.dom_bdy for v in e}
+        # Original domain-boundary vertices: never moved (close_by_insertion).
+        self.orig_bdy_verts: Set[int] = set(self.dom_bdy_verts)
+        self.insert_stats: Dict[str, int] = {}
+        self.insert_failed: List[int] = []
         self.layer_idx = nl - 1
         self.dirty = False
         # #133 valence-4 fan (opt-in). fan_forbid holds row pairs inside one
@@ -1449,6 +1453,244 @@ class SweepContext:
         self._apply_vertex_split(plan)
         return True
 
+    # -- last-resort closer: MATLAB edgeInsertion CASE 1 / 2 (ruling 2026-11-04)
+
+    # edgeInsertion.m:L63-L65: del = D / 3, t = del / D. npID goes 1/3 along
+    # the first ring edge and tbVertID moves 1/3 along the second one.
+    INSERT_FRACTION = 1.0 / 3.0
+
+    def _star(self, v: int) -> List[Tuple[str, int]]:
+        """Every live quad and triangle that has vertex ``v``."""
+        return ([("q", qi) for qi in sorted(self.work.quads_with(v))]
+                + [("t", t) for t in sorted(self.v2t.get(v, ())) if self.live(t)])
+
+    @staticmethod
+    def _angle_at(pts: np.ndarray, i: int, sign: float) -> float:
+        """Interior angle in (0, 2 pi) at corner ``i`` of a polygon with
+        orientation ``sign``; reflex corners are kept, not folded."""
+        k = pts.shape[0]
+        e1 = pts[(i + 1) % k] - pts[i]
+        e2 = pts[(i - 1) % k] - pts[i]
+        ang = float(np.arctan2(e1[0] * e2[1] - e1[1] * e2[0], e1 @ e2))
+        return (sign * ang) % (2.0 * np.pi)
+
+    @staticmethod
+    def _quad_simple(pts: np.ndarray) -> bool:
+        """False for a self-intersecting (bowtie) quad."""
+        def cr(o, p, q):
+            return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0])
+
+        def cross(a, b, c, d):
+            return ((cr(c, d, a) > 0) != (cr(c, d, b) > 0)
+                    and (cr(a, b, c) > 0) != (cr(a, b, d) > 0))
+
+        return not (cross(pts[0], pts[1], pts[2], pts[3])
+                    or cross(pts[1], pts[2], pts[3], pts[0]))
+
+    def _b_fixed(self, b: int, s_np: int, s_mv: Optional[int]) -> bool:
+        """``b`` must keep its position. MATLAB has no fixed vertex in
+        edgeInsertion (CASE 1 moves a domain-boundary vertex, L133). The port
+        never moves an original domain-boundary vertex (``preserve_boundary``
+        and tests/test_no_interior_tris.py), nor a domain-boundary vertex that
+        a layer > 0 ring passes through. A boundary vertex the sweep inserted
+        may slide along the boundary only where the boundary is straight."""
+        if b in self.orig_bdy_verts or b in self.fan_nodes:
+            return True
+        if b not in self.dom_bdy_verts:
+            return False
+        if self.layer_idx > 0 or s_mv is None:
+            return True
+        pb = self.xy(b)
+        e1, e2 = self.xy(s_np) - pb, self.xy(s_mv) - pb
+        n = float(np.hypot(*e1) * np.hypot(*e2))
+        return not (n > 0.0 and abs(e1[0] * e2[1] - e1[1] * e2[0]) <= 1e-12 * n
+                    and float(e1 @ e2) < 0.0)
+
+    def _insertion_plans(self, r: int, b: int, p: int, q: int) -> List[dict]:
+        """MATLAB edgeInsertion CASE 1 / 2 for CCW triangle ``(b, p, q)``
+        with ring vertex ``b``, with no angle gate (ruling 2026-11-04).
+
+        For each side order (npID side, moved side): ``n`` goes 1/3 along the
+        ring edge ``(b, s)`` of the npID side (edgeInsertion.m:L63-L67, L132)
+        and the elements on that side take ``n`` for ``b`` (L123-L128,
+        L136, L238-L240). ``b`` moves 1/3 along the ring edge ``(b, s2)`` of
+        the other side (L133); a fixed ``b`` (``_b_fixed``) stays put. In
+        layer ``L > 0`` the outer sector is re-triangulated as two fans and
+        one bridge (L147-L218), MATLAB's switchVertID (L180) first.
+
+        A candidate is kept only if it inverts nothing: every element it
+        rewrites or moves keeps a positive orientation, no quad is a bowtie,
+        and the corner angles at ``n`` and ``b`` still close (2 pi inside,
+        pi on the boundary for ``n``, the old total for ``b``), so nothing
+        folds over."""
+        plans: List[dict] = []
+        N = self._NEW
+        st = self.insert_stats
+        fans = {"A": self._fan(r, b, p), "B": self._fan(r, b, q)}
+        for side in ("A", "B"):
+            fan = fans[side]
+            if fan is None:
+                continue
+            s, elems = fan
+            ok, outer = self._ring_target(b, s)
+            if not ok:
+                continue
+            sector = None
+            if outer is not None:
+                sector = self._outer_sector(b, s, outer)
+                if sector is None:
+                    continue
+            other = fans["B" if side == "A" else "A"]
+            s_mv = other[0] if other is not None else None
+            if sector is not None:
+                if s_mv is not None and s_mv != sector[1][-1]:
+                    continue  # the two walks around b disagree: non-manifold
+                s_mv = sector[1][-1]
+            fixed = self._b_fixed(b, s, s_mv)
+            if not fixed and s_mv is None:
+                continue
+            pb = self.xy(b)
+            f = self.INSERT_FRACTION
+            pn = (1.0 - f) * pb + f * self.xy(s)  # L66-L67, first row
+            pb2 = pb if fixed else (1.0 - f) * pb + f * self.xy(s_mv)  # second row
+            quad = [b, N, p, q] if side == "A" else [b, p, q, N]
+            star = self._star(b)
+            sector_rows = set(sector[0]) if sector is not None else set()
+            gone = {("t", r)} | set(elems) | {("t", t) for t in sector_rows}
+            bridges: List[Tuple[int, List[List[int]], bool]] = []
+            if sector is not None:
+                rows, w = sector
+                k = len(rows)
+                sw_matlab = (k + 3) // 2 - 1  # switchVertID - 1 (L180)
+                s_li = self.elem_layer.get(rows[0], (self.layer_idx - 1,))[0]
+                ov = (self.dom_bdy_verts if s_li == 0 else
+                      set(int(v) for v in self.layers["OV"][s_li].tolist()))
+                for sw in range(1, k + 1):
+                    new = ([[N, w[j], w[j + 1]] for j in range(sw)]
+                           + [[w[j], w[j + 1], b] for j in range(sw, k)]
+                           + [[N, w[sw], b]])
+                    guard = all(any(v in ov for v in tri) for tri in new)
+                    bridges.append((sw, new, guard))
+                psign = 1.0 if _signed_area(self.poly([b, w[0], w[1]])) >= 0.0 else -1.0
+            else:
+                sw_matlab = 0
+                bridges.append((0, [], True))
+                psign = 1.0
+
+            def xy(v, pn=pn, pb2=pb2):
+                if v == N:
+                    return pn
+                return pb2 if v == b else self.xy(v)
+
+            # Elements rewritten on the npID side and the ones that only move.
+            checks: List[Tuple[List[int], float]] = [(quad, 1.0)]
+            for el in elems:
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                checks.append(([N if v == b else v for v in vs], sign))
+            kept_b = []
+            for el in star:
+                if el in gone:
+                    continue
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                kept_b.append((vs, sign))
+                if not fixed:
+                    checks.append((vs, sign))
+            b_total = 0.0
+            for el in star:
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                b_total += self._angle_at(self.poly(vs), vs.index(b), sign)
+            n_total = 2.0 * np.pi if outer is not None else np.pi
+
+            def bad(polys) -> bool:
+                for vs, sign in polys:
+                    pts = np.array([xy(v) for v in vs])
+                    if sign * _signed_area(pts) <= 0.0:
+                        return True
+                    if len(vs) == 4 and not self._quad_simple(pts):
+                        return True
+                return False
+
+            if bad(checks):
+                st["inverted_variant"] = st.get("inverted_variant", 0) + len(bridges)
+                continue
+            removed = [("t", [b, p, q])] + [
+                ("q" if el[0] == "q" else "t", self.elem_verts(el)) for el in elems]
+            added = [("q", quad)] + [
+                ("q" if el[0] == "q" else "t", vs) for vs, _ in checks[1:1 + len(elems)]]
+            if sector is not None:
+                removed += [("t", self.tri_row(t)) for t in sector[0]]
+            for sw, new, guard in bridges:
+                tri_checks = [(tri, psign) for tri in new]
+                if bad(tri_checks):
+                    st["inverted_variant"] = st.get("inverted_variant", 0) + 1
+                    continue
+                polys = checks + tri_checks
+                at_n = sum(self._angle_at(np.array([xy(v) for v in vs]), vs.index(N), sg)
+                           for vs, sg in polys if N in vs)
+                at_b = sum(self._angle_at(np.array([xy(v) for v in vs]), vs.index(b), sg)
+                           for vs, sg in [(quad, 1.0)] + kept_b + tri_checks if b in vs)
+                if abs(at_n - n_total) > 1e-6 or abs(at_b - b_total) > 1e-6:
+                    st["folded_variant"] = st.get("folded_variant", 0) + 1
+                    continue
+                worst = min(float(_corner_sines(
+                    np.array([xy(v) for v in (vs if sg > 0 else vs[::-1])])).min())
+                    for vs, sg in polys)
+                cost = self._valence_cost(removed, added + [("t", t) for t in new],
+                                          new_on_bdy=outer is None)
+                convex = bool(_corner_sines(np.array([xy(v) for v in quad])).min() > 0.0)
+                plans.append({
+                    "op": "insert", "r": r, "bpq": (b, p, q), "side": side,
+                    "s": s, "elems": elems, "outer": outer, "pn": pn,
+                    "pb": None if fixed else pb2, "sector": sector, "sw": sw,
+                    "new": new, "worst": worst, "cost": cost, "guard": guard,
+                    "convex": convex,
+                    "pref": 0 if sw == sw_matlab else 1,
+                })
+        return plans
+
+    def close_by_insertion(self, r: int) -> bool:
+        """Last resort before a leftover triangle is given up: MATLAB
+        removeTrianglesFun.m:L63-L71 sends a triangle with a ring vertex and
+        no ring edge to edgeInsertion(1 | 2), which never refuses. Every ring
+        vertex of the triangle is tried (``_insertion_plans``). Preference:
+        bridges that pass the port guard (item 58), then the lowest valence
+        cost, then MATLAB's switchVertID, then the best worst corner. With no
+        candidate that inverts nothing the triangle stays, and
+        ``run_pipeline`` reports it (``InteriorTriangleError``)."""
+        st = self.insert_stats
+        st["attempt"] = st.get("attempt", 0) + 1
+        tri = self.tri_row(r)
+        if _signed_area(self.poly(tri)) < 0.0:
+            tri = tri[::-1]
+        a, b, c = tri
+        plans: List[dict] = []
+        ring = False
+        for x, y, z in ((a, b, c), (b, c, a), (c, a, b)):
+            if self.is_ring_vert(x):
+                ring = True
+                plans += self._insertion_plans(r, x, y, z)
+        if not plans:
+            key = "no_ring_vertex" if not ring else "no_valid_candidate"
+            st[key] = st.get(key, 0) + 1
+            self.insert_failed.append(int(r))
+            return False
+        plan = min(enumerate(plans), key=lambda ip: (
+            not ip[1]["guard"], not ip[1]["convex"], round(ip[1]["cost"], 9), ip[1]["pref"],
+            -ip[1]["worst"], ip[0]))[1]
+        if plan["pb"] is not None:
+            self._set_xy(plan["bpq"][0], plan["pb"])  # edgeInsertion.m:L133
+            st["moved_b"] = st.get("moved_b", 0) + 1
+        else:
+            st["fixed_b"] = st.get("fixed_b", 0) + 1
+        if not plan["guard"]:
+            st["guard_violated"] = st.get("guard_violated", 0) + 1
+        self._apply_vertex_split(plan)
+        st["closed"] = st.get("closed", 0) + 1
+        return True
+
     def route(self, r: int, refuse_boundary_merge: bool) -> Optional[bool]:
         """Conforming ``removeTrianglesFun``: see ``route_leftover_tri``.
 
@@ -1456,8 +1698,8 @@ class SweepContext:
         edge, else closes it by a vertex split. Valence ruling: when a
         bisection is valid, it and every valid vertex split compete in one
         pool and the lowest valence cost wins (bisection first on a tie);
-        else the best vertex split; a flat midpoint bisection is the last
-        resort."""
+        else the best vertex split; then a flat midpoint bisection; the last
+        resort is MATLAB's ungated edgeInsertion (``close_by_insertion``)."""
         if not self.live(r):
             return None
         tri = self.tri_row(r)
@@ -1505,6 +1747,8 @@ class SweepContext:
                 return True
             if self._fan4_undo(r):
                 return self.route(r, refuse_boundary_merge)  # stock, on restored row
+        if self.close_by_insertion(r):
+            return True
         return None
 
 

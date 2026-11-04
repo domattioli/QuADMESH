@@ -13,6 +13,58 @@ from .post_process import post_process_routine
 from .tri2quad import tri2quad_routine
 
 
+class InteriorTriangleError(RuntimeError):
+    """QuADMESH+ output holds an interior triangle (operator ruling
+    2026-11-04: zero interior triangles is a hard rule).
+
+    Attributes:
+        mesh: The offending output mesh, for inspection.
+        rows: Row indices into ``mesh.connectivity_list`` of the interior
+            triangles.
+    """
+
+    def __init__(self, mesh: CHILmesh, rows) -> None:
+        self.mesh = mesh
+        self.rows = [int(r) for r in rows]
+        cl = np.asarray(mesh.connectivity_list)
+        shown = ", ".join(
+            f"{r}: {list(dict.fromkeys(int(v) for v in cl[r]))}" for r in self.rows[:5]
+        )
+        more = "" if len(self.rows) <= 5 else f" (+{len(self.rows) - 5} more)"
+        super().__init__(
+            f"QuADMESH+ output has {len(self.rows)} interior triangle(s) "
+            f"(no edge on the domain boundary); rows {shown}{more}"
+        )
+
+
+def interior_triangle_rows(mesh: CHILmesh) -> list:
+    """Rows of ``mesh`` that are interior triangles.
+
+    Same definition as ``tests/test_no_interior_tris.py``: a row with three
+    distinct vertices (a padded ``[a, b, c, c]`` row counts) none of whose
+    edges is a boundary edge, i.e. an edge used by exactly one element after
+    padding is removed.
+    """
+    elems = []
+    for row in np.asarray(mesh.connectivity_list):
+        vs = [int(x) for x in row]
+        uniq = list(dict.fromkeys(vs))
+        elems.append(tuple(uniq) if len(uniq) == 3 else tuple(vs))
+
+    def edges(el):
+        n = len(el)
+        return [tuple(sorted((el[i], el[(i + 1) % n]))) for i in range(n)]
+
+    count: dict = {}
+    for el in elems:
+        for e in edges(el):
+            count[e] = count.get(e, 0) + 1
+    return [
+        i for i, el in enumerate(elems)
+        if len(el) == 3 and not any(count[e] == 1 for e in edges(el))
+    ]
+
+
 def run_pipeline(
     mesh: CHILmesh,
     polygon: Optional[np.ndarray] = None,
@@ -55,6 +107,11 @@ def run_pipeline(
 
     Returns:
         Final quad CHILmesh.
+
+    Raises:
+        InteriorTriangleError: the output has a triangle with no edge on
+            the domain boundary (``interior_triangle_rows``). Zero interior
+            triangles is a hard rule of QuADMESH+; there is no opt-out.
     """
     protected = None
     if preserve_boundary:
@@ -78,4 +135,7 @@ def run_pipeline(
             preserve_boundary=preserve_boundary,
             protected_points=protected,
         )
+    bad = interior_triangle_rows(quad)
+    if bad:
+        raise InteriorTriangleError(quad, bad)
     return quad

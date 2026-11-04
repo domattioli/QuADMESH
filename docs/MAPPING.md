@@ -201,10 +201,10 @@ edgeInsertion.m:L225-L234).
 | 46 | removeTrianglesFun.m:L79-L83 | edgeRemoval is replaced by a boundary bisection; edges are never collapsed. | deliberate |
 | 47 | edgeBisection.m:L24-L31 | Edge choice by valence cost (tie: longest), not the first edge. Midpoint only in layer 0; inside the mesh the point moves toward the apex (`APEX_FRACTIONS`, `MIN_SINE`), flat midpoint as last resort. | deliberate |
 | 54 | edgeInsertion.m:L28-L35 | Every ring vertex of the triangle is tried; the best side, fraction and bridge win. | deliberate |
-| 55 | edgeInsertion.m:L63-L67, L132-L133 | `n` goes on ring edge (b, s) at the best of `SPLIT_FRACTIONS`; `b` is not moved (MATLAB moves tbVertID), so no corner reaches 180 deg and no element inverts. | deliberate |
+| 55 | edgeInsertion.m:L63-L67, L132-L133 | First choice: `n` goes on ring edge (b, s) at the best of `SPLIT_FRACTIONS` and `b` is not moved, gated by `MIN_SINE`. Last resort (operator ruling 2026-11-04, `SweepContext.close_by_insertion`): when no gated split or bisection exists, the triangle is closed as MATLAB does, with no angle gate: `n` 1/3 along one ring edge and `b` moved 1/3 along the other (L63-L67, L132-L133), both side orders tried. Deviations: an original domain-boundary vertex `b` (and a domain-boundary vertex that a layer > 0 ring passes through) is not moved; MATLAB has no fixed vertex in edgeInsertion and moves it in CASE 1. A sweep-made boundary vertex moves only on a straight boundary. A candidate that inverts or folds an element is rejected; if every candidate does, the triangle stays and `run_pipeline` raises `InteriorTriangleError`. | deliberate |
 | 56 | edgeInsertion.m:L127, L136 | b -> n in all fan elements between the triangle and the ring edge, on the side chosen. | deliberate |
 | 57 | edgeInsertion.m:L139-L145 | Side B gives [b, p, q, n] (MATLAB form); side A gives [b, n, p, q]. | deliberate |
-| 58 | edgeInsertion.m:L150-L218 | Two fans plus one bridge as in MATLAB, but only for the iLayer-1 triangles in the sector next to (b, s), not every iLayer-1 triangle at tbVertID. The bridge vertex is the one with the lowest valence cost (tie: best worst corner, then MATLAB's switchVertID). Port guard: a bridge is rejected if a new triangle would have no vertex on the outer ring of its layer (it could not be closed later). | deliberate |
+| 58 | edgeInsertion.m:L150-L218 | Two fans plus one bridge as in MATLAB, but only for the iLayer-1 triangles in the sector next to (b, s), not every iLayer-1 triangle at tbVertID. The bridge vertex is the one with the lowest valence cost (tie: best worst corner, then MATLAB's switchVertID). Port guard: a bridge is rejected if a new triangle would have no vertex on the outer ring of its layer (it could not be closed later). In the item-55 last resort the guard only ranks bridges (guard-passing first, then a convex quad, valence cost, MATLAB's switchVertID); it does not reject them. | deliberate |
 | 62 | edgeRemoval.m:L9-L26 | Not reached from the pipeline; the squeeze in `_remove_boundary_tris` is off by default. | deliberate |
 | 63 | edgeRemoval.m:L29 | Not reached; `edge_removal` does not touch OE{1}. | deliberate |
 | 64 | Tri2QuadRoutine.m:L52-L53 | Padding is [v1 v2 v3 v3]; in polygon mode the unselected triangles are not appended. | documented, not fixed |
@@ -240,6 +240,11 @@ Other port departures in the leftover-triangle path (not checklist items):
   bisection-first dispatch made the annulus valence deviation worse than the
   pre-restore port on 3 of 6 cells; the pooled final-valence score is no
   worse on all 6 (numbers in the PR).
+- Zero interior triangles is a hard rule (operator ruling 2026-11-04).
+  `run_pipeline` checks its output with the definition of
+  `tests/test_no_interior_tris.py` (a triangle, padded rows included, with no
+  edge used by only one element) and raises `InteriorTriangleError` (rows and
+  mesh attached). MATLAB has no such check. There is no opt-out.
 - `tri2quad._point_insert_tri_pairs`: a pentagon (lone tri + neighbour quad)
   has no all-quad cover, so the tri's domain-boundary edge is split at its
   midpoint and the hexagon plus one interior point becomes three quads. The
