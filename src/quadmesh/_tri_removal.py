@@ -11,10 +11,14 @@ Per MATLAB ``removeTrianglesFun``, each leftover tri is routed by:
     True,  1, can_remove → edge_removal
     True,  1, !can_remove → edge_bisection (case 1)
 
-Port focuses on the algorithmic intent. Some MATLAB special-cases (the
-re-triangulation of iLayer-1 in edge_insertion case 2) are non-trivial; we
-keep them but mark precise edge-cases as TODO when they fall outside the
-common path. Behaviour matches MATLAB on typical meshes (Test_Case_1, Block_O).
+The live path is ``SweepContext`` (see ``route_leftover_tri``). It keeps the
+mesh conforming and restores the MATLAB bookkeeping: tElemID is split in
+Domain, OE/IE/OV/IV follow edgeBisection.m:L78-L90 and edgeInsertion.m:
+L150-L234, and iLayer-1 is re-triangulated (one opposite triangle for a
+bisection; two fans plus one bridge for insertion CASE 2). Where MATLAB
+leaves a choice, the split with vertex valences closest to ideal wins.
+Every departure from MATLAB is listed in docs/MAPPING.md. The module-level
+``edge_*`` functions are stand-alone helpers, not on the live path.
 """
 
 from __future__ import annotations
@@ -167,9 +171,9 @@ def edge_bisection(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
                     bdy_edge_idx_in_tri: int) -> Optional[int]:
     """Bisect one tri edge with a new midpoint. Tri becomes a quad.
 
-    Returns the new vertex ID. The companion retriangulation of the opposite
-    tri (MATLAB case 2) is performed by the caller (``route_leftover_tri``, the
-    layer-interior branch) via ``_split_opposing_tri``.
+    Returns the new vertex ID. Stand-alone helper (not on the live path, see
+    ``SweepContext.bisect``); it does not split the opposite triangle. A
+    caller that needs MATLAB case 2 calls ``_split_opposing_tri`` itself.
     """
     edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
     eid = int(edge_ids[bdy_edge_idx_in_tri])
@@ -255,9 +259,10 @@ def _split_opposing_tri(domain: CHILmesh, edge_id: int, np_id: int,
     apex = apex[0]
 
     # #81: every id _ccw_tri indexes into domain.points must be resolvable.
-    # np_id buffered in WorkingMesh is not flushed until the sweep ends, and a
-    # prior split can leave apex/v_a/v_b pointing past the current point store.
-    # Skip (leave the tri for the deferred pass) rather than index out of bounds.
+    # np_id buffered in WorkingMesh is not flushed until the caller flushes,
+    # and a prior split can leave apex/v_a/v_b past the current point store.
+    # Return None (no split) rather than index out of bounds; there is no
+    # deferred pass, so the caller must flush first if it needs the split.
     n_pts = domain.points.shape[0]
     if any(int(v) >= n_pts for v in (apex, v_a, v_b, np_id)):
         return None
@@ -284,13 +289,13 @@ def edge_insertion(domain: CHILmesh, work: WorkingMesh, tri_elem_id: int,
                     bdy_vert_id: int) -> Optional[int]:
     """Split a triangle through one of its verts by inserting a new edge.
 
-    Simplified port. New point sits along an interior edge attached to
-    ``bdy_vert_id``; the tri splits into a quad whose connectivity is added
-    to ``work.quads``. Returns the new vertex ID.
+    Simplified stand-alone helper (not on the live path). New point sits
+    along an interior edge attached to ``bdy_vert_id``; the tri becomes a
+    quad in ``work.quads``. Returns the new vertex ID.
 
-    The MATLAB original additionally retriangulates iLayer-1 to absorb the
-    new vertex; we currently do that in a deferred pass after the layer sweep
-    completes.
+    It does NOT re-triangulate iLayer-1 and leaves a hanging node. The live
+    path (``SweepContext.vertex_split``) does the full MATLAB bookkeeping:
+    edgeInsertion.m:L150-L234 (two fans plus a bridge).
     """
     conn = domain.connectivity_list[tri_elem_id, :3].astype(int)
     if bdy_vert_id not in conn.tolist():
@@ -348,6 +353,146 @@ def _signed_area(poly: np.ndarray) -> float:
     return 0.5 * float(x @ np.roll(y, -1) - np.roll(x, -1) @ y)
 
 
+def resplit_straight_boundary_quads(quads: np.ndarray, points: np.ndarray,
+                                    min_sine: float) -> Tuple[np.ndarray, np.ndarray, int]:
+    """#133 fan path: remove boundary quads with a straight corner.
+
+    A boundary bisect leaves quad Q = (p, b, c, a) where p is the midpoint of
+    the boundary edge (a, b). p is in Q only, so its corner is 180 degrees
+    (scaled Jacobian 0), and a smoother with a frozen boundary cannot fix it.
+    Join Q with the quad N across (b, c) or (c, a) into a hexagon
+    S = (p, s1, s2, s3, s4, s5), where s1 is the node of the shared edge that
+    is next to p on the boundary. Then re-cut S:
+
+    1. On the diagonal p-s3 into (p, s1, s2, s3) and (s3, s4, s5, p). No node
+       is added. This fails when s1 is also straight.
+    2. Otherwise with two new interior nodes m1 and m2, into
+       (s5, p, m1, s4), (p, s1, m2, m1), (s1, s2, s3, m2), (m1, m2, s3, s4).
+       With g the mean of the six hexagon nodes, m1 = p + t (g - p) and
+       m2 = s1 + t (g - s1), t in (1/3, 1/2, 2/3).
+
+    Every new quad must be convex with every corner sine above ``min_sine``.
+    Cut 1 is used when it passes. Among the passing candidates of one kind,
+    the one with the largest worst corner sine wins. Returns
+    (quads, points, number of quads re-cut).
+    """
+    q = [list(map(int, r)) for r in np.asarray(quads, dtype=int)]
+    pts = np.asarray(points, dtype=float).copy()
+    new_pts: List[np.ndarray] = []
+
+    def xy(v):
+        return pts[v, :2] if v < len(pts) else new_pts[v - len(pts)][:2]
+
+    def poly(e):
+        return np.array([xy(v) for v in e])
+
+    def ccw(e):
+        return e if _signed_area(poly(e)) > 0 else e[::-1]
+
+    def worst(quads_xy):
+        w = 1.0
+        for P in quads_xy:
+            if _signed_area(P) <= 0:
+                return -1.0
+            w = min(w, float(_corner_sines(P).min()))
+        return w
+
+    q = [ccw(e) for e in q]
+    edge_el: Dict[frozenset, List[int]] = {}
+    node_el: Dict[int, int] = {}
+    for i, e in enumerate(q):
+        for k in range(4):
+            edge_el.setdefault(frozenset((e[k], e[(k + 1) % 4])), []).append(i)
+            node_el[e[k]] = node_el.get(e[k], 0) + 1
+
+    def set_quad(idx, new):
+        if idx < len(q):
+            old = q[idx]
+            for k in range(4):
+                edge_el[frozenset((old[k], old[(k + 1) % 4]))].remove(idx)
+            q[idx] = new
+        else:
+            q.append(new)
+        for k in range(4):
+            edge_el.setdefault(frozenset((new[k], new[(k + 1) % 4])), []).append(idx)
+
+    done: Set[int] = set()
+    n_cut = 0
+    n0 = len(q)
+    for i in range(n0):
+        if i in done:
+            continue
+        e = q[i]
+        sines = _corner_sines(poly(e))
+        for k in range(4):
+            p = e[k]
+            if node_el[p] != 1 or sines[k] > min_sine:
+                continue
+            Q = e[k:] + e[:k]  # p, b, c, a (CCW)
+            cut1, cut2 = None, None
+            for s_ in (1, 2):  # shared edge (b, c) or (c, a)
+                u, v = Q[s_], Q[s_ + 1]
+                nbs = [j for j in edge_el.get(frozenset((u, v)), []) if j != i]
+                if len(nbs) != 1 or nbs[0] in done:
+                    continue
+                j = nbs[0]
+                N = q[j]
+                t = N.index(v)  # N is CCW and holds v -> u
+                if N[(t + 1) % 4] != u:
+                    continue
+                Nw = N[t:] + N[:t]  # v, u, x, y
+                H = Q[:s_ + 1] + [Nw[2], Nw[3]] + Q[s_ + 1:]
+                if len(set(H)) != 6:
+                    continue
+                # S starts at p and walks toward the shared edge; flip marks a
+                # walk against CCW, whose quads are reversed afterwards.
+                S, flip = (H, False) if s_ == 1 else ([H[0]] + H[:0:-1], True)
+                A, B = [S[0], S[1], S[2], S[3]], [S[3], S[4], S[5], S[0]]
+                if flip:
+                    A, B = A[::-1], B[::-1]
+                w = worst([poly(A), poly(B)])
+                if w > min_sine and (cut1 is None or w > cut1[0]):
+                    cut1 = (w, j, A, B)
+                g = np.mean([xy(vv) for vv in S], axis=0)
+                for tt in (1.0 / 3.0, 0.5, 2.0 / 3.0):
+                    m1 = xy(S[0]) + tt * (g - xy(S[0]))
+                    m2 = xy(S[1]) + tt * (g - xy(S[1]))
+                    M1, M2 = -1, -2  # placeholders until the cut is chosen
+                    quads4 = [[S[5], S[0], M1, S[4]], [S[0], S[1], M2, M1],
+                              [S[1], S[2], S[3], M2], [M1, M2, S[3], S[4]]]
+                    if flip:
+                        quads4 = [qq[::-1] for qq in quads4]
+                    loc = {M1: m1, M2: m2}
+                    w2 = worst([np.array([loc[v] if v < 0 else xy(v) for v in qq])
+                                for qq in quads4])
+                    if w2 > min_sine and (cut2 is None or w2 > cut2[0]):
+                        cut2 = (w2, j, quads4, m1, m2)
+            if cut1 is not None:
+                _, j, A, B = cut1
+                set_quad(i, A)
+                set_quad(j, B)
+            elif cut2 is not None:
+                _, j, quads4, m1, m2 = cut2
+                base = len(pts) + len(new_pts)
+                z = pts[p, 2:] if pts.shape[1] > 2 else np.empty(0)
+                new_pts += [np.r_[m1, z], np.r_[m2, z]]
+                ids = {-1: base, -2: base + 1}
+                quads4 = [[ids.get(v, v) for v in qq] for qq in quads4]
+                set_quad(i, quads4[0])
+                set_quad(j, quads4[1])
+                set_quad(len(q), quads4[2])
+                set_quad(len(q), quads4[3])
+            else:
+                continue
+            node_el[p] = 2
+            done |= {i, j}
+            n_cut += 1
+            break
+    if new_pts:
+        pts = np.vstack([pts, np.array(new_pts)])
+    return np.asarray(q, dtype=int).reshape(-1, 4), pts, n_cut
+
+
 class SweepContext:
     """Live mesh topology for the per-layer QuADMESH+ sweep.
 
@@ -371,7 +516,7 @@ class SweepContext:
     MIN_SINE = 0.06  # about 3.4 degrees from a straight or a zero angle
 
     def __init__(self, domain: CHILmesh, work: WorkingMesh, consumed: set,
-                 refused: set, boundary_edges) -> None:
+                 refused: set, boundary_edges, fan_valence4: bool = False) -> None:
         self.domain = domain
         self.work = work
         self.consumed = consumed
@@ -395,8 +540,21 @@ class SweepContext:
                 self.v2t.setdefault(v, set()).add(r)
         self.dom_bdy: Set[frozenset] = {frozenset((int(a), int(b))) for a, b in boundary_edges}
         self.dom_bdy_verts: Set[int] = {v for e in self.dom_bdy for v in e}
+        # Original domain-boundary vertices: never moved (close_by_insertion).
+        self.orig_bdy_verts: Set[int] = set(self.dom_bdy_verts)
+        self.insert_stats: Dict[str, int] = {}
+        self.insert_failed: List[int] = []
         self.layer_idx = nl - 1
         self.dirty = False
+        # #133 valence-4 fan (opt-in). fan_forbid holds row pairs inside one
+        # fan that the matcher must not merge; fan_nodes the inserted nodes.
+        self.fan_valence4 = bool(fan_valence4)
+        self.fan_forbid: Set[frozenset] = set()
+        self.fan_rows: Set[int] = set()
+        self.fan_nodes: List[int] = []
+        self.fan_records: List[dict] = []
+        self.fan_undone: List[int] = []
+        self.fan_stats: Dict[str, int] = {}
 
     # -- geometry / topology queries ------------------------------------------
 
@@ -478,37 +636,81 @@ class SweepContext:
         self.v2t.get(old, set()).discard(i)
         self.v2t.setdefault(new, set()).add(i)
 
+    # -- MATLAB Domain / layer bookkeeping --------------------------------------
+
+    def _ccw(self, verts: List[int]) -> List[int]:
+        """``verts`` reordered to positive signed area (``isPolyCCW``)."""
+        verts = [int(v) for v in verts]
+        return verts[::-1] if _signed_area(self.poly(verts)) < 0.0 else verts
+
+    def _write_tri(self, r: int, verts: List[int]) -> None:
+        """Overwrite triangle row ``r`` and keep the vertex index current."""
+        for v in set(self.tri_row(r)):
+            self.v2t.get(v, set()).discard(r)
+        self._set_row(r, verts)
+        for v in verts:
+            self.v2t.setdefault(int(v), set()).add(r)
+
+    def _append_tri(self, verts: List[int]) -> int:
+        """Append a triangle row (padded convention); returns its row id."""
+        cl = self.domain.connectivity_list
+        add = np.zeros((1, cl.shape[1]), dtype=cl.dtype)
+        add[0, :3] = verts
+        if cl.shape[1] > 3:
+            add[0, 3:] = verts[-1]
+        nid = cl.shape[0]
+        self.domain.connectivity_list = np.vstack([cl, add])
+        for v in verts:
+            self.v2t.setdefault(int(v), set()).add(nid)
+        return nid
+
+    def _list_add(self, key: str, li: int, ids) -> None:
+        if 0 <= li < len(self.layers.get(key, [])):
+            self.layers[key][li] = np.append(
+                self.layers[key][li], np.asarray(list(ids), dtype=int))
+
+    def _list_drop(self, key: str, li: int, ids) -> None:
+        if 0 <= li < len(self.layers.get(key, [])):
+            arr = self.layers[key][li]
+            self.layers[key][li] = arr[~np.isin(arr, np.asarray(list(ids), dtype=int))]
+
+    def _set_kind(self, r: int, li: int, kind: Optional[str]) -> None:
+        """Record row ``r`` as ``kind`` ('OE' / 'IE') of layer ``li``; ``None``
+        leaves it in no list (MATLAB edgeInsertion.m:L234 when iOE(2))."""
+        if kind is None:
+            self.elem_layer.pop(r, None)
+            return
+        self.elem_layer[r] = (li, kind)
+        self._list_add(kind, li, [r])
+
+    def _shadow_split(self, r: int, t1: List[int], t2: List[int]) -> int:
+        """Split the closed triangle ``r`` in Domain into ``t1`` (row ``r``)
+        and ``t2`` (appended), the way MATLAB keeps Domain triangulated next
+        to the quad it emits (edgeBisection.m:L83-L86, edgeInsertion.m:
+        L224-L228). Both rows are consumed: the working mesh holds the quad.
+        Returns the appended row id."""
+        self._write_tri(r, self._ccw(t1))
+        nid = self._append_tri(self._ccw(t2))
+        self.consumed.add(r)
+        self.consumed.add(nid)
+        return nid
+
     def split_outer(self, r: int, x: int, y: int, m: int) -> int:
         """Split triangle ``r`` across its edge ``(x, y)`` at new vertex ``m``.
 
-        Row ``r`` keeps the half on ``x``; the half on ``y`` is appended as a
-        new row in the same layer list. Stored vertex order (orientation) is
-        kept in both halves. Returns the new row id.
+        MATLAB edgeBisection.m:L78-L80: the first half overwrites row ``r``
+        (which keeps its OE/IE list), the second half is appended and listed
+        in IE of ``r``'s layer. Row ``r`` keeps the half on ``x``. Stored vertex
+        order (orientation) is kept in both halves. Returns the new row id.
         """
         row = self.tri_row(r)
         keep = [m if v == y else v for v in row]
         new = [m if v == x else v for v in row]
-        self._set_row(r, keep)
-        cl = self.domain.connectivity_list
-        add = np.zeros((1, cl.shape[1]), dtype=cl.dtype)
-        add[0, :3] = new
-        if cl.shape[1] > 3:
-            add[0, 3:] = new[-1]
-        nid = cl.shape[0]
-        self.domain.connectivity_list = np.vstack([cl, add])
-        self.v2t.get(y, set()).discard(r)
-        self.v2t.setdefault(m, set()).add(r)
-        for v in new:
-            self.v2t.setdefault(v, set()).add(nid)
+        self._write_tri(r, keep)
+        nid = self._append_tri(new)
         lay = self.elem_layer.get(r)
         if lay is not None:
-            li, kind = lay
-            self.elem_layer[nid] = lay
-            self.layers[kind][li] = np.append(self.layers[kind][li], nid)
-            for key in ("IV", "OV"):
-                arr = self.layers[key][li]
-                if x in arr and y in arr:
-                    self.layers[key][li] = np.append(arr, m)
+            self._set_kind(nid, lay[0], "IE")
         self.dirty = True
         return nid
 
@@ -525,9 +727,22 @@ class SweepContext:
             self.dom_bdy_verts.add(m)
         self.dirty = True
 
+    def _ring_vertex_lists(self, m: int) -> None:
+        """MATLAB edgeBisection.m:L89-L90 / edgeInsertion.m:L213-L214: the new
+        ring vertex joins OV of the current layer and IV of the layer outside."""
+        li = self.layer_idx
+        if li > 0:
+            self._list_add("OV", li, [m])
+            self._list_add("IV", li - 1, [m])
+
     def sync(self) -> None:
         """Make the parent CHILmesh match the working mesh (points, rows,
-        adjacency) so per-layer identification sees the current topology."""
+        adjacency) so per-layer identification sees the current topology.
+
+        Consumed rows (merged pairs and the Domain halves of closed leftover
+        triangles) are retired here. MATLAB keeps them in Domain, but the
+        port's processed layers live in ``work.quads`` only, and a vertex
+        split rewrites just the live elements (see MAPPING.md)."""
         if not self.dirty:
             return
         d = self.domain
@@ -540,6 +755,72 @@ class SweepContext:
         d.n_elems = d.connectivity_list.shape[0]
         d._build_adjacencies(validate=False)
         self.dirty = False
+
+    # -- valence choice (operator ruling 2026-10-26) ------------------------------
+
+    _NEW = -1  # placeholder id of the vertex a candidate would add
+
+    def _corner_angle(self, verts: List[int], v: int) -> float:
+        k = len(verts)
+        i = verts.index(v)
+        p = self.xy(v)
+        e1 = self.xy(verts[(i + 1) % k]) - p
+        e2 = self.xy(verts[(i - 1) % k]) - p
+        return abs(float(np.arctan2(e1[0] * e2[1] - e1[1] * e2[0], e1 @ e2)))
+
+    def _valence_target(self, v: int) -> float:
+        """Share of a full turn that the elements at ``v`` must fill: 1 inside
+        the domain; the measured interior angle / 2 pi on the domain boundary."""
+        if v not in self.dom_bdy_verts:
+            return 1.0
+        tot = sum(self._corner_angle(self.elem_verts(("q", qi)), v)
+                  for qi in self.work.quads_with(v))
+        tot += sum(self._corner_angle(self.tri_row(r), v)
+                   for r in self.v2t.get(v, ()) if self.live(r))
+        return tot / (2.0 * np.pi)
+
+    def _valence_cost(self, removed, added, new_on_bdy: bool) -> float:
+        """Change of the summed valence deviation caused by one candidate.
+
+        ``removed`` / ``added`` are ``(kind, verts)`` with kind ``"q"`` or
+        ``"t"``; ``_NEW`` stands for the vertex the candidate adds. Every
+        vertex the full candidate touches (quad, moved fan, outer fans and
+        bridge) is scored on its expected final quad valence: ``nq`` quads
+        plus ``nt / 2`` for ``nt`` triangles, which pair into quads when
+        their layer is swept. The target is 4 inside the domain and
+        ``4 * angle / 2 pi`` on the domain boundary (``_valence_target``).
+        Measured on the six annulus cells and Block_O, this proxy beats the
+        interim ``nq/4 + nt/6`` score (see docs/MAPPING.md)."""
+        affected = {v for _, vs in list(removed) + list(added) for v in vs}
+        cost = 0.0
+        for v in affected:
+            dq = (sum(1 for k, vs in added if k == "q" and v in vs)
+                  - sum(1 for k, vs in removed if k == "q" and v in vs))
+            dt = (sum(1 for k, vs in added if k == "t" and v in vs)
+                  - sum(1 for k, vs in removed if k == "t" and v in vs))
+            if v == self._NEW:
+                nq = nt = 0
+                target = 4.0 * (0.5 if new_on_bdy else 1.0)
+                before = 0.0
+            else:
+                nq = len(self.work.quads_with(v))
+                nt = sum(1 for r in self.v2t.get(v, ()) if self.live(r))
+                target = 4.0 * self._valence_target(v)
+                before = abs(nq + nt / 2.0 - target)
+            cost += abs((nq + dq) + (nt + dt) / 2.0 - target) - before
+        return cost
+
+    @staticmethod
+    def _pick(plans: List[dict]) -> Optional[dict]:
+        """Lowest valence cost; then the best worst corner; then MATLAB's
+        own choice (order of the candidate list)."""
+        if not plans:
+            return None
+        return min(
+            enumerate(plans),
+            key=lambda ip: (round(ip[1]["cost"], 9), -ip[1]["worst"],
+                            ip[1].get("pref", 0), ip[0]),
+        )[1]
 
     # -- leftover-triangle operations -----------------------------------------
 
@@ -554,8 +835,9 @@ class SweepContext:
         return True, outer[0]
 
     def _bisect_point(self, a: int, b: int, c: int,
-                      outer: Optional[int]) -> Optional[np.ndarray]:
-        """New vertex for closing ``(a, b, c)`` across ring edge ``(a, b)``.
+                      outer: Optional[int]) -> Optional[Tuple[np.ndarray, float]]:
+        """New vertex for closing ``(a, b, c)`` across ring edge ``(a, b)``,
+        with the worst corner sine it leaves.
 
         On the domain boundary (layer 0) it is the edge midpoint, as in MATLAB
         edgeBisection. Inside the mesh a midpoint would give the quad a
@@ -567,7 +849,7 @@ class SweepContext:
         pa, pb, pc = self.xy(a), self.xy(b), self.xy(c)
         mid = 0.5 * (pa + pb)
         if outer is None:
-            return mid
+            return mid, float(_corner_sines(np.array([pa, mid, pb, pc])).min())
         apex = [v for v in self.tri_row(outer) if v not in (a, b)]
         if len(apex) != 1:
             return None
@@ -580,28 +862,348 @@ class SweepContext:
                 float(_corner_sines(np.array([pa, pz, pm])).min()),
                 float(_corner_sines(np.array([pm, pz, pb])).min()),
             )
-            if worst > self.MIN_SINE and (best is None or worst > best[0]):
-                best = (worst, pm)
-        return None if best is None else best[1]
+            if worst > self.MIN_SINE and (best is None or worst > best[1]):
+                best = (pm, worst)
+        return best
+
+    def _bisect_plan(self, r: int, a: int, b: int, c: int,
+                     flat_ok: bool = False) -> Optional[dict]:
+        ok, outer = self._ring_target(a, b)
+        if not ok:
+            return None
+        got = self._bisect_point(a, b, c, outer)
+        if got is None:
+            if not flat_ok:
+                return None
+            pm = 0.5 * (self.xy(a) + self.xy(b))
+            got = (pm, 0.0)
+        pm, worst = got
+        N = self._NEW
+        removed = [("t", [a, b, c])]
+        added = [("q", [a, N, b, c])]
+        if outer is not None:
+            z = [v for v in self.tri_row(outer) if v not in (a, b)][0]
+            removed.append(("t", self.tri_row(outer)))
+            added += [("t", [a, N, z]), ("t", [N, b, z])]
+        cost = self._valence_cost(removed, added, new_on_bdy=outer is None)
+        return {"op": "bisect", "r": r, "abc": (a, b, c), "outer": outer,
+                "pm": pm, "worst": worst, "cost": cost}
+
+    def _apply_bisect(self, plan: dict) -> None:
+        """MATLAB edgeBisection Case 2 bookkeeping (edgeBisection.m:L27-L90):
+        quad ``(a, m, b, c)`` to the output; the outer triangle split at ``m``
+        (L78-L80); ``r`` split in Domain into ``(a, m, c)`` / ``(m, b, c)``
+        with the appended half in OE of this layer (L83-L88); ``m`` into
+        OV of this layer and IV of the layer outside (L89-L90)."""
+        r, (a, b, c), outer = plan["r"], plan["abc"], plan["outer"]
+        m = self.work.add_point(np.append(plan["pm"], 0.0))
+        self.work.add_quad(np.array([a, m, b, c], dtype=int))
+        nid = self._shadow_split(r, [a, m, c], [m, b, c])
+        self._set_kind(nid, self.layer_idx, "OE")
+        self.split_ring_edge(a, b, m, outer)
+        self._ring_vertex_lists(m)
+        self.dirty = True
 
     def bisect(self, r: int, a: int, b: int, c: int, flat_ok: bool = False) -> bool:
         """Close CCW triangle ``(a, b, c)`` with ring edge ``(a, b)`` into the
         quad ``(a, m, b, c)`` and split the element across ``(a, b)`` at
         ``m`` (see ``_bisect_point``). ``flat_ok`` allows the edge midpoint
         inside the mesh as a last resort."""
-        ok, outer = self._ring_target(a, b)
-        if not ok:
+        if self.fan_valence4:
+            ok, outer = self._ring_target(a, b)
+            if ok and outer is not None and self._fan4(r, a, b, c, outer):
+                return True
+        plan = self._bisect_plan(r, a, b, c, flat_ok)
+        if plan is None:
             return False
-        pm = self._bisect_point(a, b, c, outer)
-        if pm is None:
-            if not flat_ok:
-                return False
-            pm = 0.5 * (self.xy(a) + self.xy(b))
+        self._apply_bisect(plan)
+        return True
+
+    # -- #133 valence-4 fan ---------------------------------------------------
+
+    FAN_FRACTIONS = (0.1, 0.2, 0.3, 0.4, 0.5)
+
+    def _fan4_plan(self, a: int, b: int, c: int, U: int):
+        """Best fan for ring edge ``(a, b)`` of leftover ``(a, b, c)`` with
+        outer triangle ``U = (a, b, z)``. ``V`` is U's layer L-1 neighbour
+        across ``(b, z)`` or ``(z, a)`` with apex ``w``. ``m`` sits at
+        ``mid + t (mid(z, w) - mid)``; the plan with the best worst corner
+        sine above ``MIN_SINE`` wins. Returns ``(pm, V, p1, p2)`` or None."""
+        L = self.layer_idx
+        z = [v for v in self.tri_row(U) if v not in (a, b)][0]
+        pa, pb, pc, pz = self.xy(a), self.xy(b), self.xy(c), self.xy(z)
+        mid = 0.5 * (pa + pb)
+        su = np.sign(_signed_area(np.array([pa, pb, pz])))
+        st = np.sign(_signed_area(np.array([pa, pb, pc])))
+        best = None
+        for x, y, side in ((b, z, "bz"), (z, a, "za")):
+            cands = [r for r in (self.v2t.get(x, set()) & self.v2t.get(y, set()))
+                     if r != U and self.live(r)
+                     and self.elem_layer.get(r, (None,))[0] == L - 1]
+            if len(cands) != 1:
+                continue
+            V = cands[0]
+            w = [v for v in self.tri_row(V) if v not in (x, y)][0]
+            if self.work.quads_with(w) or any(
+                    self.live(t) and self.elem_layer.get(t, (-1,))[0] >= L
+                    for t in self.v2t.get(w, ())):
+                continue  # a fan edge at w would face layer L
+            pw = self.xy(w)
+            p1, p2 = (w, z) if side == "bz" else (z, w)
+            P1, P2 = self.xy(p1), self.xy(p2)
+            tgt = 0.5 * (pz + pw)
+            for t in self.FAN_FRACTIONS:
+                pm = mid + t * (tgt - mid)
+                fan = [np.array([pm, pb, P1]), np.array([pm, P1, P2]),
+                       np.array([pm, P2, pa])]
+                if any(np.sign(_signed_area(q)) != su for q in fan):
+                    continue  # every fan tri keeps U's orientation
+                if (np.sign(_signed_area(np.array([pa, pm, pc]))) != st
+                        or np.sign(_signed_area(np.array([pm, pb, pc]))) != st):
+                    continue
+                if not all(self._fan4_has_partner(pm, x, y, (U, V))
+                           for x, y in ((b, p1), (p1, p2), (p2, a))):
+                    continue  # a fan tri with no valid outward pair would strand
+                polys = [np.array([pa, pm, pb, pc])] + fan
+                worst = min(float(_corner_sines(q if _signed_area(q) > 0 else q[::-1]).min())
+                            for q in polys)
+                if worst > self.MIN_SINE and (best is None or worst > best[0]):
+                    best = (worst, pm, V, p1, p2)
+        return None if best is None else best[1:]
+
+    def _fan4_has_partner(self, pm: np.ndarray, x: int, y: int, skip) -> bool:
+        """Fan tri ``(m, x, y)`` has a live outward neighbour across
+        ``(x, y)`` that merges into a quad with worst corner sine above
+        ``MIN_SINE``."""
+        for t in self.v2t.get(x, set()) & self.v2t.get(y, set()):
+            if t in skip or not self.live(t) or t in self.consumed:
+                continue
+            d = [v for v in self.tri_row(t) if v not in (x, y)][0]
+            q = np.array([pm, self.xy(x), self.xy(d), self.xy(y)])
+            if _signed_area(q) < 0:
+                q = q[::-1]
+            if float(_corner_sines(q).min()) > self.MIN_SINE:
+                return True
+        return False
+
+    def _fan4(self, r: int, a: int, b: int, c: int, U: int) -> bool:
+        """Close ``(a, b, c)`` as quad ``(a, m, b, c)`` and re-cut ``U + V``
+        into ``(m, b, p1), (m, p1, p2), (m, p2, a)``. Layer 0 is never
+        fanned. Pairs inside the fan go to ``fan_forbid``."""
+        st = self.fan_stats
+        if self.layer_idx - 1 <= 0:
+            st["skip_outer"] = st.get("skip_outer", 0) + 1
+            return False
+        plan = self._fan4_plan(a, b, c, U)
+        if plan is None:
+            st["fallback"] = st.get("fallback", 0) + 1
+            return False
+        pm, V, p1, p2 = plan
+        rec = dict(a=a, b=b, c=c, U=U, V=V, U_row=self.tri_row(U), V_row=self.tri_row(V))
+        sign = np.sign(_signed_area(self.poly(self.tri_row(U))))
         m = self.work.add_point(np.append(pm, 0.0))
         self.work.add_quad(np.array([a, m, b, c], dtype=int))
         self.retire_tri(r)
-        self.split_ring_edge(a, b, m, outer)
+
+        def oriented(t):
+            q = np.array([pm if v == m else self.xy(v) for v in t])
+            return list(t) if np.sign(_signed_area(q)) == sign else list(t)[::-1]
+
+        fan = [oriented((m, b, p1)), oriented((m, p1, p2)), oriented((m, p2, a))]
+        for row in (U, V):
+            for v in self.tri_row(row):
+                self.v2t.get(v, set()).discard(row)
+        self._set_row(U, fan[0])
+        self._set_row(V, fan[1])
+        cl = self.domain.connectivity_list
+        add = np.zeros((1, cl.shape[1]), dtype=cl.dtype)
+        add[0, :3] = fan[2]
+        if cl.shape[1] > 3:
+            add[0, 3:] = fan[2][-1]
+        nid = cl.shape[0]
+        self.domain.connectivity_list = np.vstack([cl, add])
+        for row, t in ((U, fan[0]), (V, fan[1]), (nid, fan[2])):
+            for v in t:
+                self.v2t.setdefault(int(v), set()).add(row)
+        li, kind = self.elem_layer[U]
+        self.elem_layer[nid] = (li, kind)
+        self.layers[kind][li] = np.append(self.layers[kind][li], nid)
+        for key in ("IV", "OV"):
+            arr = self.layers[key][li]
+            if a in arr and b in arr:
+                self.layers[key][li] = np.append(arr, m)
+        self.fan_forbid.update({frozenset((U, V)), frozenset((V, nid)), frozenset((U, nid))})
+        self.fan_rows.update((U, V, nid))
+        self.fan_nodes.append(int(m))
+        rec.update(m=int(m), nid=nid,
+                   fan_tris={x: frozenset(self.tri_row(x)) for x in (U, V, nid)})
+        self.fan_records.append(rec)
+        self.dirty = True
+        st["fan"] = st.get("fan", 0) + 1
         return True
+
+    def _fan4_merge(self, r: int) -> bool:
+        """Closing step (a): a stranded fan tri that stock routing cannot
+        close merges with any live neighbour into a quad whose worst corner
+        sine exceeds ``MIN_SINE``."""
+        tri = self.tri_row(r)
+        best = None
+        for i in range(3):
+            a, b, c = tri[i], tri[(i + 1) % 3], tri[(i + 2) % 3]
+            for t in sorted(self.v2t.get(a, set()) & self.v2t.get(b, set())):
+                if t == r or not self.live(t) or t in self.consumed:
+                    continue
+                d = [v for v in self.tri_row(t) if v not in (a, b)][0]
+                q = [a, d, b, c]
+                pts = self.poly(q)
+                if _signed_area(pts) < 0:
+                    q, pts = q[::-1], pts[::-1]
+                s = float(_corner_sines(pts).min())
+                if s > self.MIN_SINE and (best is None or s > best[0]):
+                    best = (s, q, t)
+        if best is None:
+            self.fan_stats["merge_fail"] = self.fan_stats.get("merge_fail", 0) + 1
+            return False
+        _, q, t = best
+        self.work.add_quad(np.array(q, dtype=int))
+        self.retire_tri(r)
+        self.retire_tri(t)
+        self.consumed.add(t)
+        self.dirty = True
+        self.fan_stats["merge"] = self.fan_stats.get("merge", 0) + 1
+        return True
+
+    def _set_xy(self, v: int, p: np.ndarray) -> None:
+        if v < self.domain.points.shape[0]:
+            self.domain.points[v, :2] = p
+        else:
+            self.work.get_extra_point(v)[:2] = p
+
+    def _fan_intact(self, rec: dict) -> bool:
+        """All three fan rows are live, not consumed, and still hold the
+        triangles the fan made. A vertex split rewrites rows in place
+        (``_write_tri``), so liveness alone does not show the fan is intact."""
+        return all(self.live(x) and x not in self.consumed
+                   and frozenset(self.tri_row(x)) == t
+                   for x, t in rec["fan_tris"].items())
+
+    def _fan4_undo(self, r: int) -> bool:
+        """Closing step (b): restore ``U`` and ``V`` of the fan that holds
+        ``r``, drop the third fan row, put ``m`` back on ``(a, b)`` at the
+        stock bisect point and split ``U`` there (stock ``bisect``). Only
+        when all three fan rows are still live triangles."""
+        for k, rec in enumerate(self.fan_records):
+            rows = (rec["U"], rec["V"], rec["nid"])
+            if r not in rows or k in self.fan_undone:
+                continue
+            if not self._fan_intact(rec):
+                self.fan_stats["undo_blocked"] = self.fan_stats.get("undo_blocked", 0) + 1
+                return False
+            a, b, c, m, U, V = rec["a"], rec["b"], rec["c"], rec["m"], rec["U"], rec["V"]
+            for x in rows:
+                for v in self.tri_row(x):
+                    self.v2t.get(v, set()).discard(x)
+            self.domain.connectivity_list[rec["nid"], :] = 0
+            self.consumed.add(rec["nid"])
+            for x, row in ((U, rec["U_row"]), (V, rec["V_row"])):
+                self._set_row(x, row)
+                for v in row:
+                    self.v2t.setdefault(int(v), set()).add(x)
+            got = self._bisect_point(a, b, c, U)
+            pm = 0.5 * (self.xy(a) + self.xy(b)) if got is None else got[0]
+            self._set_xy(m, pm)
+            self.split_ring_edge(a, b, m, U)
+            self.fan_rows.difference_update(rows)
+            self.fan_undone.append(k)
+            self.dirty = True
+            self.fan_stats["undo"] = self.fan_stats.get("undo", 0) + 1
+            return True
+        return False
+
+    def fan_prune(self, layer_rows: Set[int], fold_pairs: Set[frozenset]) -> bool:
+        """Closing step (b) before pairing: undo every fan in this layer whose
+        tri has no ring edge and no live partner that is allowed (not a fan
+        pair, not a fold-seam pair) and merges into a quad with worst corner
+        sine above ``MIN_SINE``. Returns True if any fan was undone."""
+        any_undone = False
+        for k, rec in enumerate(self.fan_records):
+            rows = (rec["U"], rec["V"], rec["nid"])
+            if k in self.fan_undone or not all(x in layer_rows for x in rows):
+                continue
+            if not self._fan_intact(rec):
+                continue
+            for f in rows:
+                t = self.tri_row(f)
+                if any(self.is_ring_edge(t[i], t[(i + 1) % 3]) for i in range(3)):
+                    continue
+                ok = False
+                for i in range(3):
+                    x, y = t[i], t[(i + 1) % 3]
+                    o = t[(i + 2) % 3]
+                    for g in self.v2t.get(x, set()) & self.v2t.get(y, set()):
+                        if (g == f or g not in layer_rows or not self.live(g)
+                                or g in self.consumed
+                                or frozenset((f, g)) in self.fan_forbid
+                                or frozenset((f, g)) in fold_pairs):
+                            continue
+                        d = [v for v in self.tri_row(g) if v not in (x, y)][0]
+                        q = self.poly([o, x, d, y])
+                        if _signed_area(q) < 0:
+                            q = q[::-1]
+                        if float(_corner_sines(q).min()) > self.MIN_SINE:
+                            ok = True
+                            break
+                    if ok:
+                        break
+                if not ok:
+                    if self._fan4_undo(f):
+                        any_undone = True
+                    break
+        return any_undone
+
+    def fan_strands(self, ga: int, gb: int) -> bool:
+        """Merging rows ``ga`` and ``gb`` would take the last live partner of
+        another free fan tri (strand mask for merges outside the matcher)."""
+        pair = {ga, gb}
+        near = set()
+        for g in pair:
+            for v in self.tri_row(g):
+                near |= self.v2t.get(v, set()) & self.fan_rows
+        for f in near - pair:
+            if not self.live(f) or f in self.consumed:
+                continue
+            t = self.tri_row(f)
+            part = set()
+            for i in range(3):
+                for x in self.v2t.get(t[i], set()) & self.v2t.get(t[(i + 1) % 3], set()):
+                    if (x != f and self.live(x) and x not in self.consumed
+                            and frozenset((f, x)) not in self.fan_forbid):
+                        part.add(x)
+            if part and part <= pair:
+                return True
+        return False
+
+    def fan_matcher_rules(self, glob: np.ndarray, layer_conn: np.ndarray) -> dict:
+        """Keyword arguments for ``match_layer_heuristic`` that carry the
+        fan rules (forbid, strand masking, route first) for this layer."""
+        from chilmesh import quad_from_tri_pair
+        from .tri2quad import _quad_is_degenerate
+        pts = self.domain.points
+
+        def pair_ok(x: int, y: int) -> bool:
+            try:
+                q = quad_from_tri_pair(pts, layer_conn[x, :3].astype(int),
+                                       layer_conn[y, :3].astype(int))
+                pq = np.asarray(pts)[np.asarray(q, int), :2]
+                if _signed_area(pq) < 0:
+                    pq = pq[::-1]
+                return (not bool(_quad_is_degenerate(pts, q))
+                        and float(_corner_sines(pq).min()) > self.MIN_SINE)
+            except (ValueError, IndexError):
+                return False
+
+        return dict(forbid_pairs=set(self.fan_forbid), fan_rows=set(self.fan_rows),
+                    pair_ok=pair_ok)
 
     def _fan(self, r: int, b: int, start: int) -> Optional[Tuple[int, List[Tuple[str, int]]]]:
         """Walk the elements around ``b`` from triangle ``r`` across edge
@@ -632,13 +1234,46 @@ class SweepContext:
             prev, cur = el, nxt
         return None
 
-    def vertex_split(self, r: int, b: int, p: int, q: int) -> bool:
-        """Close CCW triangle ``(b, p, q)`` whose only ring contact is vertex
-        ``b``: move ``b`` to a new vertex ``n`` on ring edge ``(b, s)`` in the
-        elements between the triangle and that edge, so the triangle gains a
-        fourth corner. The element across ``(b, s)`` is split at ``n``.
-        Picks the side and the split fraction with the best worst corner."""
-        best = None
+    def _outer_sector(self, b: int, s: int, t1: int) -> Optional[Tuple[List[int], List[int]]]:
+        """Triangles of the layer outside that touch ``b``, walked from ring
+        edge ``(b, s)`` (MATLAB edgeInsertion.m:L150-L153). Returns
+        ``(rows, w)`` with ``rows[i] = (b, w[i], w[i+1])`` up to orientation,
+        ``w[0] = s``. Only the sector next to ``(b, s)`` is taken; ``None``
+        when the walk closes on itself or does not stay manifold."""
+        lay = self.elem_layer.get(t1)
+        li = lay[0] if lay is not None else None
+        rows, w = [t1], [s]
+        cur = t1
+        for _ in range(self.MAX_FAN):
+            third = [v for v in self.tri_row(cur) if v not in (b, w[-1])]
+            if len(third) != 1:
+                return None
+            w.append(third[0])
+            if third[0] == s:
+                return None
+            nxt = [t for t in self.outer_tris_on_edge(b, third[0])
+                   if t not in rows and self.elem_layer.get(t, (None,))[0] == li]
+            if not nxt:
+                return rows, w
+            if len(nxt) > 1:
+                return None
+            rows.append(nxt[0])
+            cur = nxt[0]
+        return None
+
+    def _vertex_split_plans(self, r: int, b: int, p: int, q: int) -> List[dict]:
+        """Every valid way to close CCW triangle ``(b, p, q)`` whose ring
+        contact is vertex ``b`` (MATLAB edgeInsertion CASE 1 / 2).
+
+        A new vertex ``n`` goes on ring edge ``(b, s)`` of one side; ``b`` ->
+        ``n`` in the elements between the triangle and that edge. In layer
+        ``L > 0`` the triangles of the layer outside that touch ``b`` are
+        re-triangulated as two fans (from ``n`` and from ``b``) plus one
+        bridge triangle ``(n, b, w)`` (edgeInsertion.m:L150-L218); every bridge
+        vertex ``w`` with valid triangles is a candidate. ``b`` is not moved,
+        and the split fraction is chosen by quality (see MAPPING.md)."""
+        plans: List[dict] = []
+        N = self._NEW
         for side, start in (("A", p), ("B", q)):
             fan = self._fan(r, b, start)
             if fan is None:
@@ -647,14 +1282,62 @@ class SweepContext:
             ok, outer = self._ring_target(b, s)
             if not ok:
                 continue
+            sector = None
+            if outer is not None:
+                sector = self._outer_sector(b, s, outer)
+                if sector is None:
+                    continue
             pb, ps = self.xy(b), self.xy(s)
             olds = []
             for el in elems:
                 vs = self.elem_verts(el)
                 sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
                 olds.append((vs, sign, sign * _corner_sines(self.poly(vs))))
+            quad = [b, N, p, q] if side == "A" else [b, p, q, N]
+            # Bridge candidates (outer triangles in polygon order n, w0..wk, b).
+            bridges: List[Tuple[int, List[List[int]]]] = []
+            if sector is not None:
+                rows, w = sector
+                k = len(rows)
+                sw_matlab = (k + 3) // 2 - 1  # switchVertID - 1 (edgeInsertion.m:L180)
+                s_li = self.elem_layer.get(rows[0], (self.layer_idx - 1,))[0]
+                if s_li == 0:
+                    ov = self.dom_bdy_verts
+                else:
+                    ov = set(int(v) for v in self.layers["OV"][s_li].tolist())
+                for sw in range(1, k + 1):
+                    new = ([[N, w[j], w[j + 1]] for j in range(sw)]
+                           + [[w[j], w[j + 1], b] for j in range(sw, k)]
+                           + [[N, w[sw], b]])
+                    # Port guard (not in MATLAB): every new triangle keeps a
+                    # vertex on the outer ring of its layer. A triangle with
+                    # no ring contact cannot be closed when its layer is
+                    # swept and would stay as an interior triangle.
+                    if any(not any(v in ov for v in tri) for tri in new):
+                        continue
+                    bridges.append((sw, new))
+                if not bridges:
+                    continue
+            else:
+                sw_matlab = 0
+                bridges.append((0, []))
+            removed_base = [("t", [b, p, q])] + [
+                ("q" if el[0] == "q" else "t", vs) for el, (vs, _, _) in zip(elems, olds)]
+            added_base = [("q", quad)] + [
+                ("q" if el[0] == "q" else "t", [N if v == b else v for v in vs])
+                for el, (vs, _, _) in zip(elems, olds)]
+            if sector is not None:
+                removed_base += [("t", self.tri_row(t)) for t in sector[0]]
+                old_min = min(float(_corner_sines(self._ccw_poly(self.tri_row(t))).min())
+                              for t in sector[0])
+                psign = 1.0 if _signed_area(self.poly([b, sector[1][0], sector[1][1]])) >= 0.0 else -1.0
+            costs = {sw: self._valence_cost(removed_base,
+                                            added_base + [("t", tri) for tri in nw],
+                                            new_on_bdy=outer is None)
+                     for sw, nw in bridges}
             for t in self.SPLIT_FRACTIONS:
                 pn = pb + t * (ps - pb)
+                xy = (lambda v, pn=pn: pn if v == N else self.xy(v))
                 worst = np.inf
                 valid = True
                 for vs, sign, o_sin in olds:
@@ -671,32 +1354,352 @@ class SweepContext:
                         worst = min(worst, float(n_sin[convex].min()))
                 if not valid:
                     continue
-                quad_pts = (
-                    np.array([pb, pn, self.xy(p), self.xy(q)]) if side == "A"
-                    else np.array([pb, self.xy(p), self.xy(q), pn])
-                )
+                quad_pts = np.array([xy(v) for v in quad])
                 if _signed_area(quad_pts) <= 0.0:
                     continue
                 q_sin = _corner_sines(quad_pts)
                 if q_sin.min() <= self.MIN_SINE:
                     continue
                 worst = min(worst, float(q_sin.min()))
-                if best is None or worst > best[0]:
-                    best = (worst, side, t, s, elems, outer, pn)
-        if best is None:
-            return False
-        _, side, _, s, elems, outer, pn = best
-        n = self.work.add_point(np.append(pn, 0.0))
-        for el in elems:
+                for sw, new in bridges:
+                    w_tri = worst
+                    if sw >= 2:  # sw == 1 is the plain split of (b, s, w1) at n
+                        bad = False
+                        for tri in new:
+                            tp = np.array([xy(v) for v in tri])
+                            if psign * _signed_area(tp) <= 0.0:
+                                bad = True
+                                break
+                            ts = psign * _corner_sines(tp)
+                            if ts.min() <= min(self.MIN_SINE, old_min):
+                                bad = True
+                                break
+                            w_tri = min(w_tri, float(ts.min()))
+                        if bad:
+                            continue
+                    cost = costs[sw]
+                    plans.append({
+                        "op": "vsplit", "r": r, "bpq": (b, p, q), "side": side,
+                        "s": s, "elems": elems, "outer": outer, "pn": pn,
+                        "sector": sector, "sw": sw, "new": new,
+                        "worst": w_tri, "cost": cost,
+                        "pref": 0 if sw == sw_matlab else 1,
+                    })
+        return plans
+
+    def _ccw_poly(self, verts: List[int]) -> np.ndarray:
+        return self.poly(self._ccw(verts))
+
+    def _apply_vertex_split(self, plan: dict) -> None:
+        """MATLAB edgeInsertion bookkeeping for the chosen candidate.
+
+        - ``b`` -> ``n`` in the elements on the chosen side (L127-L136,
+          L238-L240); quad to the output (L139-L145).
+        - ``r`` split in Domain on quad diagonal 2-4 (L224-L228, splitQuad.m:
+          L21-L22); ``r`` keeps its list; the appended half goes to IE of
+          this layer iff it has <= 1 vertex in newBoundaryVerts (L225-L234).
+        - CASE 2 (layer > 0): the outer sector is replaced by the two fans and
+          the bridge; the old rows are overwritten (OE ones first, then IE),
+          the extra row is appended; a new triangle is OE iff exactly one of
+          its vertices is in newBoundaryVerts, else IE (L197-L218). ``n`` joins
+          OV of this layer and IV of the layer outside (L213-L214).
+        - CASE 1 (layer 0): the domain-boundary edge ``(b, s)`` is split.
+        """
+        b, p, q = plan["bpq"]
+        r, s, side = plan["r"], plan["s"], plan["side"]
+        n = self.work.add_point(np.append(plan["pn"], 0.0))
+        for el in plan["elems"]:
             self.replace_vertex(el, b, n)
         quad = [b, n, p, q] if side == "A" else [b, p, q, n]
         self.work.add_quad(np.array(quad, dtype=int))
-        self.retire_tri(r)
-        self.split_ring_edge(b, s, n, outer)
+        # MATLAB form [V1 V2 V3 V4] = [tbVertID V2 V3 npID] (edgeInsertion.m:L145).
+        v1, v2, v3, v4 = (b, q, p, n) if side == "A" else (b, p, q, n)
+        sector = plan["sector"]
+        s2 = sector[1][-1] if sector is not None else None
+        nbv = {s, n, b} | ({s2} if s2 is not None else set())
+        nid = self._shadow_split(r, [v1, v2, v4], [v2, v3, v4])
+        self._set_kind(nid, self.layer_idx,
+                       "IE" if sum(v in nbv for v in (v2, v3, v4)) <= 1 else None)
+        if sector is None:
+            self.split_ring_edge(b, s, n, None)
+        else:
+            rows, _ = sector
+            li = self.elem_layer.get(rows[0], (self.layer_idx - 1,))[0]
+            oe_set = set(self.layers["OE"][li].tolist()) if li < len(self.layers["OE"]) else set()
+            old = ([t for t in sorted(rows) if t in oe_set]
+                   + [t for t in sorted(rows) if t not in oe_set])
+            self._list_drop("OE", li, old)
+            self._list_drop("IE", li, old)
+            new = [[n if v == self._NEW else v for v in tri] for tri in plan["new"]]
+            ids = []
+            for t, tri in zip(old, new[:len(old)]):
+                self._write_tri(t, self._ccw(tri))
+                ids.append(t)
+            for tri in new[len(old):]:
+                ids.append(self._append_tri(self._ccw(tri)))
+            for t, tri in zip(ids, new):
+                kind = "OE" if sum(v in nbv for v in tri) == 1 else "IE"
+                self._set_kind(t, li, kind)
+            self._ring_vertex_lists(n)
+        self.dirty = True
+
+    def vertex_split(self, r: int, b: int, p: int, q: int) -> bool:
+        """Close CCW triangle ``(b, p, q)`` whose only ring contact is vertex
+        ``b`` (see ``_vertex_split_plans``); the candidate with the lowest
+        valence cost, then the best worst corner, wins."""
+        plan = self._pick(self._vertex_split_plans(r, b, p, q))
+        if plan is None:
+            return False
+        self._apply_vertex_split(plan)
+        return True
+
+    # -- last-resort closer: MATLAB edgeInsertion CASE 1 / 2 (ruling 2026-11-04)
+
+    # edgeInsertion.m:L63-L65: del = D / 3, t = del / D. npID goes 1/3 along
+    # the first ring edge and tbVertID moves 1/3 along the second one.
+    INSERT_FRACTION = 1.0 / 3.0
+
+    def _star(self, v: int) -> List[Tuple[str, int]]:
+        """Every live quad and triangle that has vertex ``v``."""
+        return ([("q", qi) for qi in sorted(self.work.quads_with(v))]
+                + [("t", t) for t in sorted(self.v2t.get(v, ())) if self.live(t)])
+
+    @staticmethod
+    def _angle_at(pts: np.ndarray, i: int, sign: float) -> float:
+        """Interior angle in (0, 2 pi) at corner ``i`` of a polygon with
+        orientation ``sign``; reflex corners are kept, not folded."""
+        k = pts.shape[0]
+        e1 = pts[(i + 1) % k] - pts[i]
+        e2 = pts[(i - 1) % k] - pts[i]
+        ang = float(np.arctan2(e1[0] * e2[1] - e1[1] * e2[0], e1 @ e2))
+        return (sign * ang) % (2.0 * np.pi)
+
+    @staticmethod
+    def _quad_simple(pts: np.ndarray) -> bool:
+        """False for a self-intersecting (bowtie) quad."""
+        def cr(o, p, q):
+            return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0])
+
+        def cross(a, b, c, d):
+            return ((cr(c, d, a) > 0) != (cr(c, d, b) > 0)
+                    and (cr(a, b, c) > 0) != (cr(a, b, d) > 0))
+
+        return not (cross(pts[0], pts[1], pts[2], pts[3])
+                    or cross(pts[1], pts[2], pts[3], pts[0]))
+
+    def _b_fixed(self, b: int, s_np: int, s_mv: Optional[int]) -> bool:
+        """``b`` must keep its position. MATLAB has no fixed vertex in
+        edgeInsertion (CASE 1 moves a domain-boundary vertex, L133). The port
+        never moves an original domain-boundary vertex (``preserve_boundary``
+        and tests/test_no_interior_tris.py), nor a domain-boundary vertex that
+        a layer > 0 ring passes through. A boundary vertex the sweep inserted
+        may slide along the boundary only where the boundary is straight."""
+        if b in self.orig_bdy_verts or b in self.fan_nodes:
+            return True
+        if b not in self.dom_bdy_verts:
+            return False
+        if self.layer_idx > 0 or s_mv is None:
+            return True
+        pb = self.xy(b)
+        e1, e2 = self.xy(s_np) - pb, self.xy(s_mv) - pb
+        n = float(np.hypot(*e1) * np.hypot(*e2))
+        return not (n > 0.0 and abs(e1[0] * e2[1] - e1[1] * e2[0]) <= 1e-12 * n
+                    and float(e1 @ e2) < 0.0)
+
+    def _insertion_plans(self, r: int, b: int, p: int, q: int) -> List[dict]:
+        """MATLAB edgeInsertion CASE 1 / 2 for CCW triangle ``(b, p, q)``
+        with ring vertex ``b``, with no angle gate (ruling 2026-11-04).
+
+        For each side order (npID side, moved side): ``n`` goes 1/3 along the
+        ring edge ``(b, s)`` of the npID side (edgeInsertion.m:L63-L67, L132)
+        and the elements on that side take ``n`` for ``b`` (L123-L128,
+        L136, L238-L240). ``b`` moves 1/3 along the ring edge ``(b, s2)`` of
+        the other side (L133); a fixed ``b`` (``_b_fixed``) stays put. In
+        layer ``L > 0`` the outer sector is re-triangulated as two fans and
+        one bridge (L147-L218), MATLAB's switchVertID (L180) first.
+
+        A candidate is kept only if it inverts nothing: every element it
+        rewrites or moves keeps a positive orientation, no quad is a bowtie,
+        and the corner angles at ``n`` and ``b`` still close (2 pi inside,
+        pi on the boundary for ``n``, the old total for ``b``), so nothing
+        folds over."""
+        plans: List[dict] = []
+        N = self._NEW
+        st = self.insert_stats
+        fans = {"A": self._fan(r, b, p), "B": self._fan(r, b, q)}
+        for side in ("A", "B"):
+            fan = fans[side]
+            if fan is None:
+                continue
+            s, elems = fan
+            ok, outer = self._ring_target(b, s)
+            if not ok:
+                continue
+            sector = None
+            if outer is not None:
+                sector = self._outer_sector(b, s, outer)
+                if sector is None:
+                    continue
+            other = fans["B" if side == "A" else "A"]
+            s_mv = other[0] if other is not None else None
+            if sector is not None:
+                if s_mv is not None and s_mv != sector[1][-1]:
+                    continue  # the two walks around b disagree: non-manifold
+                s_mv = sector[1][-1]
+            fixed = self._b_fixed(b, s, s_mv)
+            if not fixed and s_mv is None:
+                continue
+            pb = self.xy(b)
+            f = self.INSERT_FRACTION
+            pn = (1.0 - f) * pb + f * self.xy(s)  # L66-L67, first row
+            pb2 = pb if fixed else (1.0 - f) * pb + f * self.xy(s_mv)  # second row
+            quad = [b, N, p, q] if side == "A" else [b, p, q, N]
+            star = self._star(b)
+            sector_rows = set(sector[0]) if sector is not None else set()
+            gone = {("t", r)} | set(elems) | {("t", t) for t in sector_rows}
+            bridges: List[Tuple[int, List[List[int]], bool]] = []
+            if sector is not None:
+                rows, w = sector
+                k = len(rows)
+                sw_matlab = (k + 3) // 2 - 1  # switchVertID - 1 (L180)
+                s_li = self.elem_layer.get(rows[0], (self.layer_idx - 1,))[0]
+                ov = (self.dom_bdy_verts if s_li == 0 else
+                      set(int(v) for v in self.layers["OV"][s_li].tolist()))
+                for sw in range(1, k + 1):
+                    new = ([[N, w[j], w[j + 1]] for j in range(sw)]
+                           + [[w[j], w[j + 1], b] for j in range(sw, k)]
+                           + [[N, w[sw], b]])
+                    guard = all(any(v in ov for v in tri) for tri in new)
+                    bridges.append((sw, new, guard))
+                psign = 1.0 if _signed_area(self.poly([b, w[0], w[1]])) >= 0.0 else -1.0
+            else:
+                sw_matlab = 0
+                bridges.append((0, [], True))
+                psign = 1.0
+
+            def xy(v, pn=pn, pb2=pb2):
+                if v == N:
+                    return pn
+                return pb2 if v == b else self.xy(v)
+
+            # Elements rewritten on the npID side and the ones that only move.
+            checks: List[Tuple[List[int], float]] = [(quad, 1.0)]
+            for el in elems:
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                checks.append(([N if v == b else v for v in vs], sign))
+            kept_b = []
+            for el in star:
+                if el in gone:
+                    continue
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                kept_b.append((vs, sign))
+                if not fixed:
+                    checks.append((vs, sign))
+            b_total = 0.0
+            for el in star:
+                vs = self.elem_verts(el)
+                sign = 1.0 if _signed_area(self.poly(vs)) >= 0.0 else -1.0
+                b_total += self._angle_at(self.poly(vs), vs.index(b), sign)
+            n_total = 2.0 * np.pi if outer is not None else np.pi
+
+            def bad(polys) -> bool:
+                for vs, sign in polys:
+                    pts = np.array([xy(v) for v in vs])
+                    if sign * _signed_area(pts) <= 0.0:
+                        return True
+                    if len(vs) == 4 and not self._quad_simple(pts):
+                        return True
+                return False
+
+            if bad(checks):
+                st["inverted_variant"] = st.get("inverted_variant", 0) + len(bridges)
+                continue
+            removed = [("t", [b, p, q])] + [
+                ("q" if el[0] == "q" else "t", self.elem_verts(el)) for el in elems]
+            added = [("q", quad)] + [
+                ("q" if el[0] == "q" else "t", vs) for vs, _ in checks[1:1 + len(elems)]]
+            if sector is not None:
+                removed += [("t", self.tri_row(t)) for t in sector[0]]
+            for sw, new, guard in bridges:
+                tri_checks = [(tri, psign) for tri in new]
+                if bad(tri_checks):
+                    st["inverted_variant"] = st.get("inverted_variant", 0) + 1
+                    continue
+                polys = checks + tri_checks
+                at_n = sum(self._angle_at(np.array([xy(v) for v in vs]), vs.index(N), sg)
+                           for vs, sg in polys if N in vs)
+                at_b = sum(self._angle_at(np.array([xy(v) for v in vs]), vs.index(b), sg)
+                           for vs, sg in [(quad, 1.0)] + kept_b + tri_checks if b in vs)
+                if abs(at_n - n_total) > 1e-6 or abs(at_b - b_total) > 1e-6:
+                    st["folded_variant"] = st.get("folded_variant", 0) + 1
+                    continue
+                worst = min(float(_corner_sines(
+                    np.array([xy(v) for v in (vs if sg > 0 else vs[::-1])])).min())
+                    for vs, sg in polys)
+                cost = self._valence_cost(removed, added + [("t", t) for t in new],
+                                          new_on_bdy=outer is None)
+                convex = bool(_corner_sines(np.array([xy(v) for v in quad])).min() > 0.0)
+                plans.append({
+                    "op": "insert", "r": r, "bpq": (b, p, q), "side": side,
+                    "s": s, "elems": elems, "outer": outer, "pn": pn,
+                    "pb": None if fixed else pb2, "sector": sector, "sw": sw,
+                    "new": new, "worst": worst, "cost": cost, "guard": guard,
+                    "convex": convex,
+                    "pref": 0 if sw == sw_matlab else 1,
+                })
+        return plans
+
+    def close_by_insertion(self, r: int) -> bool:
+        """Last resort before a leftover triangle is given up: MATLAB
+        removeTrianglesFun.m:L63-L71 sends a triangle with a ring vertex and
+        no ring edge to edgeInsertion(1 | 2), which never refuses. Every ring
+        vertex of the triangle is tried (``_insertion_plans``). Preference:
+        bridges that pass the port guard (item 58), then the lowest valence
+        cost, then MATLAB's switchVertID, then the best worst corner. With no
+        candidate that inverts nothing the triangle stays, and
+        ``run_pipeline`` reports it (``InteriorTriangleError``)."""
+        st = self.insert_stats
+        st["attempt"] = st.get("attempt", 0) + 1
+        tri = self.tri_row(r)
+        if _signed_area(self.poly(tri)) < 0.0:
+            tri = tri[::-1]
+        a, b, c = tri
+        plans: List[dict] = []
+        ring = False
+        for x, y, z in ((a, b, c), (b, c, a), (c, a, b)):
+            if self.is_ring_vert(x):
+                ring = True
+                plans += self._insertion_plans(r, x, y, z)
+        if not plans:
+            key = "no_ring_vertex" if not ring else "no_valid_candidate"
+            st[key] = st.get(key, 0) + 1
+            self.insert_failed.append(int(r))
+            return False
+        plan = min(enumerate(plans), key=lambda ip: (
+            not ip[1]["guard"], not ip[1]["convex"], round(ip[1]["cost"], 9), ip[1]["pref"],
+            -ip[1]["worst"], ip[0]))[1]
+        if plan["pb"] is not None:
+            self._set_xy(plan["bpq"][0], plan["pb"])  # edgeInsertion.m:L133
+            st["moved_b"] = st.get("moved_b", 0) + 1
+        else:
+            st["fixed_b"] = st.get("fixed_b", 0) + 1
+        if not plan["guard"]:
+            st["guard_violated"] = st.get("guard_violated", 0) + 1
+        self._apply_vertex_split(plan)
+        st["closed"] = st.get("closed", 0) + 1
         return True
 
     def route(self, r: int, refuse_boundary_merge: bool) -> Optional[bool]:
-        """Conforming ``removeTrianglesFun``: see ``route_leftover_tri``."""
+        """Conforming ``removeTrianglesFun``: see ``route_leftover_tri``.
+
+        MATLAB removeTrianglesFun.m:L57-L71 bisects a triangle with a ring
+        edge, else closes it by a vertex split. Valence ruling: when a
+        bisection is valid, it and every valid vertex split compete in one
+        pool and the lowest valence cost wins (bisection first on a tie);
+        else the best vertex split; then a flat midpoint bisection; the last
+        resort is MATLAB's ungated edgeInsertion (``close_by_insertion``)."""
         if not self.live(r):
             return None
         tri = self.tri_row(r)
@@ -707,16 +1710,45 @@ class SweepContext:
         ring = [s for s in sides if self.is_ring_edge(s[0], s[1])]
         if self.layer_idx == 0 and len(ring) >= 2 and refuse_boundary_merge:
             return False  # #98 option A: leave as a boundary triangle
+        # Port tie-break: longest ring edge first (MATLAB takes the first one).
         ring.sort(key=lambda s: -float(np.hypot(*(self.xy(s[0]) - self.xy(s[1])))))
-        for x, y, z in ring:
-            if self.bisect(r, x, y, z):
-                return True
+        # Valence ruling: a bisection and every vertex split of this
+        # triangle compete in one pool (MATLAB tries bisection first).
+        plans = [p for p in (self._bisect_plan(r, x, y, z) for x, y, z in ring)
+                 if p is not None]
+        if plans:
+            for x, y, z in sides:
+                if self.is_ring_vert(x):
+                    plans += self._vertex_split_plans(r, x, y, z)
+            plan = self._pick(plans)
+            if plan["op"] == "bisect":
+                if (self.fan_valence4 and plan["outer"] is not None
+                        and self._fan4(r, *plan["abc"], plan["outer"])):
+                    return True
+                self._apply_bisect(plan)
+            else:
+                self._apply_vertex_split(plan)
+            return True
+        plans: List[dict] = []
         for x, y, z in sides:
-            if self.is_ring_vert(x) and self.vertex_split(r, x, y, z):
+            if self.is_ring_vert(x):
+                plans += self._vertex_split_plans(r, x, y, z)
+        plan = self._pick(plans)
+        if plan is not None:
+            self._apply_vertex_split(plan)
+            return True
+        plan = self._pick([p for p in (self._bisect_plan(r, x, y, z, flat_ok=True)
+                                       for x, y, z in ring) if p is not None])
+        if plan is not None:
+            self._apply_bisect(plan)
+            return True
+        if self.fan_valence4 and r in self.fan_rows:
+            if self._fan4_merge(r):
                 return True
-        for x, y, z in ring:
-            if self.bisect(r, x, y, z, flat_ok=True):
-                return True
+            if self._fan4_undo(r):
+                return self.route(r, refuse_boundary_merge)  # stock, on restored row
+        if self.close_by_insertion(r):
+            return True
         return None
 
 
@@ -759,59 +1791,26 @@ def route_leftover_tri(
     """
     if ctx is not None:
         return ctx.route(tri_elem_id, refuse_boundary_merge)
-    edge_ids = domain.elem2edge(tri_elem_id).ravel().astype(int)
-    bdy_edges_local = [
-        i for i, e in enumerate(edge_ids) if int(e) in sub_b_edge_set
-    ]
-    n_bdy = len(bdy_edges_local)
+    # #130: no legacy dispatch. A caller without a sweep gets a one-shot
+    # SweepContext on the whole domain; ``layer_idx`` picks the ring (layer 0:
+    # the domain boundary). ``on_mesh_boundary``, ``can_remove_edges``,
+    # ``sub_b_edge_set``, ``sub_b_vert_set`` and ``preserve_boundary_verts``
+    # are kept for the signature only: the live path classifies on the ring
+    # and never collapses an edge.
+    from .tri2quad import _boundary_edge_set
 
-    conn = domain.connectivity_list[tri_elem_id, :3].astype(int)
-    bdy_verts_in_tri = [int(v) for v in conn if int(v) in sub_b_vert_set]
-
-    # 059: with preserve_boundary_verts, a collapse of a domain-boundary edge
-    # would move two original boundary vertices; bisect that edge instead.
-    on_domain_boundary = preserve_boundary_verts and on_mesh_boundary
-
-    def _collapse_is_safe(local_idx: int) -> bool:
-        v_a, v_b = domain.edge2vert(int(edge_ids[local_idx])).ravel().astype(int).tolist()
-        return not any(
-            (q == v_a).any() and (q == v_b).any() for q in work.quads
-        )
-
-    if not on_mesh_boundary and n_bdy >= 1:
-        # MATLAB edgeBisection Case 2: bisect the layer-interior edge, then
-        # re-triangulate the iLayer-1 neighbour at the new midpoint so the
-        # working tri domain stays conforming (edgeBisection.m:47-79).
-        eid = int(edge_ids[bdy_edges_local[0]])
-        np_id = edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0])
-        if np_id is not None:
-            _split_opposing_tri(domain, eid, np_id, tri_elem_id, work)
-    elif on_mesh_boundary and n_bdy == 0:
-        if not bdy_verts_in_tri:
-            return None
-        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif not on_mesh_boundary and n_bdy == 0:
-        if not bdy_verts_in_tri:
-            return None
-        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif on_mesh_boundary and n_bdy in (2, 3):
-        if refuse_boundary_merge:
-            return False  # #98 option A: leave as a boundary triangle
-        if not bdy_verts_in_tri:
-            return None
-        edge_insertion(domain, work, tri_elem_id, bdy_verts_in_tri[0])
-    elif (on_mesh_boundary and n_bdy == 1 and can_remove_edges
-          and not on_domain_boundary
-          and _collapse_is_safe(bdy_edges_local[0])):
-        edge_removal(domain, work, tri_elem_id, bdy_edges_local[0])
-    elif on_mesh_boundary and n_bdy == 1:
-        # MATLAB removeTrianglesFun: edgeBisection(1) when canRemoveEdges=false;
-        # also used when a collapse would degenerate an emitted quad.
-        if edge_bisection(domain, work, tri_elem_id, bdy_edges_local[0]) is None:
-            return None
-    else:
-        return None  # no sub-op applies; tri unchanged
-    return True
+    cl = np.asarray(domain.connectivity_list)[:, :3].astype(int)
+    tris = np.array([row for row in cl if len(set(row.tolist())) == 3], dtype=int)
+    saved_layers = domain.layers
+    one_shot = SweepContext(domain, work, set(), set(), _boundary_edge_set(tris))
+    try:
+        one_shot.layer_idx = int(layer_idx)
+        out = one_shot.route(int(tri_elem_id), refuse_boundary_merge)
+        # Points only: the Domain halves stay (MATLAB keeps them); no retire.
+        work.flush_points_to_domain(domain)
+    finally:
+        domain.layers = saved_layers
+    return out
 
 
 # ── T019 — isolated-tri handling ─────────────────────────────────────────────

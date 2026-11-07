@@ -166,8 +166,13 @@ def test_edge_bisection_route_leftover_tri_picks_bisection(three_tri_strip, work
         sub_b_edge_set=sub_b_edge_set,
         sub_b_vert_set=sub_b_vert_set,
     )
+    # #130: no ctx -> the live SweepContext path (removeTrianglesFun.m:L57-L71).
     # Bisection produces a quad; edge_removal would not.
     assert len(work_for.quads) == 1
+    # MATLAB edgeBisection.m:L83-L86: tElemID is split in Domain, not retired.
+    cl = three_tri_strip.connectivity_list
+    assert cl.shape[0] == 4
+    assert len(set(cl[0, :3].tolist())) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +244,7 @@ def test_route_dispatches_edge_removal_when_can_remove(three_tri_strip, work_for
     sub_b_vert_set = set(three_tri_strip.edge2vert(int(edge_ids[0])).ravel().astype(int).tolist())
 
     n_pts_before = three_tri_strip.points.shape[0]
+    orig_pts = three_tri_strip.points.copy()
     route_leftover_tri(
         three_tri_strip,
         work_for,
@@ -249,9 +255,12 @@ def test_route_dispatches_edge_removal_when_can_remove(three_tri_strip, work_for
         sub_b_edge_set=sub_b_edge_set,
         sub_b_vert_set=sub_b_vert_set,
     )
-    # edge_removal: no quad added, no new vert.
-    assert len(work_for.quads) == 0
-    assert three_tri_strip.points.shape[0] == n_pts_before
+    # #130: the live path never collapses an edge (MAPPING.md: edgeRemoval is
+    # replaced by a boundary bisection). Old pin (legacy dispatch): 0 quads,
+    # 0 new points. New pin: 1 quad, 1 new point, no original point moved.
+    assert len(work_for.quads) == 1
+    assert three_tri_strip.points.shape[0] == n_pts_before + 1
+    np.testing.assert_array_equal(three_tri_strip.points[:n_pts_before], orig_pts)
 
 
 def test_route_dispatches_edge_bisection_when_interior(three_tri_strip, work_for):
@@ -270,25 +279,41 @@ def test_route_dispatches_edge_bisection_when_interior(three_tri_strip, work_for
         sub_b_edge_set=sub_b_edge_set,
         sub_b_vert_set=sub_b_vert_set,
     )
-    # Bisection adds one quad.
+    # Bisection adds one quad (live path: ring edge (3, 4) of tri 1).
     assert len(work_for.quads) == 1
+    quad = [int(v) for v in work_for.quads[0]]
+    assert {1, 3, 4} <= set(quad)
 
 
-def test_route_silently_skips_unmapped_case(three_tri_strip, work_for):
-    """No matching case (e.g. on_mesh_boundary=False, n_bdy=0, no bdy verts)
-    → no-op, no crash."""
-    sub_b_edge_set: set = set()
-    sub_b_vert_set: set = set()
-    n_pts_before = three_tri_strip.points.shape[0]
-    route_leftover_tri(
-        three_tri_strip,
-        work_for,
-        tri_elem_id=1,
+def test_route_silently_skips_unmapped_case():
+    """No ring contact (an interior tri with no domain-boundary vertex at
+    layer 0) -> no-op, no crash (removeTrianglesFun.m: no case applies)."""
+    xs, ys = np.meshgrid(np.arange(4.0), np.arange(4.0))
+    pts = np.column_stack([xs.ravel(), ys.ravel(), np.zeros(16)])
+    tris = []
+    for j in range(3):
+        for i in range(3):
+            a = 4 * j + i
+            tris += [[a, a + 1, a + 5], [a, a + 5, a + 4]]
+    mesh = CHILmesh(np.array(tris, dtype=int), pts)
+    cl = np.asarray(mesh.connectivity_list)[:, :3].astype(int)
+    bdy = {0, 1, 2, 3, 4, 7, 8, 11, 12, 13, 14, 15}
+    inner = [r for r in range(cl.shape[0]) if not (set(cl[r].tolist()) & bdy)]
+    assert inner, "fixture must have a tri with no boundary vertex"
+    work = WorkingMesh(points=mesh.points.copy(), quads=[])
+    n_pts_before = mesh.points.shape[0]
+    rows_before = cl.copy()
+    out = route_leftover_tri(
+        mesh,
+        work,
+        tri_elem_id=inner[0],
         layer_idx=0,
         on_mesh_boundary=False,
         can_remove_edges=False,
-        sub_b_edge_set=sub_b_edge_set,
-        sub_b_vert_set=sub_b_vert_set,
+        sub_b_edge_set=set(),
+        sub_b_vert_set=set(),
     )
-    assert len(work_for.quads) == 0
-    assert three_tri_strip.points.shape[0] == n_pts_before
+    assert out is None
+    assert len(work.quads) == 0
+    assert mesh.points.shape[0] == n_pts_before
+    np.testing.assert_array_equal(np.asarray(mesh.connectivity_list)[:, :3], rows_before)

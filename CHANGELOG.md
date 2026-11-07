@@ -6,6 +6,12 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Zero interior triangles is now a hard rule of QuADMESH+ (operator ruling 2026-11-04). A leftover triangle whose only ring contact is one vertex and whose vertex splits all fail the `MIN_SINE` gates was left in place (22 triangles on WNAT_Test.14, 2 interior). `SweepContext.close_by_insertion` now closes it as MATLAB edgeInsertion CASE 1 / 2 does, with no angle gate: the new vertex goes 1/3 along one ring edge and `b` moves 1/3 along the other (edgeInsertion.m:L63-L67, L132-L133). An original domain-boundary vertex is never moved; a candidate that would invert an element is rejected.
+
+### Added
+- `run_pipeline` raises `InteriorTriangleError` (importable from `quadmesh`) when its output holds an interior triangle; `quadmesh.interior_triangle_rows` lists them.
+
 ## [0.2.6] - 2026-10-23
 
 Patch release: the per-layer sweep no longer leaves hanging nodes, and the thesis PDF is replaced by a copy with every reference resolved.

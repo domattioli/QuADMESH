@@ -366,9 +366,14 @@ def _geo_tri_counts(mesh: CHILmesh) -> tuple[int, int, int]:
 # Conforming sweep (SweepContext): leftover tris close on their live outer
 # ring instead of a hanging-node insertion. Block_O 264 -> 17,
 # structuredMesh1 22 -> 5.
+# MATLAB bookkeeping restored (tElemID split, CASE 2 fans + bridge, valence
+# choice): Block_O 17 -> 18 (re-measured: old code 17, new code 18);
+# structuredMesh1 unchanged.
+# Valence ruling (pooled bisection / vertex split, final-valence cost):
+# Block_O 18 -> 19, structuredMesh1 5 -> 4 (re-measured before/after).
 _GEO_TRI_BASELINE = {
-    "Block_O.14": 17,
-    "structuredMesh1.14": 5,
+    "Block_O.14": 19,
+    "structuredMesh1.14": 4,
 }
 
 
@@ -410,9 +415,11 @@ def test_boundary_geo_tri_baseline(fixture_name):
 # #108: the pairing-merge acceptance criterion (the offline lever named above)
 # rejects near-flat merges, so one boundary sliver splits to tris.
 # Conforming sweep (SweepContext): Block_O 261 -> 17, structuredMesh1 22 -> 4.
+# MATLAB bookkeeping restored: Block_O 17 -> 18 (old code 17, new code 18).
+# Valence ruling: Block_O 18 -> 19, structuredMesh1 4 -> 3 (re-measured).
 _GEO_TRI_FLAG_ON = {
-    "Block_O.14": 17,
-    "structuredMesh1.14": 4,
+    "Block_O.14": 19,
+    "structuredMesh1.14": 3,
 }
 
 
