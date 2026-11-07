@@ -51,7 +51,7 @@ _Avoid_: padding trick, repeated vertex
 > **Dev:** The C++ run on Block_O left 40 triangles. Is that a failure?
 > **Domain expert:** Count the **Interior residual triangles** first. If it is zero, the **Core stage** passed, and any **Boundary triangles** left are within the rules.
 > **Dev:** And the element count differs from the **Ground truth** by two.
-> **Domain expert:** Check which **Layer** diverged. A different tie in the **Sweep** can move the count, and that is allowed. An interior triangle never is.
+> **Domain expert:** Check which **Layer** diverged. A different tie in the **Sweep** can move the count by up to 0.5%, and that is allowed. An interior triangle never is.
 
 ## Flagged ambiguities
 

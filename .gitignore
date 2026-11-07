@@ -25,3 +25,4 @@ tests/fixtures/meshes/
 .introspect/
 docs/introspections/
 .planning/introspections/
+cpp/build/

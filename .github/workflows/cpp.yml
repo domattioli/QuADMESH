@@ -1,0 +1,30 @@
+name: cpp
+
+on:
+  push:
+    paths:
+      - "cpp/**"
+      - ".github/workflows/cpp.yml"
+  pull_request:
+    paths:
+      - "cpp/**"
+      - ".github/workflows/cpp.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build cpp/build -j
+      - name: Test
+        run: ctest --test-dir cpp/build --output-on-failure
