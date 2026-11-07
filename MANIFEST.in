@@ -65,3 +65,4 @@ global-exclude facts.yml
 exclude scripts/onstart_local.sh
 global-exclude .zenodo.json
 # <<< release-ignore:end
+prune cpp

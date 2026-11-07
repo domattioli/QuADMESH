@@ -1,0 +1,2 @@
+Eigen 3.4.0 tarball sha256 8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72 (gitlab.com/libeigen/eigen archive 3.4.0)
+Catch2 v3.5.4 amalgamated (github release assets)
