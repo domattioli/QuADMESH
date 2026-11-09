@@ -1,0 +1,9 @@
+Required Notice: Copyright (c) 2018-2026 Dominik Mattioli
+Required Notice: This software is also subject to the additional terms in LICENSE-AI.md (no AI training).
+
+Credits
+
+- archive/matlab: the original MATLAB code, released under the MIT License, Copyright (c) 2018 Dominik Mattioli. See LICENSES/MIT.txt.
+- cpp/third_party/eigen: Eigen 3.4.0, primarily under the Mozilla Public License 2.0 (LICENSES/MPL-2.0.txt); some files carry BSD, LGPL, Apache or MINPACK terms, see the COPYING.* files in that directory.
+- cpp/third_party/catch2: Catch2 v3.5.4, under the Boost Software License 1.0 (LICENSES/BSL-1.0.txt).
+- Git history (commit fade719, 2018-07-19) contains the ADMESH library by Colton Conroy, Ethan Kubatko, and Dustin West (the Ohio State University), MIT License, Copyright (c) 2016 Colton Conroy, Ethan Kubatko, and Dustin West - the Ohio State University; https://github.com/coltonjconroy/ADMESH. The MIT permission text is in LICENSES/MIT.txt.

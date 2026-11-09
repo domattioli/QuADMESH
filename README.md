@@ -145,8 +145,6 @@ Dominik Mattioli (repo owner): [GitHub](https://github.com/domattioli) | Ethan J
 
 ## 10. License
 
-Noncommercial and research use only. PolyForm Noncommercial License 1.0.0 with an additional No-AI/ML-training restriction; see [LICENSE](LICENSE) and [AI-USAGE.md](https://github.com/domattioli/quadmesh/blob/development/docs/AI-USAGE.md).
-
-Commercial or AI-training licenses: contact the author through [GitHub](https://github.com/domattioli)
+Licensed under the PolyForm Noncommercial License 1.0.0 (`LICENSE`) plus additional terms that forbid AI training (`LICENSE-AI.md`). Both apply. Notices: `NOTICE`. For commercial or AI-training licenses, open an issue or contact via https://github.com/domattioli.
 
 [Back to top](#table-of-contents)
