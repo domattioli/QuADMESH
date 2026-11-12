@@ -7,7 +7,7 @@ name = "quadmesh"
 version = "0.2.6"
 description = "QuADMESH converts an existing shallow-water triangulation into a quadrilateral mesh by merging adjacent triangle pairs layer by layer (https://github.com/domattioli/QuADMESH)."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "PolyForm-Noncommercial-1.0.0 AND LicenseRef-Mattioli-NoAI-Training-1.0"
 license-files = ["LICENSE", "LICENSE-AI.md", "NOTICE", "LICENSES/*"]
 authors = [

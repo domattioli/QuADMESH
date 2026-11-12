@@ -13,6 +13,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - `quadmesh.quad_prep` and `quadmesh.quad_layers`, moved from ADMESH (operator ruling 2026-11-11: quad preparation lives in QuADMESH). `smooth_for_quadrangulation` nudges a triangulation toward right-isoceles before fusion; import it as `quadmesh.quad_prep.smooth_for_quadrangulation` or `from quadmesh import smooth_for_quadrangulation`. `quad_layers` is a prototype and is not exported at top level. 2D `np.cross` calls in `quad_layers` were replaced by an explicit expression for NumPy 2 compatibility. QuADMESH still does not depend on ADMESH.
 - `run_pipeline` raises `InteriorTriangleError` (importable from `quadmesh`) when its output holds an interior triangle; `quadmesh.interior_triangle_rows` lists them.
 
+### Changed
+- Minimum Python is now 3.11. Python 3.10 reached end of life in October 2026.
+
 ## [0.2.6] - 2026-10-23
 
 Patch release: the per-layer sweep no longer leaves hanging nodes, and the thesis PDF is replaced by a copy with every reference resolved.

@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/quadmesh/"><img src="https://img.shields.io/pypi/v/quadmesh.svg?label=PyPI" alt="PyPI version"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
   <a href="https://github.com/domattioli/QuADMESH/actions/workflows/tests.yml"><img src="https://github.com/domattioli/QuADMESH/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
   <a href="https://github.com/domattioli/QuADMESH/issues"><img src="https://img.shields.io/github/issues/domattioli/QuADMESH.svg" alt="Open issues"></a>
   <a href="https://doi.org/10.5281/zenodo.20350483"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20350483.svg" alt="DOI"></a>
