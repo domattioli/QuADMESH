@@ -146,7 +146,7 @@ QuADMESH calls CHILmesh where CHILmesh offers an equivalent public API. The tabl
 | 15 | `quadmesh.validation` | none (tracked as issue #142) | Partial, `downstream-api`. Needed: `chilmesh.validate`. |
 | 16 | `scripts/render_quadmesh.py` | `chilmesh.chilplotting` | Partial, `downstream-api`. Mesh drawing can delegate. The diagnostic overlays stay. It is a script outside the package API. |
 | 17 | `tests/_mesh_provision.py`, `scripts/fetch_fixtures.py` | none | Partial, `downstream-api`. The token-based fetch and the SHA-1 check stay. A shared fetch API would remove the local copy. |
-| 18 | ADMESH | `admesh.quad_prep` | No duplicate. QuADMESH does not depend on ADMESH. |
+| 18 | QuADMESH | `quadmesh.quad_prep`, `quadmesh.quad_layers` | Moved from ADMESH on 2026-11-11. Both modules now live in QuADMESH. QuADMESH still does not depend on ADMESH. |
 
 ## Benchmark subpackage (058)
 

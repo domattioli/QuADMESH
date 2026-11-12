@@ -10,6 +10,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Zero interior triangles is now a hard rule of QuADMESH+ (operator ruling 2026-11-04). A leftover triangle whose only ring contact is one vertex and whose vertex splits all fail the `MIN_SINE` gates was left in place (22 triangles on WNAT_Test.14, 2 interior). `SweepContext.close_by_insertion` now closes it as MATLAB edgeInsertion CASE 1 / 2 does, with no angle gate: the new vertex goes 1/3 along one ring edge and `b` moves 1/3 along the other (edgeInsertion.m:L63-L67, L132-L133). An original domain-boundary vertex is never moved; a candidate that would invert an element is rejected.
 
 ### Added
+- `quadmesh.quad_prep` and `quadmesh.quad_layers`, moved from ADMESH (operator ruling 2026-11-11: quad preparation lives in QuADMESH). `smooth_for_quadrangulation` nudges a triangulation toward right-isoceles before fusion; import it as `quadmesh.quad_prep.smooth_for_quadrangulation` or `from quadmesh import smooth_for_quadrangulation`. `quad_layers` is a prototype and is not exported at top level. 2D `np.cross` calls in `quad_layers` were replaced by an explicit expression for NumPy 2 compatibility. QuADMESH still does not depend on ADMESH.
 - `run_pipeline` raises `InteriorTriangleError` (importable from `quadmesh`) when its output holds an interior triangle; `quadmesh.interior_triangle_rows` lists them.
 
 ## [0.2.6] - 2026-10-23

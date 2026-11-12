@@ -7,8 +7,10 @@ from .tri2quad import tri2quad_routine as tri2quad
 from .post_process import post_process_routine as post_process, fem_smoother
 from .quality_report import compute_quality_stats, format_quality_report
 from .repair import repair_chilmesh, repair_mesh
+from .quad_prep import smooth_for_quadrangulation
 
 __all__ = [
+    "smooth_for_quadrangulation",
     "tri2quad",
     "post_process",
     "fem_smoother",
