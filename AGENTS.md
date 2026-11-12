@@ -13,6 +13,8 @@ The per-layer implementation is named `_quadmesh_plus_per_layer`. Do not use "fa
 ## Repository layout
 
 - `src/quadmesh/`: maintained Python package and CLI.
+- `src/quadmesh/quad_prep.py`: pre-quadrangulation triangle smoother `smooth_for_quadrangulation` (moved from ADMESH 2026-11-11).
+- `src/quadmesh/quad_layers.py`: offset-layer quad-ready meshing, prototype (moved from ADMESH 2026-11-11).
 - `tests/`: pytest suite and fixture provisioning support.
 - `docs/MAPPING.md`: MATLAB-to-Python function map and CHILmesh integration notes.
 - `archive/matlab/`: frozen MATLAB reference. It is not installable.
@@ -47,12 +49,6 @@ Use `docs/MAPPING.md` to check MATLAB parity and current port coverage before ch
 
 The default working branch is `development`. Releases go through a pull request from `development` to `main`. Never push directly to `main` and never force push.
 
-## Repo-local labels
-
-| Label | Meaning |
-|---|---|
-| `downstream-api` | Tracks CHILmesh API changes required by QuADMESH. |
-
 ## Related repositories
 
 `domattioli/CHILmesh` provides mesh data structures, smoothing, and quality analysis. `domattioli/ADMESH` provides adaptive mesh generation. `domattioli/Valence` is the authoritative test-mesh registry.
@@ -61,4 +57,4 @@ The default working branch is `development`. Releases go through a pull request 
 This repo is a downstream consumer of `domattioli/DomI`.
 Universal git, coding dispatch, secrets, session lifecycle, and communication rules live in DomI `.claude/policies/`.
 `scripts/instructions_on_start.sh` checks `.domi-pin` drift at session start.
-Spec-kit artifacts for this repo live in DomI `specs/consumers/quadmesh/`, never in a local `.specify/` directory.
+During spec-kit work, artifacts live in local `.specify/` and `specs/`; the final implementation task moves them to DomI `specs/consumers/quadmesh/`.
